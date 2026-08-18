@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-labelledby="title">
+  <title id="title">Bifrost</title>
+  <rect width="256" height="256" rx="56" fill="#0F1012"/>
+  <rect x="5" y="5" width="246" height="246" rx="52" fill="none" stroke="#3E3F41" stroke-width="2"/>
+  <g fill="none" stroke="#D0D6E0" stroke-width="18" stroke-linecap="round">
+    <path d="M103 61H78a17 17 0 0 0-17 17v25M153 61h25a17 17 0 0 1 17 17v25M195 153v25a17 17 0 0 1-17 17h-25M103 195H78a17 17 0 0 1-17-17v-25"/>
+    <circle cx="128" cy="128" r="36"/>
+  </g>
+</svg>

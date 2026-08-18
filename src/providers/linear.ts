@@ -47,8 +47,19 @@ const tools = [
   }),
 ];
 
+const viewerSchema = z.object({ viewer: z.object({ email: z.string().min(1) }) });
+
 export const linearProvider: ProviderDefinition = {
   id: 'linear', prefix: 'linear_', displayName: 'Linear',
   authorizationUrl: 'https://linear.app/oauth/authorize', tokenUrl: 'https://api.linear.app/oauth/token',
   scopes: ['read', 'write', 'issues:create', 'comments:create'], tools,
+  readAccountLabel: async (accessToken, signal) => {
+    const result = await fetchJson<GraphQlResponse>('https://api.linear.app/graphql', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query: 'query Viewer{viewer{email}}' }),
+    }, signal);
+    if (result.errors?.length) throw new Error(`Linear identity lookup failed: ${result.errors[0]?.message ?? 'unknown GraphQL error'}`);
+    return viewerSchema.parse(result.data).viewer.email;
+  },
 };

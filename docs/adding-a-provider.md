@@ -19,7 +19,9 @@ Adding a provider should be mechanical. If a mounted tool does not appear, prefi
 - Registration, namespace, supported-app connection lookup, and credential mapping must use the identical prefix and provider ID.
 - Provider modules expose explicit wrapper tools, not dynamic upstream pass-through.
 - Inputs are Zod-validated before execution.
-- A write tool remains unusable until its exact name is in the deployment's `WRITE_TOOL_ALLOWLIST`.
+- A write tool starts off for every user and stays off until they enable it in Connections. If the
+  deployment sets `WRITE_TOOL_ALLOWLIST`, only the exact names listed there can be enabled at all;
+  an empty allowlist is no ceiling rather than a blanket denial.
 - Credentials only cross the isolated AES-256-GCM storage boundary in `src/security/secrets.ts` and `src/db.ts`.
 - Refresh-token rotation uses `Coordinator.withLock` with a user-and-provider key.
 
@@ -44,6 +46,6 @@ Do not weaken the filter to diagnose visibility. Each axis fails closed delibera
 - [ ] OAuth connect, callback, encrypted persistence, refresh, reconnect-required, and disconnect paths are covered.
 - [ ] Connected user sees tools; unconnected and hidden users do not.
 - [ ] Unmounted providers expose no tools.
-- [ ] Write call is denied with an empty allowlist and allowed only by exact name.
+- [ ] Write call is denied until the user enables it, and a non-empty allowlist admits it only by exact name.
 - [ ] Rate limit and concurrency values are set.
 - [ ] Typecheck, lint, tests, build, Compose start, MCP discovery, and encrypted restart round-trip pass.

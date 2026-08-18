@@ -1,14 +1,18 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { createRemoteJWKSet, jwtVerify } from 'jose';
 import { z } from 'zod';
+import { WEB_CLIENT_ID } from './clients/describe.js';
 import type { Config } from './config.js';
 import { Coordinator } from './coordination.js';
 import { Database, type StoredCredential } from './db.js';
+import { errorSummary, logger } from './logger.js';
 import { PROVIDER_REGISTRY } from './providers/registry.js';
 import type { ProviderDefinition, ProviderId } from './providers/types.js';
+import { emailDomain, isEmailAllowed } from './security/access.js';
 
 const OAUTH_STATE_TTL_SECONDS = 600;
 const EXPIRY_SKEW_MS = 60_000;
+const ACCOUNT_LABEL_TIMEOUT_MS = 5_000;
 const googleJwks = createRemoteJWKSet(new URL('https://www.googleapis.com/oauth2/v3/certs'));
 
 const tokenResponseSchema = z.object({
@@ -33,6 +37,14 @@ const oauthStateSchema = z.object({
   returnTo: z.string().startsWith('/'),
 });
 
+/** Signed in with Google successfully, but this account is not on the allowlist. */
+export class EmailNotAllowedError extends Error {
+  constructor() {
+    super('This account is not allowed to use Bifrost');
+    this.name = 'EmailNotAllowedError';
+  }
+}
+
 export class ReconnectRequiredError extends Error {
   constructor(providerId: ProviderId) {
     super(`${providerId} connection expired; reconnect this provider`);
@@ -47,10 +59,15 @@ export class OAuthService {
     private readonly coordinator: Coordinator,
   ) {}
 
-  async googleAuthorizationUrl(): Promise<string> {
+  /**
+   * @param returnTo Local path to land on afterwards. Validated as a path on the
+   * way back out of `takeState`, so a caller cannot turn sign-in into a redirect
+   * to somebody else's site.
+   */
+  async googleAuthorizationUrl(returnTo: string): Promise<string> {
     const clientId = this.requiredConfig('GOOGLE_CLIENT_ID');
     const { state, verifier, challenge } = createPkce();
-    await this.coordinator.setEphemeral(`oauth:state:${state}`, JSON.stringify({ verifier, returnTo: '/' }), OAUTH_STATE_TTL_SECONDS);
+    await this.coordinator.setEphemeral(`oauth:state:${state}`, JSON.stringify({ verifier, returnTo }), OAUTH_STATE_TTL_SECONDS);
     const query = new URLSearchParams({
       client_id: clientId,
       redirect_uri: `${this.config.PUBLIC_URL}/auth/google/callback`,
@@ -60,7 +77,7 @@ export class OAuthService {
     return `https://accounts.google.com/o/oauth2/v2/auth?${query.toString()}`;
   }
 
-  async finishGoogle(code: string, state: string): Promise<{ sessionToken: string; userId: string }> {
+  async finishGoogle(code: string, state: string): Promise<{ sessionToken: string; userId: string; returnTo: string }> {
     const storedState = await this.takeState(state);
     const response = await fetch('https://oauth2.googleapis.com/token', {
       method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -76,8 +93,15 @@ export class OAuthService {
     });
     const claims = z.object({ email: z.email(), name: z.string().min(1).default('Bifrost user'), email_verified: z.boolean() }).parse(verified.payload);
     if (!claims.email_verified) throw new Error('Google account email is not verified');
+    // Checked before the upsert on purpose: a rejected account must leave no
+    // row behind, or "who has an account here" stops meaning anything.
+    if (!isEmailAllowed(claims.email, this.config.accessPolicy)) {
+      logger.warn({ domain: emailDomain(claims.email.toLowerCase()) }, 'Rejected sign-in from a domain that is not allowed');
+      throw new EmailNotAllowedError();
+    }
     const userId = await this.database.upsertUser(claims.email, claims.name);
-    return { userId, sessionToken: await this.database.createSession(userId, 'bifrost-web') };
+    const session = await this.database.createSession(userId, WEB_CLIENT_ID);
+    return { userId, sessionToken: session.token, returnTo: storedState.returnTo };
   }
 
   async providerAuthorizationUrl(userId: string, providerId: ProviderId): Promise<string> {
@@ -100,8 +124,24 @@ export class OAuthService {
     const tokenResponse = await this.exchangeProviderToken(provider, new URLSearchParams({
       grant_type: 'authorization_code', code, redirect_uri: this.providerRedirectUri(provider.id), code_verifier: storedState.verifier,
     }));
-    await this.database.saveCredential(storedState.userId, provider.id, normalizeCredential(tokenResponse));
+    const credential = normalizeCredential(tokenResponse);
+    await this.database.saveCredential(storedState.userId, provider.id, credential);
+    await this.recordAccountLabel(storedState.userId, provider, credential.accessToken);
     return { userId: storedState.userId, providerId: provider.id };
+  }
+
+  /**
+   * The connection is already saved and working by the time this runs, so a
+   * failed identity lookup is cosmetic: Integrations just shows the date without
+   * a handle. Failing the callback over it would be a far worse trade.
+   */
+  private async recordAccountLabel(userId: string, provider: ProviderDefinition, accessToken: string): Promise<void> {
+    try {
+      const label = await provider.readAccountLabel(accessToken, AbortSignal.timeout(ACCOUNT_LABEL_TIMEOUT_MS));
+      await this.database.setAccountLabel(userId, provider.id, label);
+    } catch (error) {
+      logger.warn({ ...errorSummary(error), providerId: provider.id }, 'Could not read the connected account handle');
+    }
   }
 
   async accessToken(userId: string, providerId: ProviderId): Promise<string> {

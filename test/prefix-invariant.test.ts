@@ -5,6 +5,7 @@ import type { ProviderDefinition } from '../src/providers/types.js';
 
 const registry: readonly ProviderDefinition[] = [{
   id: 'github', prefix: 'github_', displayName: 'GitHub', authorizationUrl: '', tokenUrl: '', scopes: [],
+  readAccountLabel: async () => '@tester',
   tools: [{ name: 'github_read', title: 'Read', description: 'Read', mutability: 'read', inputSchema: z.object({}), execute: async () => ({}) }],
 }];
 

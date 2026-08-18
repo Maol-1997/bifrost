@@ -1,0 +1,164 @@
+@import url("https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap");
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+:root {
+  --color-bg-primary: #121213;
+  --color-bg-secondary: #161617;
+  --color-bg-tertiary: #17181a;
+  --color-bg-quaternary: #1a1a1b;
+  --color-text-primary: #ffffff;
+  --color-text-secondary: #e3e4e6;
+  --color-text-tertiary: #959597;
+  --color-text-quaternary: #565759;
+  --color-border: #1a1b1d;
+  --color-border-2: #232426;
+  --color-border-3: #28282b;
+  --color-accent: #5e6ad2;
+  --color-accent-hover: #7c88e8;
+  --color-link: #828fff;
+  /* Control surfaces, measured off Linear's live app. Buttons are pills
+     (9999px) while inputs and selects stay at 8px — that contrast is
+     deliberate, so don't unify them. The 0.5px borders and the hairline
+     shadow are what make Linear's controls read as crisp rather than flat. */
+  --color-control: #1b1c1d;
+  --color-control-border: #2c2d2f;
+  /* Fill a transparent control takes on hover. Measured off Linear's Connect
+     button, which is a ghost at rest and only gains a surface under the pointer. */
+  --color-control-hover: #2b2b2d;
+  /* Linear's secondary button (their "Edit"): unlike the ghost it carries a
+     fill at rest. Two separate values from --color-control-hover on purpose —
+     they measured 1-2 units apart and we copied what is actually there. */
+  --color-raised: #232325;
+  --color-raised-hover: #2c2d2f;
+  /* Switch track when off. Notably light for this palette — Linear wants "off"
+     to read as a real state, not as a disabled control. When on, the track is
+     --color-accent, which already matches theirs exactly. */
+  --color-switch-off: #707172;
+  /* Hairline around icon plates. Same value the Bifrost mark strokes its own
+     plate with, so provider tiles and the logo read as one family. */
+  --color-plate-border: #3e3f41;
+  /* Popover menu card, measured off Linear (settings/teams). Lighter than every
+     other surface we have, and a 12px radius rather than the 8px of tooltips:
+     a menu is the frontmost thing on screen and is meant to lift off the page. */
+  --color-menu: #212122;
+  --color-menu-border: #3c3d40;
+  /* Highlighted menu row. Deliberately a step lighter than --color-raised-hover:
+     the menu card is already lighter than the page, so the same fill a button
+     uses would barely register on top of it. */
+  --color-menu-hover: #313234;
+  /* Tooltip surface, measured off Linear. Note the radius is 8px, not the pill
+     radius the buttons use — tooltips are cards, not controls. */
+  --color-tooltip: #28292b;
+  --color-tooltip-border: #444549;
+  /* Monochrome brand marks. Off-white rather than #fff so a logo does not
+     out-shout the page title sitting next to it. */
+  --color-logo: #d0d6e0;
+  --color-success: #26a544;
+  --color-danger: #f34e52;
+  --color-warning: #f0bf00;
+  --color-info: #00b8cb;
+  --radius: 0.625rem;
+  --background: var(--color-bg-primary);
+  --foreground: var(--color-text-primary);
+  --card: var(--color-bg-secondary);
+  --card-foreground: var(--color-text-primary);
+  --popover: var(--color-bg-quaternary);
+  --popover-foreground: var(--color-text-primary);
+  --primary: var(--color-accent);
+  --primary-foreground: var(--color-text-primary);
+  --secondary: var(--color-bg-tertiary);
+  --secondary-foreground: var(--color-text-secondary);
+  --muted: var(--color-bg-tertiary);
+  --muted-foreground: var(--color-text-tertiary);
+  --accent: var(--color-bg-quaternary);
+  --accent-foreground: var(--color-text-primary);
+  --destructive: var(--color-danger);
+  --border: var(--color-border-2);
+  --input: var(--color-border-3);
+  --ring: var(--color-accent);
+}
+
+@theme inline {
+  --font-sans: "Geist", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "Geist Mono", ui-monospace, monospace;
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-app-bg-primary: var(--color-bg-primary);
+  --color-app-bg-secondary: var(--color-bg-secondary);
+  --color-app-bg-tertiary: var(--color-bg-tertiary);
+  --color-app-bg-quaternary: var(--color-bg-quaternary);
+  --color-app-text-primary: var(--color-text-primary);
+  --color-app-text-secondary: var(--color-text-secondary);
+  --color-app-text-tertiary: var(--color-text-tertiary);
+  --color-app-text-quaternary: var(--color-text-quaternary);
+  --color-app-border-2: var(--color-border-2);
+  --color-app-border-3: var(--color-border-3);
+  --color-brand: var(--color-accent);
+  --color-brand-hover: var(--color-accent-hover);
+  --color-control: var(--color-control);
+  --color-control-border: var(--color-control-border);
+  --color-control-hover: var(--color-control-hover);
+  --color-raised: var(--color-raised);
+  --color-raised-hover: var(--color-raised-hover);
+  --color-switch-off: var(--color-switch-off);
+  --color-plate-border: var(--color-plate-border);
+  --color-menu: var(--color-menu);
+  --color-menu-border: var(--color-menu-border);
+  --color-menu-hover: var(--color-menu-hover);
+  --color-tooltip: var(--color-tooltip);
+  --color-tooltip-border: var(--color-tooltip-border);
+  --color-logo: var(--color-logo);
+  --color-link: var(--color-link);
+  --color-success: var(--color-success);
+  --color-danger: var(--color-danger);
+  --color-warning: var(--color-warning);
+  --color-info: var(--color-info);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 2px);
+}
+
+/* These must stay in @layer base. Unlayered element rules outrank Tailwind's
+   layered utilities regardless of specificity, so an unlayered `a { color }`
+   silently overrides every text-* utility on a link — which turned the whole
+   sidebar nav into link-violet. */
+@layer base {
+  * { box-sizing: border-box; border-color: var(--color-border-2); }
+  html { background: var(--color-bg-primary); color-scheme: dark; }
+  body { margin: 0; min-width: 320px; min-height: 100vh; background: var(--color-bg-primary); color: var(--color-text-primary); font-family: "Geist", ui-sans-serif, system-ui, sans-serif; font-size: 13px; -webkit-font-smoothing: antialiased; }
+  button, a { -webkit-tap-highlight-color: transparent; }
+  a { color: var(--color-link); text-decoration: none; }
+  ::selection { background: color-mix(in srgb, var(--color-accent) 40%, transparent); }
+}
+
+@keyframes pulse { 0%, 100% { opacity: .35; } 50% { opacity: .7; } }
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: .3; } }
+
+.animate-design-pulse { animation: pulse 1.4s ease-in-out infinite; }
+.animate-design-spin { animation: spin .8s linear infinite; }
+.animate-design-blink { animation: blink 1.6s ease-in-out infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; }
+}

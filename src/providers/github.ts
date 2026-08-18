@@ -56,8 +56,16 @@ const tools = [
   }),
 ];
 
+const viewerSchema = z.object({ login: z.string().min(1) });
+
 export const githubProvider: ProviderDefinition = {
   id: 'github', prefix: 'github_', displayName: 'GitHub',
   authorizationUrl: 'https://github.com/login/oauth/authorize', tokenUrl: 'https://github.com/login/oauth/access_token',
   scopes: ['read:user', 'user:email', 'repo'], tools,
+  readAccountLabel: async (accessToken, signal) => {
+    const viewer = await fetchJson<unknown>('https://api.github.com/user', {
+      headers: { Accept: 'application/vnd.github+json', Authorization: `Bearer ${accessToken}`, 'X-GitHub-Api-Version': '2022-11-28' },
+    }, signal);
+    return `@${viewerSchema.parse(viewer).login}`;
+  },
 };

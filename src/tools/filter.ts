@@ -4,6 +4,12 @@ import type { ProviderDefinition, ProviderId, ProviderMount, ToolDefinition } fr
 export type UserToolVisibility = {
   connectedProviders: ReadonlySet<ProviderId>;
   hiddenProviders: ReadonlySet<ProviderId>;
+  /**
+   * Tools this caller does not get, by name. Because the MCP server is rebuilt
+   * per request, dropping a tool here is the whole enforcement: it never reaches
+   * `tools/list` and calling it by name finds nothing to call.
+   */
+  disabledTools: ReadonlySet<string>;
   endpoint: 'human' | 'internal';
   internalAllowedPrefixes?: ReadonlySet<string>;
 };
@@ -20,7 +26,7 @@ export function visibleTools(
     if (!visibility.connectedProviders.has(provider.id) || visibility.hiddenProviders.has(provider.id)) return [];
     if (INTERNAL_ONLY_PREFIXES.has(provider.prefix) && visibility.endpoint !== 'internal') return [];
     if (visibility.endpoint === 'internal' && !visibility.internalAllowedPrefixes?.has(provider.prefix)) return [];
-    return [...provider.tools];
+    return provider.tools.filter((tool) => !visibility.disabledTools.has(tool.name));
   });
 }
 

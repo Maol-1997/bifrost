@@ -43,8 +43,20 @@ const tools = [
   }),
 ];
 
+const authTestSchema = z.object({ user: z.string().min(1), team: z.string().min(1).optional() });
+
 export const slackProvider: ProviderDefinition = {
   id: 'slack', prefix: 'slack_', displayName: 'Slack',
   authorizationUrl: 'https://slack.com/oauth/v2/authorize', tokenUrl: 'https://slack.com/api/oauth.v2.access',
   scopes: ['channels:read', 'groups:read', 'channels:history', 'groups:history', 'search:read', 'chat:write'], tools,
+  readAccountLabel: async (accessToken, signal) => {
+    const result = await fetchJson<SlackResponse>('https://slack.com/api/auth.test', {
+      method: 'POST', headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json; charset=utf-8' }, body: '{}',
+    }, signal);
+    if (!result.ok) throw new Error(`Slack identity lookup failed: ${result.error ?? 'unknown error'}`);
+    const identity = authTestSchema.parse(result);
+    // The workspace matters here in a way it does not for the others: the same
+    // person can be in several Slacks, and "@sam" alone would not say which.
+    return identity.team ? `@${identity.user} · ${identity.team}` : `@${identity.user}`;
+  },
 };

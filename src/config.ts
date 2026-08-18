@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { parseAccessList, type AccessPolicy } from './security/access.js';
 
 const optionalNonEmptyString = z.preprocess((value) => value === '' ? undefined : value, z.string().min(1).optional());
 
@@ -17,7 +18,25 @@ const environmentSchema = z.object({
   LINEAR_CLIENT_SECRET: optionalNonEmptyString,
   SLACK_CLIENT_ID: optionalNonEmptyString,
   SLACK_CLIENT_SECRET: optionalNonEmptyString,
+  // Short by design: a leaked access token stays useful for at most this long,
+  // and the client replaces it silently with its refresh token.
+  OAUTH_ACCESS_TOKEN_TTL_SECONDS: z.coerce.number().int().positive().default(3600),
+  // Slid forward on every rotation, so this is really "how long a client may
+  // stay silent before it has to be reconnected by hand".
+  OAUTH_REFRESH_TOKEN_TTL_DAYS: z.coerce.number().int().positive().default(90),
+  // Client ID Metadata Documents replaced dynamic registration in the 2026-07-28
+  // spec. Switchable because advertising support decides which path a client
+  // takes, and a client with a broken CIMD implementation does not fall back.
+  OAUTH_ENABLE_CLIENT_ID_METADATA_DOCUMENTS: z.enum(['true', 'false']).default('true').transform((value) => value === 'true'),
+  // A deployment ceiling on write tools, not a switch. Empty means no ceiling:
+  // what an agent may write is then decided per user, per tool, from Integrations
+  // — which is where that decision belongs and where it is visible. Naming tools
+  // here forbids everything else outright, and the UI says so instead of
+  // offering a switch that cannot work.
   WRITE_TOOL_ALLOWLIST: z.string().default(''),
+  // Comma-separated. Both empty means any verified Google account may sign in.
+  ALLOWED_EMAIL_DOMAINS: z.string().default(''),
+  ALLOWED_EMAILS: z.string().default(''),
   BIFROST_DEV_USER_ID: z.preprocess((value) => value === '' ? undefined : value, z.uuid().optional()),
   SLOW_REQUEST_MS: z.coerce.number().int().positive().default(1000),
   SLOW_TOOL_MS: z.coerce.number().int().positive().default(2000),
@@ -26,6 +45,7 @@ const environmentSchema = z.object({
 export type Config = z.infer<typeof environmentSchema> & {
   encryptionKey: Buffer;
   writeToolAllowlist: ReadonlySet<string>;
+  accessPolicy: AccessPolicy;
 };
 
 export function loadConfig(environment: NodeJS.ProcessEnv = process.env): Config {
@@ -43,9 +63,27 @@ export function loadConfig(environment: NodeJS.ProcessEnv = process.env): Config
     throw new Error('ENCRYPTION_KEY must decode to exactly 32 bytes. Generate one with: openssl rand -base64 32');
   }
 
+  // PUBLIC_URL is the OAuth issuer, and OAuth 2.1 requires every authorization
+  // server endpoint to be served over TLS. Over plain HTTP the authorization
+  // code and the tokens it buys are readable in transit, so this refuses to
+  // start rather than serving a flow that looks fine and is not. Loopback is the
+  // recognized exception and stays allowed for local development.
+  if (parsed.data.NODE_ENV === 'production' && !isSecurePublicUrl(parsed.data.PUBLIC_URL)) {
+    throw new Error('PUBLIC_URL must use https in production; it is the OAuth issuer and tokens are exchanged against it');
+  }
+
   return {
     ...parsed.data,
     encryptionKey,
     writeToolAllowlist: new Set(parsed.data.WRITE_TOOL_ALLOWLIST.split(',').map((name) => name.trim()).filter(Boolean)),
+    accessPolicy: {
+      allowedEmailDomains: parseAccessList(parsed.data.ALLOWED_EMAIL_DOMAINS),
+      allowedEmails: parseAccessList(parsed.data.ALLOWED_EMAILS),
+    },
   };
+}
+
+function isSecurePublicUrl(publicUrl: string): boolean {
+  const url = new URL(publicUrl);
+  return url.protocol === 'https:' || url.hostname === 'localhost' || url.hostname === '127.0.0.1';
 }

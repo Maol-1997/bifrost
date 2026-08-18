@@ -8,17 +8,34 @@ import { OAuthService } from './oauth.js';
 import { PROVIDER_REGISTRY } from './providers/registry.js';
 import type { ProviderId, ProviderMount, ToolDefinition } from './providers/types.js';
 import { visibleTools } from './tools/filter.js';
+import { disabledToolNames, isWithinDeploymentCeiling } from './tools/preferences.js';
 
 const RATE_LIMITS_PER_MINUTE: Readonly<Record<ProviderId, number>> = { github: 80, linear: 120, slack: 50 };
 const CONCURRENCY_LIMITS: Readonly<Record<ProviderId, number>> = { github: 10, linear: 10, slack: 5 };
 
-export type HumanIdentity = { userId: string; clientId: string; expiresAt: Date; token: string };
+/**
+ * Who is calling, however they proved it.
+ *
+ * `browser` is a cookie-backed session; `agent` is an OAuth grant reached with a
+ * bearer access token. `id` is the handle "Agents & sessions" revokes, and it means a
+ * session or a grant depending on `kind` — the two live in different tables and
+ * must never be confused for one another.
+ */
+export type HumanIdentity = {
+  kind: 'browser' | 'agent';
+  id: string;
+  userId: string;
+  clientId: string;
+  expiresAt: Date;
+  token: string;
+  scopes: readonly string[];
+};
 
 export function toAuthInfo(identity: HumanIdentity): AuthInfo {
   return {
     token: identity.token,
     clientId: identity.clientId,
-    scopes: ['mcp'],
+    scopes: [...identity.scopes],
     expiresAt: Math.floor(identity.expiresAt.getTime() / 1000),
     extra: { userId: identity.userId },
   };
@@ -36,8 +53,12 @@ export function createHumanMcpHandler(dependencies: {
     if (typeof userId !== 'string') throw new Error('Authenticated user identity is missing');
     const connectedProviders = await dependencies.database.connectedProviders(userId);
     const hiddenProviders = await dependencies.database.hiddenProviders(userId);
+    const toolPreferences = await dependencies.database.toolPreferences(userId);
     const tools = visibleTools(PROVIDER_REGISTRY, dependencies.mounts, {
-      endpoint: 'human', connectedProviders, hiddenProviders,
+      endpoint: 'human',
+      connectedProviders,
+      hiddenProviders,
+      disabledTools: disabledToolNames(PROVIDER_REGISTRY, toolPreferences, dependencies.config.writeToolAllowlist),
     });
     const server = new McpServer(
       { name: 'bifrost', version: '0.1.0' },
@@ -74,8 +95,11 @@ function registerTool(
     const requestId = context.mcpReq._meta?.requestId;
     const normalizedRequestId = typeof requestId === 'string' ? requestId : randomUUID();
     try {
-      if (tool.mutability === 'write' && !dependencies.config.writeToolAllowlist.has(tool.name)) {
-        throw new Error(`Write tool ${tool.name} is disabled by the server-side allowlist`);
+      // Redundant with the registration filter, and kept for exactly that
+      // reason: a tool outside the deployment ceiling should never reach here,
+      // so if it ever does, refusing beats trusting that the filter held.
+      if (!isWithinDeploymentCeiling(tool, dependencies.config.writeToolAllowlist)) {
+        throw new Error(`Write tool ${tool.name} is not permitted by this deployment`);
       }
       await dependencies.coordinator.enforceRateLimit(providerId, RATE_LIMITS_PER_MINUTE[providerId]);
       const accessToken = await dependencies.oauth.accessToken(userId, providerId);

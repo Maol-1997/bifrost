@@ -37,6 +37,12 @@ export type ProviderDefinition = {
   tokenUrl: string;
   scopes: readonly string[];
   tools: readonly ToolDefinition[];
+  /**
+   * Reads back the handle the user just authorized as, so Integrations can name
+   * the real account instead of guessing. Called once, right after the token
+   * exchange; a failure here must never fail the connection itself.
+   */
+  readAccountLabel: (accessToken: string, signal: AbortSignal) => Promise<string>;
 };
 
 export type ProviderMount = {
