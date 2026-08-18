@@ -5,7 +5,13 @@ import { defineConfig } from 'vite';
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
-  resolve: { alias: { '@': path.resolve(import.meta.dirname, 'src') } },
+  resolve: {
+    alias: {
+      '@': path.resolve(import.meta.dirname, 'src'),
+      '@app': path.resolve(import.meta.dirname, 'src/app'),
+      '@features': path.resolve(import.meta.dirname, 'src/features'),
+    },
+  },
   build: { outDir: 'dist/client', emptyOutDir: true },
   server: {
     port: 5173,

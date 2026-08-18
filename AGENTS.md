@@ -19,8 +19,8 @@ Two things follow from that and explain most of the design:
 
 ## The shape of a request
 
-Bifrost is a single Node HTTP server (`src/server.ts`, plain `node:http`, no framework) that
-serves three different kinds of traffic on one port:
+Bifrost is a single Hono application served on Node by `@hono/node-server` (`src/server.ts`).
+It serves three different kinds of traffic on one port:
 
 | Traffic | Authenticated by | Resolves against |
 | --- | --- | --- |
@@ -32,8 +32,8 @@ serves three different kinds of traffic on one port:
 functions over separate tables. They used to share one, which meant a leaked session cookie worked as an API token.
 Do not merge them back.
 
-The React SPA (`src/pages`, `src/components`) is built by Vite and served as static files by
-that same Node server, so there is one deployment, not two.
+The React SPA (`src/app`) is built by Vite and served through Hono by that same Node process,
+so there is one deployment, not two.
 
 ## The one thing to understand first
 
@@ -41,6 +41,10 @@ that same Node server, so there is one deployment, not two.
 `createMcpHandler` factory runs per request (its own docs: *"one serving unit: one HTTP
 request"*), and `createHumanMcpHandler` in `src/mcp.ts` uses that to load the caller's
 connections and preferences and register only their tools.
+
+`src/http/mcp.ts` calls the SDK's web-standard handler directly with Hono's `Request`. Do not
+reintroduce a Node request adapter: Hono, the MCP SDK and the provider clients all speak the
+Fetch API already.
 
 That makes filtering *the* enforcement mechanism, not a display concern. A tool dropped by
 `visibleTools` is absent from `tools/list` **and** uncallable by name, because it was never
@@ -94,7 +98,7 @@ pass-through to the upstream API.
 in `src/providers/registry.ts`. `assertPrefixInvariant` runs at startup and refuses to boot on a
 one-character drift, because prefix drift silently breaks credential lookup rather than erroring.
 
-Notion appears in the frontend catalog (`src/api/catalog.ts`) but has **no server-side provider**.
+Notion appears in the frontend catalog (`src/app/api/catalog.ts`) but has **no server-side provider**.
 `/api/app-connections.json` only ever returns `SUPPORTED_APPS`, so Notion renders as a
 decorative, permanently unavailable card. Do not treat it as a fourth provider.
 
@@ -131,9 +135,8 @@ Worth knowing before touching `src/oauth-server/`:
 
 ```
 src/
-  server.ts            bootstrap and the top-level dispatcher; ~80 lines
-  http/                context types, response/body helpers, static files, the two authenticators
-  routes/              public, OAuth-server, /mcp and signed-in API route families
+  server.ts            bootstrap, dependency assembly and @hono/node-server lifecycle
+  http/                Hono app plus public/browser/MCP routers, auth, body limits and static files
   mcp.ts               per-request MCP server assembly, tool execution, rate/concurrency limits
   errors.ts            AgentFacingError: the only error messages that reach the calling agent
   database/            Drizzle schema, connection and migration runner
@@ -141,22 +144,70 @@ src/
   oauth.ts             Bifrost as an OAuth client (Google + providers)
   config.ts            Zod-validated env; refuses to start on bad config
   coordination.ts      Redis locks, rate limits, concurrency leases (degrades to in-process)
-  oauth-server/        Bifrost as an OAuth 2.1 authorization server
+  oauth-server/        OAuth 2.1 authorization server, including its HTTP entry
   providers/           one file per provider + the registry and its invariant
   tools/               filter.ts (who sees what) and preferences.ts (why)
   security/            secrets.ts (AES-256-GCM), access.ts (sign-in allowlist)
   status/upstream.ts   vendors' public uptime feeds
   clients/describe.ts  user agent -> recognizable client name, monogram and logo
-  api/                 bifrost.ts facade over live.ts / mock.ts, chosen once by VITE_USE_MOCK_API
-  pages/, components/, lib/   the React SPA
+  app/                 React SPA; route folders, shared chrome/UI, client API and frontend helpers
+    <route>/page.tsx   thin route boundary; delegates to its local components/*-screen.tsx
+    components/        app-wide chrome and design-system UI only
+    api/               bifrost.ts facade over live.ts / mock.ts, chosen once by VITE_USE_MOCK_API
+    lib/               app-wide formatting and presentation helpers
+  features/            code intentionally shared by the browser and Node server
 migrations/            generated Drizzle SQL, applied on container boot
 test/                  vitest, pure units only; no database in tests
 ```
 
 **The frontend/backend boundary is enforced by TypeScript config, not convention.**
-`tsconfig.json` excludes `src/api`, `src/components`, `src/pages`, `src/lib`; `tsconfig.app.json`
-includes only those. A shared type is therefore written out twice on purpose (`ProviderId`,
-`ClientLogoId`). Do not "fix" that with a cross-boundary import.
+`tsconfig.json` excludes `src/app`; `tsconfig.app.json` includes `src/app` plus explicitly shared
+`src/features`. A shared type is therefore written out twice on purpose (`ProviderId`,
+`ClientLogoId`). Do not "fix" that by importing an app type into server code.
+
+## Frontend architecture
+
+This is the `job-index-v2` route-colocation model adapted to Vite. React Router still registers
+URLs explicitly in `src/app/app.tsx`; the folders organize ownership and do not create routes.
+
+- **A file lives at the closest folder that is an ancestor of every consumer.** Route-only code
+  stays under that route. Code used by multiple routes moves to `app/components`, `app/lib` or
+  `app/api`. Only code used by both the browser and Node belongs in `features`.
+- **The route tree mirrors the URL.** Each route owns a `page.tsx` boundary and, when needed,
+  `components/`, `hooks/` and `utils/`. Dynamic segments use bracket folders such as
+  `integrations/[providerId]/` even though React Router, not Vite, interprets the parameter.
+- **`page.tsx` stays thin.** It wires or re-exports the route's `components/<domain>-screen.tsx`;
+  behavior and presentation live with that screen and its local companions.
+- **The root tree must describe product boundaries, not framework buckets.** Do not recreate
+  root-level `pages/`, `components/`, `hooks/`, `lib/` or client `api/` folders.
+- **Single-file items stay flat.** Create an item folder only when it has companions such as a
+  test, types or a reducer. `index.ts` may only re-export; never define code in a barrel and never
+  create `index.tsx`.
+- **No nested item folders.** Items sit one level below their owning `components`, `hooks` or
+  `utils` folder.
+- **Filenames are kebab-case.** React symbols use PascalCase and hooks/functions use camelCase.
+- **Aliases cross scopes; relative imports stay inside a scope.** Use `@app/*` and `@features/*`
+  across boundaries. A route's screen imports its local components with `./...`; never import
+  through its own barrel.
+- **TanStack Query owns remote state.** Use `useQuery`/`useMutation` instead of fetching in
+  effects. Shared query options live in `app/api/query-options.ts`; route-only query behavior
+  stays with that route. Invalidate the narrow shared key after mutations, and use optimistic
+  updates only when rollback is explicit.
+- **Dates use `date-fns`.** Keep ISO timestamps across the HTTP boundary and format them in the
+  browser so local time stays honest. Do not add another hand-written date arithmetic helper.
+
+## HTTP architecture
+
+- `src/http/app.ts` owns global Hono middleware and mounts domain routers. Keep route behavior
+  in `public.ts`, `browser.ts`, `mcp.ts` or `oauth-server/http.ts`, not in `server.ts`.
+- Use Hono's `context.json`, `context.html`, `context.redirect`, cookie helpers and static
+  middleware. Do not recreate a generic `respond.ts` wrapper.
+- Preserve the **1,048,576-byte** request-body limit and return `400` for malformed JSON.
+- Host validation is port-agnostic and allows only the `PUBLIC_URL` hostname, `localhost` and
+  `127.0.0.1`. Security headers are global; OAuth protocol responses are always `no-store`.
+- Browser routes must use only `authenticateBrowser`; `/mcp` must use only `authenticateAgent`.
+  The authorization and consent routes accept an optional browser identity because sign-in is
+  a normal intermediate state there.
 
 ## Data model
 
@@ -188,7 +239,7 @@ Beyond what eslint enforces (`strictTypeChecked` + `stylisticTypeChecked`, plus
 ## Verification
 
 ```bash
-npm run lint && npm run typecheck && npm test
+npm run lint && npm run typecheck && npm test && npm run build
 ```
 
 Tests are pure units on the parts where being wrong is expensive: the prefix invariant, the
@@ -198,9 +249,8 @@ needing one is verified by running it.
 
 ## Gotchas that cost real time
 
-- **Page names mirror their routes and screen labels.** `/integrations` maps to
-  `integrations-page.tsx`, `/agents` to `agents-sessions-page.tsx`, `/account-security` to
-  `account-security-page.tsx`, and `/service-status` to `service-status-page.tsx`.
+- **Vite does not discover `page.tsx`.** Every new route folder must also be registered in
+  `src/app/app.tsx` and, when the server must serve the SPA there, in `src/http/static.ts`.
 - **The Docker image contains its own copy of `dist`.** Rebuilding on the host does nothing to a
   running container. Deploying a change means `docker compose up -d --build app`. Forgetting this
   looks exactly like a change that did not work.

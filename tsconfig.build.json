@@ -10,9 +10,10 @@
     "src/mcp.ts",
     "src/oauth.ts",
     "src/server.ts",
+    "src/features/**/*.ts",
     "src/providers/**/*.ts",
     "src/security/**/*.ts",
     "src/tools/**/*.ts"
   ],
-  "exclude": ["src/api", "src/components", "src/pages", "src/app", "test", "dist", "node_modules"]
+  "exclude": ["src/app", "test", "dist", "node_modules"]
 }

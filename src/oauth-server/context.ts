@@ -13,14 +13,14 @@ export type OAuthServerContext = {
  *
  * Returning a value rather than taking a `ServerResponse` keeps the protocol
  * rules — which redirect, which status, which body — testable without a server,
- * and keeps every OAuth response going through one place in `server.ts`.
+ * and keeps every OAuth response going through one HTTP adapter.
  */
 export type OAuthHttpResult =
   | { kind: 'redirect'; location: string }
   | { kind: 'html'; status: number; body: string }
   | { kind: 'json'; status: number; body: unknown }
   /**
-   * The request is valid but nobody is signed in. Resolved by `server.ts`
+   * The request is valid but nobody is signed in. Resolved by the HTTP adapter
    * rather than here, so that knowing how a human proves who they are stays
    * with the Google client and out of the authorization server.
    */

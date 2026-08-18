@@ -1,5 +1,5 @@
-import type { IncomingMessage, ServerResponse } from 'node:http';
-import type { toNodeHandler } from '@modelcontextprotocol/node';
+import type { McpHttpHandler } from '@modelcontextprotocol/server';
+import type { Context } from 'hono';
 import type { Config } from '../config.js';
 import type { Coordinator } from '../coordination.js';
 import type { Database } from '../db.js';
@@ -14,15 +14,15 @@ export type AppDependencies = {
   coordinator: Coordinator;
   oauth: OAuthService;
   mounts: readonly ProviderMount[];
-  nodeMcpHandler: ReturnType<typeof toNodeHandler>;
+  mcpHandler: McpHttpHandler;
 };
 
-export type RequestContext = {
-  request: IncomingMessage;
-  response: ServerResponse;
-  url: URL;
-  deps: AppDependencies;
+export type AppEnv = {
+  Variables: {
+    dependencies: AppDependencies;
+    browserIdentity: HumanIdentity;
+    agentIdentity: HumanIdentity;
+  };
 };
 
-/** A request whose browser session has already been resolved. */
-export type AuthenticatedContext = RequestContext & { identity: HumanIdentity };
+export type AppContext = Context<AppEnv>;

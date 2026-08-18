@@ -18,5 +18,5 @@
     "types": ["node", "vitest/globals"]
   },
   "include": ["src/**/*.ts", "test/**/*.ts", "drizzle.config.ts", "eslint.config.js", "vitest.config.ts"],
-  "exclude": ["dist", "node_modules", "src/api", "src/components", "src/pages", "src/app", "src/main.tsx", "src/App.tsx", "src/lib"]
+  "exclude": ["dist", "node_modules", "src/app", "src/main.tsx"]
 }
