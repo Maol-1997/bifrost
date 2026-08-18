@@ -39,24 +39,24 @@ export function AppShell(): React.JSX.Element {
   const badge = statusBadge(health.snapshot);
   return (
     <div className="min-h-dvh bg-app-bg-primary text-app-text-primary lg:flex">
-      <aside className="border-b border-app-border-2 bg-app-bg-sidebar px-2.5 py-3.5 lg:fixed lg:inset-y-0 lg:w-[216px] lg:border-r lg:border-b-0">
+      <aside className="border-b border-app-border-2 bg-app-bg-sidebar px-3 py-3 lg:fixed lg:inset-y-0 lg:w-(--sidebar-width) lg:border-r lg:border-b-0">
         <div className="flex items-center gap-2 px-2 pb-3.5"><BifrostMark className="size-[22px]" /><span className="text-sm font-semibold tracking-[-0.01em]">Bifrost</span></div>
         <nav aria-label="Primary" className="flex gap-1 overflow-x-auto lg:flex-col">
           {navItems.map((item) => (
-            <NavLink key={item.to} to={item.to} className={cn('flex min-h-9 shrink-0 items-center justify-between gap-3 rounded-md px-2.5 py-1.5 text-[13px] text-app-text-tertiary hover:bg-white/5 hover:text-app-text-secondary lg:min-h-0', isActiveRoute(location.pathname, item.to) && 'bg-white/7 font-semibold text-app-text-primary')}>
+            <NavLink key={item.to} to={item.to} className={cn('flex min-h-9 shrink-0 items-center justify-between gap-3 rounded-md px-2 py-1.5 text-[13px] text-app-text-tertiary hover:bg-white/5 hover:text-app-text-secondary lg:min-h-0', isActiveRoute(location.pathname, item.to) && 'bg-white/7 font-semibold text-app-text-primary')}>
               <span>{item.label}</span>{item.to === APP_ROUTES.serviceStatus && badge ? <span className={cn('rounded-full px-1.5 py-0.5 text-[10.5px] font-semibold', badge.className)}>{badge.text}</span> : null}
             </NavLink>
           ))}
-          {user ? <NavLink to={APP_ROUTES.accountSecurity} className={({ isActive }) => cn('flex min-h-9 shrink-0 items-center rounded-md px-2.5 py-1.5 text-[13px] text-app-text-tertiary hover:bg-white/5 hover:text-app-text-secondary lg:hidden', isActive && 'bg-white/7 font-semibold text-app-text-primary')}>Account & security</NavLink> : null}
+          {user ? <NavLink to={APP_ROUTES.accountSecurity} className={({ isActive }) => cn('flex min-h-9 shrink-0 items-center rounded-md px-2 py-1.5 text-[13px] text-app-text-tertiary hover:bg-white/5 hover:text-app-text-secondary lg:hidden', isActive && 'bg-white/7 font-semibold text-app-text-primary')}>Account & security</NavLink> : null}
         </nav>
         {user ? (
-          <NavLink to={APP_ROUTES.accountSecurity} aria-label="Account & security" className={({ isActive }) => cn('bottom-3 left-2.5 right-2.5 hidden items-center gap-2 rounded-lg p-2 text-app-text-primary hover:bg-white/5 lg:absolute lg:flex', isActive && 'bg-white/7')}>
+          <NavLink to={APP_ROUTES.accountSecurity} aria-label="Account & security" className={({ isActive }) => cn('bottom-3 left-3 right-3 hidden items-center gap-2 rounded-lg p-2 text-app-text-primary hover:bg-white/5 lg:absolute lg:flex', isActive && 'bg-white/7')}>
             <div className="flex size-6 shrink-0 items-center justify-center rounded-full bg-brand/25 text-[10.5px] font-semibold text-brand-hover">{initialsOf(user.name)}</div>
             <div className="min-w-0"><div className="truncate text-[12.5px] font-medium">{user.name}</div><div className="truncate text-[10.5px] text-app-text-quaternary">Account & security</div></div>
           </NavLink>
         ) : null}
       </aside>
-      <main className="min-h-dvh flex-1 lg:ml-[216px]">
+      <main className="min-h-dvh flex-1 lg:ml-(--sidebar-width)">
         <div className="mx-auto max-w-[760px] px-5 pb-24 pt-8 sm:px-10 sm:pt-11"><Outlet context={{ health, user } satisfies AppShellContext} /></div>
       </main>
     </div>

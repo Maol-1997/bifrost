@@ -20,6 +20,11 @@
   --color-accent: #5e6ad2;
   --color-accent-hover: #7c88e8;
   --color-link: #828fff;
+  /* Sidebar geometry, measured off Linear's live app: a 244px rail with 12px
+     of horizontal padding, so nav rows are 220px wide. Kept as one variable
+     because the rail is fixed and the page has to offset itself by the same
+     amount; two literals would drift. */
+  --sidebar-width: 244px;
   /* Control surfaces, measured off Linear's live app. Buttons are pills
      (9999px) while inputs and selects stay at 8px — that contrast is
      deliberate, so don't unify them. The 0.5px borders and the hairline
