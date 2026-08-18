@@ -42,7 +42,9 @@ const clientMetadataDocumentSchema = z.object({
   redirect_uris: z.array(z.string().min(1)).min(1).max(MAX_REDIRECT_URIS),
 }).loose();
 
-const SUPPORTED_GRANT_TYPES = new Set(['authorization_code', 'refresh_token']);
+/** The one place the supported grants are named; metadata, registration and the token endpoint all read it. */
+export const SUPPORTED_GRANT_TYPES = ['authorization_code', 'refresh_token'] as const;
+const supportedGrantTypeSet = new Set<string>(SUPPORTED_GRANT_TYPES);
 
 /**
  * A `client_id` that is an HTTPS URL with a path is a Client ID Metadata
@@ -68,8 +70,8 @@ export function parseRegistrationRequest(payload: unknown): { clientName: string
   const parsed = registrationRequestSchema.safeParse(payload);
   if (!parsed.success) throw new OAuthError('invalid_request', 'Registration requires redirect_uris');
   const { client_name: clientName, redirect_uris: redirectUris, grant_types: grantTypes, response_types: responseTypes, token_endpoint_auth_method: authMethod } = parsed.data;
-  if (grantTypes?.some((grantType) => !SUPPORTED_GRANT_TYPES.has(grantType))) {
-    throw new OAuthError('invalid_request', 'Only the authorization_code and refresh_token grants are supported');
+  if (grantTypes?.some((grantType) => !supportedGrantTypeSet.has(grantType))) {
+    throw new OAuthError('invalid_request', `Only the ${SUPPORTED_GRANT_TYPES.join(' and ')} grants are supported`);
   }
   // Absent means "code" per RFC 7591; an empty list or anything else declares a
   // flow this server does not run, and registering it would only defer the failure.
@@ -90,7 +92,7 @@ export function registrationResponse(client: RegisteredClient): Record<string, u
     client_id_issued_at: Math.floor(Date.now() / 1000),
     client_name: client.clientName,
     redirect_uris: client.redirectUris,
-    grant_types: ['authorization_code', 'refresh_token'],
+    grant_types: [...SUPPORTED_GRANT_TYPES],
     response_types: ['code'],
     token_endpoint_auth_method: 'none',
   };

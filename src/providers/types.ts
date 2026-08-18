@@ -1,8 +1,16 @@
-import type { z } from 'zod';
+import { z } from 'zod';
 import { AgentFacingError } from '../errors.js';
 
 export type ProviderId = 'github' | 'linear' | 'slack';
 export type ToolMutability = 'read' | 'write';
+
+/**
+ * What a tool may return: anything JSON can carry, and nothing else. `undefined`
+ * in particular is excluded, because `JSON.stringify(undefined)` is not a string
+ * and would produce an invalid tool response.
+ */
+export const jsonValueSchema = z.json();
+export type JsonValue = z.infer<typeof jsonValueSchema>;
 
 export type ToolDefinition = {
   name: string;
@@ -10,12 +18,12 @@ export type ToolDefinition = {
   description: string;
   mutability: ToolMutability;
   inputSchema: z.ZodType;
-  execute: (input: unknown, context: ToolExecutionContext) => Promise<unknown>;
+  execute: (input: unknown, context: ToolExecutionContext) => Promise<JsonValue>;
 };
 
 export function defineTool<InputSchema extends z.ZodType>(definition: Omit<ToolDefinition, 'inputSchema' | 'execute'> & {
   inputSchema: InputSchema;
-  execute: (input: z.infer<InputSchema>, context: ToolExecutionContext) => Promise<unknown>;
+  execute: (input: z.infer<InputSchema>, context: ToolExecutionContext) => Promise<JsonValue>;
 }): ToolDefinition {
   return {
     ...definition,
@@ -34,6 +42,9 @@ export type ToolExecutionContext = {
   requestId: string;
   signal: AbortSignal;
 };
+
+/** What an outbound provider call needs; a tool's execution context satisfies it, and so does an identity lookup. */
+export type ProviderRequestContext = Pick<ToolExecutionContext, 'accessToken' | 'signal'>;
 
 export type ProviderDefinition = {
   id: ProviderId;

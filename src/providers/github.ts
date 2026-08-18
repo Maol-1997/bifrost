@@ -1,23 +1,23 @@
 import { z } from 'zod';
 import { fetchJson, fetchText } from './http.js';
-import { defineTool, type ProviderDefinition, type ToolExecutionContext } from './types.js';
+import { defineTool, type JsonValue, type ProviderDefinition, type ProviderRequestContext } from './types.js';
 
 const repositorySchema = z.object({ owner: z.string().min(1).max(100), repo: z.string().min(1).max(100) });
 const pullRequestSchema = repositorySchema.extend({ pullNumber: z.number().int().positive() });
 
-function githubRequest<T>(path: string, context: ToolExecutionContext, init: RequestInit = {}): Promise<T> {
+function githubRequest(path: string, context: ProviderRequestContext, init: RequestInit = {}): Promise<JsonValue> {
   const headers = new Headers(init.headers);
   headers.set('Accept', headers.get('Accept') ?? 'application/vnd.github+json');
   headers.set('Authorization', `Bearer ${context.accessToken}`);
   headers.set('X-GitHub-Api-Version', '2022-11-28');
   headers.set('Content-Type', 'application/json');
-  return fetchJson<T>(`https://api.github.com${path}`, {
+  return fetchJson(`https://api.github.com${path}`, {
     ...init,
     headers,
   }, context.signal);
 }
 
-function githubTextRequest(path: string, context: ToolExecutionContext): Promise<string> {
+function githubTextRequest(path: string, context: ProviderRequestContext): Promise<string> {
   return fetchText(`https://api.github.com${path}`, {
     headers: {
       Accept: 'application/vnd.github.diff', Authorization: `Bearer ${context.accessToken}`,
@@ -63,9 +63,7 @@ export const githubProvider: ProviderDefinition = {
   authorizationUrl: 'https://github.com/login/oauth/authorize', tokenUrl: 'https://github.com/login/oauth/access_token',
   scopes: ['read:user', 'user:email', 'repo'], tools,
   readAccountLabel: async (accessToken, signal) => {
-    const viewer = await fetchJson<unknown>('https://api.github.com/user', {
-      headers: { Accept: 'application/vnd.github+json', Authorization: `Bearer ${accessToken}`, 'X-GitHub-Api-Version': '2022-11-28' },
-    }, signal);
+    const viewer = await githubRequest('/user', { accessToken, signal });
     return `@${viewerSchema.parse(viewer).login}`;
   },
 };

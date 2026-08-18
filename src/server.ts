@@ -8,7 +8,7 @@ import { z } from 'zod';
 import { describeClient } from './clients/describe.js';
 import { loadConfig, type Config } from './config.js';
 import { Coordinator } from './coordination.js';
-import { Database } from './db.js';
+import { Database, SESSION_TTL_SECONDS } from './db.js';
 import { errorSummary, logger } from './logger.js';
 import { createHumanMcpHandler, toAuthInfo, type HumanIdentity } from './mcp.js';
 import { EmailNotAllowedError, OAuthService } from './oauth.js';
@@ -34,7 +34,7 @@ const CLIENT_DIRECTORY = path.resolve(process.cwd(), 'dist/client');
 // A session inside this window is what the UI calls "needs renewal": still
 // working, but close enough to expiry that the browser will be signed out soon.
 const RENEWAL_WINDOW_MS = 7 * 86_400_000;
-const providerIdSchema = z.enum(['github', 'linear', 'slack']);
+const providerIdSchema = z.enum(SUPPORTED_APPS);
 const clientKindSchema = z.enum(['browser', 'agent']);
 
 type AuthenticatedRequest = IncomingMessage & { auth?: AuthInfo };
@@ -145,7 +145,7 @@ async function route(context: {
     // A caller that presented something gets told the credential is the problem,
     // which is the signal that sends it to its refresh token instead of back
     // through discovery and another round of consent.
-    if (!agent) return mcpUnauthorized(response, config, headerValue(request, 'authorization') !== undefined);
+    if (!agent) return headerValue(request, 'authorization') === undefined ? mcpMissingCredential(response, config) : mcpInvalidCredential(response, config);
     return handleMcp(request, response, agent, nodeMcpHandler, config);
   }
 
@@ -190,19 +190,19 @@ async function route(context: {
     return redirect(response, '/');
   }
 
-  const oauthStartMatch = /^\/oauth\/(github|linear|slack)\/start$/.exec(url.pathname);
-  if (oauthStartMatch) return redirect(response, await oauth.providerAuthorizationUrl(identity.userId, providerIdSchema.parse(oauthStartMatch[1])));
-  const oauthCallbackMatch = /^\/oauth\/(github|linear|slack)\/callback$/.exec(url.pathname);
-  if (oauthCallbackMatch) return finishProvider(url, response, oauth, providerIdSchema.parse(oauthCallbackMatch[1]));
-  const disconnectMatch = /^\/api\/connections\/(github|linear|slack)\/disconnect$/.exec(url.pathname);
-  if (disconnectMatch && request.method === 'POST') {
-    await database.deleteCredential(identity.userId, providerIdSchema.parse(disconnectMatch[1]));
+  const oauthStartProvider = providerInPath(url.pathname, /^\/oauth\/([a-z]+)\/start$/);
+  if (oauthStartProvider) return redirect(response, await oauth.providerAuthorizationUrl(identity.userId, oauthStartProvider));
+  const oauthCallbackProvider = providerInPath(url.pathname, /^\/oauth\/([a-z]+)\/callback$/);
+  if (oauthCallbackProvider) return finishProvider(url, response, oauth, oauthCallbackProvider);
+  const disconnectProvider = providerInPath(url.pathname, /^\/api\/connections\/([a-z]+)\/disconnect$/);
+  if (disconnectProvider && request.method === 'POST') {
+    await database.deleteCredential(identity.userId, disconnectProvider);
     return json(response, 200, { connected: false });
   }
-  const preferenceMatch = /^\/api\/connections\/(github|linear|slack)\/preference$/.exec(url.pathname);
-  if (preferenceMatch && request.method === 'POST') {
+  const preferenceProvider = providerInPath(url.pathname, /^\/api\/connections\/([a-z]+)\/preference$/);
+  if (preferenceProvider && request.method === 'POST') {
     const body = z.object({ isHidden: z.boolean() }).parse(await readJsonBody(request));
-    await database.setProviderHidden(identity.userId, providerIdSchema.parse(preferenceMatch[1]), body.isHidden);
+    await database.setProviderHidden(identity.userId, preferenceProvider, body.isHidden);
     return json(response, 200, { isHidden: body.isHidden });
   }
   const toolPreferenceMatch = /^\/api\/tools\/([a-z_]+)\/preference$/.exec(url.pathname);
@@ -302,13 +302,14 @@ function developmentIdentity(request: IncomingMessage, config: Config): HumanIde
  * The challenge that starts the whole flow. Without the header a client has no
  * way to find the authorization server and simply reports that it failed.
  */
-function mcpUnauthorized(response: ServerResponse, config: Config, hadCredential: boolean): void {
-  response.setHeader('WWW-Authenticate', bearerChallenge(config.PUBLIC_URL, hadCredential ? 'invalid_token' : undefined));
-  json(response, 401, {
-    error: hadCredential
-      ? 'That credential is expired or not valid for this server'
-      : 'Authorization required. This server speaks OAuth 2.1; your MCP client can set it up for you',
-  });
+function mcpMissingCredential(response: ServerResponse, config: Config): void {
+  response.setHeader('WWW-Authenticate', bearerChallenge(config.PUBLIC_URL));
+  json(response, 401, { error: 'Authorization required. This server speaks OAuth 2.1; your MCP client can set it up for you' });
+}
+
+function mcpInvalidCredential(response: ServerResponse, config: Config): void {
+  response.setHeader('WWW-Authenticate', bearerChallenge(config.PUBLIC_URL, 'invalid_token'));
+  json(response, 401, { error: 'That credential is expired or not valid for this server' });
 }
 
 async function sendOAuthResult(response: ServerResponse, result: OAuthHttpResult, oauth: OAuthService): Promise<void> {
@@ -496,6 +497,12 @@ function attachRequestId(body: unknown, requestId: string): unknown {
   return { ...body, params: { ...params, _meta: { ...metadata, requestId } } };
 }
 
+/** The provider segment of a path, only if it names a provider Bifrost actually mounts. */
+function providerInPath(pathname: string, pattern: RegExp): ProviderId | undefined {
+  const parsed = providerIdSchema.safeParse(pattern.exec(pathname)?.[1]);
+  return parsed.success ? parsed.data : undefined;
+}
+
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
@@ -598,7 +605,7 @@ function parseCookies(value?: string): Record<string, string> {
 }
 
 function sessionCookie(token: string, config: Config): string {
-  return `${SESSION_COOKIE}=${token}; HttpOnly; SameSite=Lax; Path=/; Max-Age=2592000${config.NODE_ENV === 'production' ? '; Secure' : ''}`;
+  return `${SESSION_COOKIE}=${token}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${SESSION_TTL_SECONDS}${config.NODE_ENV === 'production' ? '; Secure' : ''}`;
 }
 
 function clearSessionCookie(config: Config): string {

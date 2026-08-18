@@ -2,11 +2,14 @@ import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import pg from 'pg';
 import type { Config } from './config.js';
 import { decryptSecret, encryptSecret, type EncryptedSecret } from './security/secrets.js';
+import { z } from 'zod';
 import type { ProviderId } from './providers/types.js';
 
 const { Pool } = pg;
 const SESSION_BYTES = 32;
 const SESSION_TTL_DAYS = 30;
+/** Cookie Max-Age and the row's expires_at come from the same number, so they cannot drift apart. */
+export const SESSION_TTL_SECONDS = SESSION_TTL_DAYS * 86_400;
 const OAUTH_TOKEN_BYTES = 32;
 const MILLISECONDS_PER_DAY = 86_400_000;
 
@@ -67,7 +70,8 @@ export type RefreshOutcome =
   | { kind: 'unknown' }
   | { kind: 'replayed'; userId: string; clientId: string };
 
-type CredentialPayload = { accessToken: string; refreshToken?: string };
+const credentialPayloadSchema = z.object({ accessToken: z.string().min(1), refreshToken: z.string().min(1).optional() });
+type CredentialPayload = z.infer<typeof credentialPayloadSchema>;
 
 export class Database {
   readonly pool: pg.Pool;
@@ -404,7 +408,9 @@ export class Database {
     }>('SELECT encrypted_payload, expires_at, scopes FROM provider_credentials WHERE user_id = $1 AND provider_id = $2', [userId, providerId]);
     const row = result.rows[0];
     if (!row) return undefined;
-    const payload = JSON.parse(decryptSecret(row.encrypted_payload, this.config.encryptionKey)) as CredentialPayload;
+    // Parsed, not asserted: a row that decrypts to something else must fail
+    // here rather than hand a non-string token to an outbound request.
+    const payload = credentialPayloadSchema.parse(JSON.parse(decryptSecret(row.encrypted_payload, this.config.encryptionKey)));
     return {
       accessToken: payload.accessToken,
       ...(payload.refreshToken === undefined ? {} : { refreshToken: payload.refreshToken }),

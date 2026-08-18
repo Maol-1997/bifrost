@@ -1,3 +1,4 @@
+import { z } from 'zod';
 import type { ProviderDefinition, ProviderId, ProviderMount } from './types.js';
 import { githubProvider } from './github.js';
 import { linearProvider } from './linear.js';
@@ -40,13 +41,16 @@ export function assertPrefixInvariant(
   if (problems.length > 0) throw new Error(`Provider prefix invariant failed: ${problems.join('; ')}`);
 }
 
+/**
+ * A provider mounts only if every tool carries a real Zod schema: the MCP
+ * server hands that schema to clients and validates input against it, so a
+ * tool without one would advertise arguments it cannot check.
+ */
 export function mountProviders(): readonly ProviderMount[] {
   return PROVIDER_REGISTRY.map((provider) => {
-    try {
-      for (const tool of provider.tools) tool.inputSchema.parse({});
-    } catch {
-      // Schemas with required fields reject {}, which still proves the schema is callable.
-    }
-    return { providerId: provider.id, isMounted: true };
+    const unschematizedTool = provider.tools.find((tool) => !(tool.inputSchema instanceof z.ZodType));
+    return unschematizedTool
+      ? { providerId: provider.id, isMounted: false, error: `${unschematizedTool.name} has no input schema` }
+      : { providerId: provider.id, isMounted: true };
   });
 }

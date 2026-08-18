@@ -2,7 +2,7 @@ import { randomBytes } from 'node:crypto';
 import { logger } from '../logger.js';
 import type { OAuthTokenPair } from '../db.js';
 import { authorizationCodeKey, authorizationCodeSchema } from './authorize.js';
-import { parseRegistrationRequest, registrationResponse } from './clients.js';
+import { parseRegistrationRequest, registrationResponse, SUPPORTED_GRANT_TYPES } from './clients.js';
 import type { OAuthHttpResult, OAuthServerContext } from './context.js';
 import { OAuthError, type OAuthErrorCode } from './errors.js';
 import { MCP_SCOPE } from './metadata.js';
@@ -22,7 +22,7 @@ export async function handleToken(context: OAuthServerContext, body: URLSearchPa
     const grantType = body.get('grant_type');
     if (grantType === 'authorization_code') return await exchangeAuthorizationCode(context, body);
     if (grantType === 'refresh_token') return await refreshTokens(context, body);
-    throw new OAuthError('unsupported_grant_type', 'Supported grants are authorization_code and refresh_token');
+    throw new OAuthError('unsupported_grant_type', `Supported grants are ${SUPPORTED_GRANT_TYPES.join(' and ')}`);
   } catch (error) {
     if (error instanceof OAuthError) return tokenError(error.code, error.description);
     throw error;

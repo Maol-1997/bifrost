@@ -7,7 +7,7 @@ import { Coordinator } from './coordination.js';
 import { Database, type StoredCredential } from './db.js';
 import { AgentFacingError } from './errors.js';
 import { errorSummary, logger } from './logger.js';
-import { PROVIDER_REGISTRY } from './providers/registry.js';
+import { PROVIDER_REGISTRY, SUPPORTED_APPS } from './providers/registry.js';
 import type { ProviderDefinition, ProviderId } from './providers/types.js';
 import { emailDomain, isEmailAllowed } from './security/access.js';
 
@@ -35,7 +35,7 @@ const tokenResponseSchema = z.object({
 
 const oauthStateSchema = z.object({
   userId: z.uuid().optional(),
-  providerId: z.enum(['github', 'linear', 'slack']).optional(),
+  providerId: z.enum(SUPPORTED_APPS).optional(),
   verifier: z.string().min(43),
   returnTo: z.string().startsWith('/'),
 });

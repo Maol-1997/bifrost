@@ -23,12 +23,6 @@ export class OAuthError extends Error {
      * problem. It must never quote a token, a code or a verifier.
      */
     readonly description: string,
-    /**
-     * Set when the failure happened before `redirect_uri` was validated.
-     * Redirecting in that case would turn the authorization endpoint into an
-     * open redirect, so these have to be rendered in place instead.
-     */
-    readonly isRedirectUnsafe = false,
   ) {
     super(`${code}: ${description}`);
     this.name = 'OAuthError';

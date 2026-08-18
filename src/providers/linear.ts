@@ -1,17 +1,20 @@
 import { z } from 'zod';
 import { fetchJson } from './http.js';
-import { defineTool, type ProviderDefinition, type ToolExecutionContext } from './types.js';
+import { defineTool, jsonValueSchema, type JsonValue, type ProviderDefinition, type ProviderRequestContext } from './types.js';
 
-type GraphQlResponse = { data?: unknown; errors?: Array<{ message: string }> };
+const graphQlEnvelopeSchema = z.object({
+  data: jsonValueSchema.optional(),
+  errors: z.array(z.object({ message: z.string() })).optional(),
+});
 
-async function linearGraphQl(query: string, variables: Record<string, unknown>, context: ToolExecutionContext): Promise<unknown> {
-  const result = await fetchJson<GraphQlResponse>('https://api.linear.app/graphql', {
+async function linearGraphQl(query: string, variables: Record<string, unknown>, context: ProviderRequestContext): Promise<JsonValue> {
+  const result = graphQlEnvelopeSchema.parse(await fetchJson('https://api.linear.app/graphql', {
     method: 'POST',
     headers: { Authorization: `Bearer ${context.accessToken}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({ query, variables }),
-  }, context.signal);
+  }, context.signal));
   if (result.errors?.length) throw new Error(`Linear request failed: ${result.errors[0]?.message ?? 'unknown GraphQL error'}`);
-  return result.data;
+  return result.data ?? null;
 }
 
 const tools = [
@@ -54,12 +57,7 @@ export const linearProvider: ProviderDefinition = {
   authorizationUrl: 'https://linear.app/oauth/authorize', tokenUrl: 'https://api.linear.app/oauth/token',
   scopes: ['read', 'write', 'issues:create', 'comments:create'], tools,
   readAccountLabel: async (accessToken, signal) => {
-    const result = await fetchJson<GraphQlResponse>('https://api.linear.app/graphql', {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query: 'query Viewer{viewer{email}}' }),
-    }, signal);
-    if (result.errors?.length) throw new Error(`Linear identity lookup failed: ${result.errors[0]?.message ?? 'unknown GraphQL error'}`);
-    return viewerSchema.parse(result.data).viewer.email;
+    const data = await linearGraphQl('query Viewer{viewer{email}}', {}, { accessToken, signal });
+    return viewerSchema.parse(data).viewer.email;
   },
 };

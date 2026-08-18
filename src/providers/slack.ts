@@ -1,16 +1,18 @@
 import { z } from 'zod';
 import { fetchJson } from './http.js';
-import { defineTool, type ProviderDefinition, type ToolExecutionContext } from './types.js';
+import { defineTool, type JsonValue, type ProviderDefinition, type ProviderRequestContext } from './types.js';
 
-type SlackResponse = { ok: boolean; error?: string } & Record<string, unknown>;
+/** Slack answers 200 to everything and signals failure inside the body. */
+const slackEnvelopeSchema = z.object({ ok: z.boolean(), error: z.string().optional() });
 
-async function slackApi(method: string, input: Record<string, unknown>, context: ToolExecutionContext): Promise<unknown> {
-  const result = await fetchJson<SlackResponse>(`https://slack.com/api/${method}`, {
+async function slackApi(method: string, input: Record<string, unknown>, context: ProviderRequestContext): Promise<JsonValue> {
+  const result = await fetchJson(`https://slack.com/api/${method}`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${context.accessToken}`, 'Content-Type': 'application/json; charset=utf-8' },
     body: JSON.stringify(input),
   }, context.signal);
-  if (!result.ok) throw new Error(`Slack request failed: ${result.error ?? 'unknown error'}`);
+  const envelope = slackEnvelopeSchema.parse(result);
+  if (!envelope.ok) throw new Error(`Slack request failed: ${envelope.error ?? 'unknown error'}`);
   return result;
 }
 
@@ -50,11 +52,7 @@ export const slackProvider: ProviderDefinition = {
   authorizationUrl: 'https://slack.com/oauth/v2/authorize', tokenUrl: 'https://slack.com/api/oauth.v2.access',
   scopes: ['channels:read', 'groups:read', 'channels:history', 'groups:history', 'search:read', 'chat:write'], tools,
   readAccountLabel: async (accessToken, signal) => {
-    const result = await fetchJson<SlackResponse>('https://slack.com/api/auth.test', {
-      method: 'POST', headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json; charset=utf-8' }, body: '{}',
-    }, signal);
-    if (!result.ok) throw new Error(`Slack identity lookup failed: ${result.error ?? 'unknown error'}`);
-    const identity = authTestSchema.parse(result);
+    const identity = authTestSchema.parse(await slackApi('auth.test', {}, { accessToken, signal }));
     // The workspace matters here in a way it does not for the others: the same
     // person can be in several Slacks, and "@sam" alone would not say which.
     return identity.team ? `@${identity.user} · ${identity.team}` : `@${identity.user}`;

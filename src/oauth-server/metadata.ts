@@ -1,3 +1,4 @@
+import { SUPPORTED_GRANT_TYPES } from './clients.js';
 /**
  * The documents an MCP client reads to discover how to authenticate, and the
  * challenge that points it at them.
@@ -74,7 +75,7 @@ export function authorizationServerMetadata(publicUrl: string, isClientIdMetadat
     revocation_endpoint: `${issuer}${REVOKE_PATH}`,
     scopes_supported: [MCP_SCOPE],
     response_types_supported: ['code'],
-    grant_types_supported: ['authorization_code', 'refresh_token'],
+    grant_types_supported: [...SUPPORTED_GRANT_TYPES],
     code_challenge_methods_supported: ['S256'],
     token_endpoint_auth_methods_supported: ['none'],
     revocation_endpoint_auth_methods_supported: ['none'],
