@@ -16,4 +16,4 @@ COPY --from=build /app/dist ./dist
 COPY migrations ./migrations
 USER node
 EXPOSE 3000
-CMD ["sh", "-c", "node node_modules/node-pg-migrate/bin/node-pg-migrate up -m migrations --no-check-order && node dist/server.js"]
+CMD ["sh", "-c", "node dist/database/migrate.js && node dist/server.js"]

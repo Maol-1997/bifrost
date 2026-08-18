@@ -4,6 +4,7 @@
   "include": [
     "src/config.ts",
     "src/coordination.ts",
+    "src/database/**/*.ts",
     "src/db.ts",
     "src/logger.ts",
     "src/mcp.ts",

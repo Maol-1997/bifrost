@@ -4,6 +4,7 @@
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
     "strict": true,
+    "skipLibCheck": true,
     "noUncheckedIndexedAccess": true,
     "exactOptionalPropertyTypes": true,
     "noImplicitOverride": true,
@@ -16,6 +17,6 @@
     "rootDir": ".",
     "types": ["node", "vitest/globals"]
   },
-  "include": ["src/**/*.ts", "test/**/*.ts", "eslint.config.js", "vitest.config.ts"],
+  "include": ["src/**/*.ts", "test/**/*.ts", "drizzle.config.ts", "eslint.config.js", "vitest.config.ts"],
   "exclude": ["dist", "node_modules", "src/api", "src/components", "src/pages", "src/app", "src/main.tsx", "src/App.tsx", "src/lib"]
 }

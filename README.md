@@ -93,6 +93,7 @@ All settings are environment variables, validated at startup by `src/config.ts`.
 ```bash
 npm ci
 npm run dev        # Postgres + Redis containers, migrations, watched API on :3000, Vite on :5173
+npm run db:generate # Generate a Drizzle migration after changing src/database/schema.ts
 npm run lint && npm run typecheck && npm test
 npm run build      # Node server to dist/, React bundle to dist/client
 ```
@@ -116,9 +117,10 @@ src/
   providers/         one file per provider, plus the registry and its prefix invariant
   tools/             who sees which tool, and why
   security/          AES-256-GCM secrets, sign-in allowlist
-  db.ts              every SQL query
+  database/          Drizzle schema, connection and migration runner
+  db.ts              persistence operations through Drizzle
   api/, pages/, components/, lib/   the React SPA (served by the same Node process)
-migrations/          node-pg-migrate, applied on container boot
+migrations/          generated Drizzle SQL, applied on container boot
 test/                vitest, pure units
 ```
 

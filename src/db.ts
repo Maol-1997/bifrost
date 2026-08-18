@@ -1,11 +1,22 @@
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
-import pg from 'pg';
-import type { Config } from './config.js';
-import { decryptSecret, encryptSecret, type EncryptedSecret } from './security/secrets.js';
+import { and, desc, eq, gt, inArray, isNull, lte, sql } from 'drizzle-orm';
 import { z } from 'zod';
+import type { Config } from './config.js';
+import { createDatabaseConnection, type AppDatabase, type AppTransaction } from './database/client.js';
+import {
+  oauthAccessTokens,
+  oauthClients,
+  oauthGrants,
+  oauthRefreshTokens,
+  providerCredentials,
+  sessions,
+  userProviderPreferences,
+  users,
+  userToolPreferences,
+} from './database/schema.js';
 import type { ProviderId } from './providers/types.js';
+import { decryptSecret, encryptSecret } from './security/secrets.js';
 
-const { Pool } = pg;
 const SESSION_BYTES = 32;
 const SESSION_TTL_DAYS = 30;
 /** Cookie Max-Age and the row's expires_at come from the same number, so they cannot drift apart. */
@@ -73,38 +84,55 @@ export type RefreshOutcome =
 const credentialPayloadSchema = z.object({ accessToken: z.string().min(1), refreshToken: z.string().min(1).optional() });
 type CredentialPayload = z.infer<typeof credentialPayloadSchema>;
 
+type OAuthAccessTokenRow = {
+  grantId: string;
+  userId: string;
+  clientId: string;
+  resource: string;
+  scopes: string[];
+  expiresAt: string;
+};
+
+type ReplayedGrantRow = { userId: string; clientId: string };
+
 export class Database {
-  readonly pool: pg.Pool;
+  private readonly client: ReturnType<typeof createDatabaseConnection>['client'];
+  private readonly database: AppDatabase;
 
   constructor(private readonly config: Config) {
-    this.pool = new Pool({ connectionString: config.DATABASE_URL });
+    const connection = createDatabaseConnection(config.DATABASE_URL);
+    this.client = connection.client;
+    this.database = connection.database;
   }
 
   async close(): Promise<void> {
-    await this.pool.end();
+    await this.client.end();
   }
 
   async upsertUser(email: string, name: string): Promise<string> {
-    const result = await this.pool.query<{ id: string }>(
-      `INSERT INTO users (id, email, name) VALUES ($1, $2, $3)
-       ON CONFLICT (email) DO UPDATE SET name = EXCLUDED.name RETURNING id`,
-      [randomUUID(), email, name],
-    );
-    const row = result.rows[0];
+    const [row] = await this.database
+      .insert(users)
+      .values({ id: randomUUID(), email, name })
+      .onConflictDoUpdate({ target: users.email, set: { name } })
+      .returning({ id: users.id });
     if (!row) throw new Error('User upsert returned no row');
     return row.id;
   }
 
   async getUser(userId: string): Promise<{ name: string; email: string } | undefined> {
-    const result = await this.pool.query<{ name: string; email: string }>('SELECT name, email FROM users WHERE id = $1', [userId]);
-    return result.rows[0];
+    const [row] = await this.database
+      .select({ name: users.name, email: users.email })
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1);
+    return row;
   }
 
   async ensureDevelopmentUser(userId: string): Promise<void> {
-    await this.pool.query(
-      `INSERT INTO users (id, email, name) VALUES ($1, $2, $3) ON CONFLICT (id) DO NOTHING`,
-      [userId, `${userId}@development.invalid`, 'Development User'],
-    );
+    await this.database
+      .insert(users)
+      .values({ id: userId, email: `${userId}@development.invalid`, name: 'Development User' })
+      .onConflictDoNothing({ target: users.id });
   }
 
   /**
@@ -118,10 +146,7 @@ export class Database {
   async createSession(userId: string, clientId: string): Promise<{ token: string; expiresAt: Date }> {
     const token = randomBytes(SESSION_BYTES).toString('base64url');
     const expiresAt = new Date(Date.now() + SESSION_TTL_DAYS * MILLISECONDS_PER_DAY);
-    await this.pool.query(
-      'INSERT INTO sessions (token_hash, user_id, client_id, expires_at) VALUES ($1, $2, $3, $4)',
-      [hashToken(token), userId, clientId, expiresAt],
-    );
+    await this.database.insert(sessions).values({ tokenHash: hashToken(token), userId, clientId, expiresAt });
     return { token, expiresAt };
   }
 
@@ -133,43 +158,45 @@ export class Database {
    * sessions match nothing and are therefore never revived by this call.
    */
   async resolveSessionAndTouch(token: string, userAgent?: string): Promise<{ sessionId: string; userId: string; clientId: string; expiresAt: Date } | undefined> {
-    const result = await this.pool.query<{ id: string; user_id: string; client_id: string; expires_at: Date }>(
-      `UPDATE sessions SET last_used_at = now(), user_agent = COALESCE($2, user_agent)
-       WHERE token_hash = $1 AND expires_at > now()
-       RETURNING id, user_id, client_id, expires_at`,
-      [hashToken(token), userAgent ?? null],
-    );
-    const row = result.rows[0];
-    return row ? { sessionId: row.id, userId: row.user_id, clientId: row.client_id, expiresAt: row.expires_at } : undefined;
+    const [row] = await this.database
+      .update(sessions)
+      .set({
+        lastUsedAt: sql`now()`,
+        userAgent: sql`coalesce(${userAgent ?? null}, ${sessions.userAgent})`,
+      })
+      .where(and(eq(sessions.tokenHash, hashToken(token)), gt(sessions.expiresAt, sql`now()`)))
+      .returning({ sessionId: sessions.id, userId: sessions.userId, clientId: sessions.clientId, expiresAt: sessions.expiresAt });
+    return row;
   }
 
   async deleteSession(token: string): Promise<void> {
-    await this.pool.query('DELETE FROM sessions WHERE token_hash = $1', [hashToken(token)]);
+    await this.database.delete(sessions).where(eq(sessions.tokenHash, hashToken(token)));
   }
 
   /** Live sessions only: an expired session cannot be used, so listing it would just be noise. */
   async listSessions(userId: string): Promise<readonly SessionRecord[]> {
-    const result = await this.pool.query<{
-      id: string; client_id: string; user_agent: string | null; created_at: Date; last_used_at: Date; expires_at: Date;
-    }>(
-      `SELECT id, client_id, user_agent, created_at, last_used_at, expires_at FROM sessions
-       WHERE user_id = $1 AND expires_at > now() ORDER BY last_used_at DESC`,
-      [userId],
-    );
-    return result.rows.map((row) => ({
-      id: row.id,
-      clientId: row.client_id,
-      userAgent: row.user_agent ?? undefined,
-      createdAt: row.created_at,
-      lastUsedAt: row.last_used_at,
-      expiresAt: row.expires_at,
-    }));
+    const rows = await this.database
+      .select({
+        id: sessions.id,
+        clientId: sessions.clientId,
+        userAgent: sessions.userAgent,
+        createdAt: sessions.createdAt,
+        lastUsedAt: sessions.lastUsedAt,
+        expiresAt: sessions.expiresAt,
+      })
+      .from(sessions)
+      .where(and(eq(sessions.userId, userId), gt(sessions.expiresAt, sql`now()`)))
+      .orderBy(desc(sessions.lastUsedAt));
+    return rows.map((row) => ({ ...row, userAgent: row.userAgent ?? undefined }));
   }
 
   /** Scoped by `user_id` on purpose: a session id must never let one user revoke another's client. */
   async revokeSession(userId: string, sessionId: string): Promise<boolean> {
-    const result = await this.pool.query('DELETE FROM sessions WHERE user_id = $1 AND id = $2', [userId, sessionId]);
-    return (result.rowCount ?? 0) > 0;
+    const rows = await this.database
+      .delete(sessions)
+      .where(and(eq(sessions.userId, userId), eq(sessions.id, sessionId)))
+      .returning({ id: sessions.id });
+    return rows.length > 0;
   }
 
   /**
@@ -179,46 +206,58 @@ export class Database {
    */
   async renewSession(userId: string, sessionId: string): Promise<Date | undefined> {
     const expiresAt = new Date(Date.now() + SESSION_TTL_DAYS * MILLISECONDS_PER_DAY);
-    const result = await this.pool.query<{ expires_at: Date }>(
-      `UPDATE sessions SET expires_at = $3 WHERE user_id = $1 AND id = $2 AND expires_at > now() RETURNING expires_at`,
-      [userId, sessionId, expiresAt],
-    );
-    return result.rows[0]?.expires_at;
+    const [row] = await this.database
+      .update(sessions)
+      .set({ expiresAt })
+      .where(and(eq(sessions.userId, userId), eq(sessions.id, sessionId), gt(sessions.expiresAt, sql`now()`)))
+      .returning({ expiresAt: sessions.expiresAt });
+    return row?.expiresAt;
   }
 
   async upsertOAuthClient(client: StoredOAuthClient): Promise<void> {
-    await this.pool.query(
-      `INSERT INTO oauth_clients (client_id, client_name, redirect_uris, registration_kind, metadata_expires_at)
-       VALUES ($1, $2, $3, $4, $5)
-       ON CONFLICT (client_id) DO UPDATE SET client_name = EXCLUDED.client_name,
-         redirect_uris = EXCLUDED.redirect_uris, metadata_expires_at = EXCLUDED.metadata_expires_at`,
-      [client.clientId, client.clientName, client.redirectUris, client.registrationKind, client.metadataExpiresAt ?? null],
-    );
+    await this.database
+      .insert(oauthClients)
+      .values({
+        clientId: client.clientId,
+        clientName: client.clientName,
+        redirectUris: [...client.redirectUris],
+        registrationKind: client.registrationKind,
+        metadataExpiresAt: client.metadataExpiresAt ?? null,
+      })
+      .onConflictDoUpdate({
+        target: oauthClients.clientId,
+        set: {
+          clientName: client.clientName,
+          redirectUris: [...client.redirectUris],
+          metadataExpiresAt: client.metadataExpiresAt ?? null,
+        },
+      });
   }
 
   async getOAuthClient(clientId: string): Promise<StoredOAuthClient | undefined> {
-    const result = await this.pool.query<{
-      client_id: string; client_name: string; redirect_uris: string[];
-      registration_kind: 'dynamic' | 'metadata-document'; metadata_expires_at: Date | null;
-    }>('SELECT client_id, client_name, redirect_uris, registration_kind, metadata_expires_at FROM oauth_clients WHERE client_id = $1', [clientId]);
-    const row = result.rows[0];
+    const [row] = await this.database
+      .select({
+        clientId: oauthClients.clientId,
+        clientName: oauthClients.clientName,
+        redirectUris: oauthClients.redirectUris,
+        registrationKind: oauthClients.registrationKind,
+        metadataExpiresAt: oauthClients.metadataExpiresAt,
+      })
+      .from(oauthClients)
+      .where(eq(oauthClients.clientId, clientId))
+      .limit(1);
     if (!row) return undefined;
-    return {
-      clientId: row.client_id,
-      clientName: row.client_name,
-      redirectUris: row.redirect_uris,
-      registrationKind: row.registration_kind,
-      metadataExpiresAt: row.metadata_expires_at ?? undefined,
-    };
+    return { ...row, metadataExpiresAt: row.metadataExpiresAt ?? undefined };
   }
 
   /** Whether this client was already approved, which is what lets consent be skipped on reconnect. */
   async hasOAuthGrant(userId: string, clientId: string, resource: string): Promise<boolean> {
-    const result = await this.pool.query(
-      'SELECT 1 FROM oauth_grants WHERE user_id = $1 AND client_id = $2 AND resource = $3',
-      [userId, clientId, resource],
-    );
-    return result.rows.length > 0;
+    const rows = await this.database
+      .select({ id: oauthGrants.id })
+      .from(oauthGrants)
+      .where(and(eq(oauthGrants.userId, userId), eq(oauthGrants.clientId, clientId), eq(oauthGrants.resource, resource)))
+      .limit(1);
+    return rows.length > 0;
   }
 
   /**
@@ -235,16 +274,17 @@ export class Database {
   async authorizeOAuthGrant(input: {
     userId: string; clientId: string; scopes: readonly string[]; resource: string;
   }): Promise<OAuthTokenPair> {
-    return this.withTransaction(async (client) => {
-      const grant = await client.query<{ id: string }>(
-        `INSERT INTO oauth_grants (user_id, client_id, scopes, resource) VALUES ($1, $2, $3, $4)
-         ON CONFLICT (user_id, client_id, resource) DO UPDATE SET scopes = EXCLUDED.scopes, last_used_at = now()
-         RETURNING id`,
-        [input.userId, input.clientId, input.scopes, input.resource],
-      );
-      const grantId = grant.rows[0]?.id;
-      if (!grantId) throw new Error('Grant upsert returned no row');
-      return this.issueTokenPair(client, grantId);
+    return this.database.transaction(async (transaction) => {
+      const [grant] = await transaction
+        .insert(oauthGrants)
+        .values({ userId: input.userId, clientId: input.clientId, scopes: [...input.scopes], resource: input.resource })
+        .onConflictDoUpdate({
+          target: [oauthGrants.userId, oauthGrants.clientId, oauthGrants.resource],
+          set: { scopes: [...input.scopes], lastUsedAt: sql`now()` },
+        })
+        .returning({ id: oauthGrants.id });
+      if (!grant) throw new Error('Grant upsert returned no row');
+      return this.issueTokenPair(transaction, grant.id);
     });
   }
 
@@ -257,31 +297,39 @@ export class Database {
    */
   async rotateOAuthRefreshToken(refreshToken: string, clientId: string): Promise<RefreshOutcome> {
     const tokenHash = hashToken(refreshToken);
-    return this.withTransaction(async (client) => {
-      const consumed = await client.query<{ grant_id: string }>(
-        `UPDATE oauth_refresh_tokens SET consumed_at = now()
-         WHERE token_hash = $1 AND consumed_at IS NULL AND expires_at > now()
-         AND grant_id IN (SELECT id FROM oauth_grants WHERE client_id = $2)
-         RETURNING grant_id`,
-        [tokenHash, clientId],
-      );
-      const grantId = consumed.rows[0]?.grant_id;
-      if (grantId) {
-        await client.query('UPDATE oauth_grants SET last_used_at = now() WHERE id = $1', [grantId]);
-        return { kind: 'rotated' as const, tokens: await this.issueTokenPair(client, grantId) };
+    return this.database.transaction(async (transaction) => {
+      const grantsForClient = transaction
+        .select({ id: oauthGrants.id })
+        .from(oauthGrants)
+        .where(eq(oauthGrants.clientId, clientId));
+      const [consumed] = await transaction
+        .update(oauthRefreshTokens)
+        .set({ consumedAt: sql`now()` })
+        .where(and(
+          eq(oauthRefreshTokens.tokenHash, tokenHash),
+          isNull(oauthRefreshTokens.consumedAt),
+          gt(oauthRefreshTokens.expiresAt, sql`now()`),
+          inArray(oauthRefreshTokens.grantId, grantsForClient),
+        ))
+        .returning({ grantId: oauthRefreshTokens.grantId });
+      if (consumed) {
+        await transaction.update(oauthGrants).set({ lastUsedAt: sql`now()` }).where(eq(oauthGrants.id, consumed.grantId));
+        return { kind: 'rotated' as const, tokens: await this.issueTokenPair(transaction, consumed.grantId) };
       }
-      // Nothing was consumed. If the token exists anyway it was already spent,
-      // which means someone is replaying a value that should have been discarded
-      // — so the whole grant goes, not just this token.
-      const replayed = await client.query<{ user_id: string; client_id: string }>(
-        `DELETE FROM oauth_grants WHERE id = (
-           SELECT grant_id FROM oauth_refresh_tokens WHERE token_hash = $1 AND consumed_at IS NOT NULL
-         ) RETURNING user_id, client_id`,
-        [tokenHash],
-      );
-      const row = replayed.rows[0];
+
+      const replayed = await transaction.execute<ReplayedGrantRow>(sql`
+        delete from ${oauthGrants}
+        where ${oauthGrants.id} = (
+          select ${oauthRefreshTokens.grantId}
+          from ${oauthRefreshTokens}
+          where ${oauthRefreshTokens.tokenHash} = ${tokenHash}
+            and ${oauthRefreshTokens.consumedAt} is not null
+        )
+        returning ${oauthGrants.userId} as "userId", ${oauthGrants.clientId} as "clientId"
+      `);
+      const [row] = replayed.rows;
       if (!row) return { kind: 'unknown' as const };
-      return { kind: 'replayed' as const, userId: row.user_id, clientId: row.client_id };
+      return { kind: 'replayed' as const, userId: row.userId, clientId: row.clientId };
     });
   }
 
@@ -292,49 +340,47 @@ export class Database {
    * without a second round trip on every MCP call. Expired tokens match nothing.
    */
   async resolveOAuthAccessTokenAndTouch(token: string, userAgent?: string): Promise<OAuthIdentity | undefined> {
-    const result = await this.pool.query<{
-      id: string; user_id: string; client_id: string; resource: string; scopes: string[]; expires_at: Date;
-    }>(
-      `UPDATE oauth_grants SET last_used_at = now(), user_agent = COALESCE($2, oauth_grants.user_agent)
-       FROM oauth_access_tokens
-       WHERE oauth_access_tokens.token_hash = $1 AND oauth_access_tokens.expires_at > now()
-         AND oauth_grants.id = oauth_access_tokens.grant_id
-       RETURNING oauth_grants.id, oauth_grants.user_id, oauth_grants.client_id, oauth_grants.resource,
-         oauth_grants.scopes, oauth_access_tokens.expires_at`,
-      [hashToken(token), userAgent ?? null],
-    );
-    const row = result.rows[0];
+    const result = await this.database.execute<OAuthAccessTokenRow>(sql`
+      update ${oauthGrants}
+      set "last_used_at" = now(),
+        "user_agent" = coalesce(${userAgent ?? null}, ${oauthGrants.userAgent})
+      from ${oauthAccessTokens}
+      where ${oauthAccessTokens.tokenHash} = ${hashToken(token)}
+        and ${oauthAccessTokens.expiresAt} > now()
+        and ${oauthGrants.id} = ${oauthAccessTokens.grantId}
+      returning ${oauthGrants.id} as "grantId", ${oauthGrants.userId} as "userId",
+        ${oauthGrants.clientId} as "clientId", ${oauthGrants.resource} as "resource",
+        ${oauthGrants.scopes} as "scopes", ${oauthAccessTokens.expiresAt} as "expiresAt"
+    `);
+    const [row] = result.rows;
     if (!row) return undefined;
-    return {
-      grantId: row.id, userId: row.user_id, clientId: row.client_id,
-      resource: row.resource, scopes: row.scopes, expiresAt: row.expires_at,
-    };
+    return { ...row, expiresAt: new Date(row.expiresAt) };
   }
 
   async listOAuthGrants(userId: string): Promise<readonly OAuthGrantRecord[]> {
-    const result = await this.pool.query<{
-      id: string; client_id: string; client_name: string; user_agent: string | null; created_at: Date; last_used_at: Date;
-    }>(
-      `SELECT oauth_grants.id, oauth_grants.client_id, oauth_clients.client_name, oauth_grants.user_agent,
-         oauth_grants.created_at, oauth_grants.last_used_at
-       FROM oauth_grants JOIN oauth_clients ON oauth_clients.client_id = oauth_grants.client_id
-       WHERE oauth_grants.user_id = $1 ORDER BY oauth_grants.last_used_at DESC`,
-      [userId],
-    );
-    return result.rows.map((row) => ({
-      id: row.id,
-      clientId: row.client_id,
-      clientName: row.client_name,
-      userAgent: row.user_agent ?? undefined,
-      createdAt: row.created_at,
-      lastUsedAt: row.last_used_at,
-    }));
+    const rows = await this.database
+      .select({
+        id: oauthGrants.id,
+        clientId: oauthGrants.clientId,
+        clientName: oauthClients.clientName,
+        userAgent: oauthGrants.userAgent,
+        createdAt: oauthGrants.createdAt,
+        lastUsedAt: oauthGrants.lastUsedAt,
+      })
+      .from(oauthGrants)
+      .innerJoin(oauthClients, eq(oauthClients.clientId, oauthGrants.clientId))
+      .where(eq(oauthGrants.userId, userId))
+      .orderBy(desc(oauthGrants.lastUsedAt));
+    return rows.map((row) => ({ ...row, userAgent: row.userAgent ?? undefined }));
   }
 
   /** Scoped by `user_id` so a grant id can never let one user disconnect another's client. */
   async revokeOAuthGrant(userId: string, grantId: string): Promise<boolean> {
-    const result = await this.pool.query('DELETE FROM oauth_grants WHERE user_id = $1 AND id = $2', [userId, grantId]);
-    return (result.rowCount ?? 0) > 0;
+    const rows = await this.database
+      .delete(oauthGrants)
+      .where(and(eq(oauthGrants.userId, userId), eq(oauthGrants.id, grantId)))
+      .returning({ id: oauthGrants.id });
+    return rows.length > 0;
   }
 
   /**
@@ -344,11 +390,17 @@ export class Database {
    */
   async revokeOAuthToken(token: string): Promise<void> {
     const tokenHash = hashToken(token);
-    const result = await this.pool.query(
-      'DELETE FROM oauth_grants WHERE id IN (SELECT grant_id FROM oauth_refresh_tokens WHERE token_hash = $1)',
-      [tokenHash],
-    );
-    if ((result.rowCount ?? 0) === 0) await this.pool.query('DELETE FROM oauth_access_tokens WHERE token_hash = $1', [tokenHash]);
+    const refreshTokenGrants = this.database
+      .select({ grantId: oauthRefreshTokens.grantId })
+      .from(oauthRefreshTokens)
+      .where(eq(oauthRefreshTokens.tokenHash, tokenHash));
+    const revokedGrants = await this.database
+      .delete(oauthGrants)
+      .where(inArray(oauthGrants.id, refreshTokenGrants))
+      .returning({ id: oauthGrants.id });
+    if (revokedGrants.length === 0) {
+      await this.database.delete(oauthAccessTokens).where(eq(oauthAccessTokens.tokenHash, tokenHash));
+    }
   }
 
   /**
@@ -356,76 +408,88 @@ export class Database {
    * by every read path, so this is housekeeping rather than a security control.
    */
   async deleteExpiredOAuthTokens(): Promise<void> {
-    await this.pool.query('DELETE FROM oauth_access_tokens WHERE expires_at <= now()');
-    await this.pool.query('DELETE FROM oauth_refresh_tokens WHERE expires_at <= now()');
+    await this.database.delete(oauthAccessTokens).where(lte(oauthAccessTokens.expiresAt, sql`now()`));
+    await this.database.delete(oauthRefreshTokens).where(lte(oauthRefreshTokens.expiresAt, sql`now()`));
   }
 
-  private async issueTokenPair(client: pg.PoolClient, grantId: string): Promise<OAuthTokenPair> {
+  private async issueTokenPair(transaction: AppTransaction, grantId: string): Promise<OAuthTokenPair> {
     const accessToken = randomBytes(OAUTH_TOKEN_BYTES).toString('base64url');
     const refreshToken = randomBytes(OAUTH_TOKEN_BYTES).toString('base64url');
     const accessTokenExpiresAt = new Date(Date.now() + this.config.OAUTH_ACCESS_TOKEN_TTL_SECONDS * 1000);
     // Slid forward on every rotation, so a client that keeps talking never has
     // to be reconnected by hand and one that goes quiet eventually lapses.
     const refreshTokenExpiresAt = new Date(Date.now() + this.config.OAUTH_REFRESH_TOKEN_TTL_DAYS * MILLISECONDS_PER_DAY);
-    await client.query('INSERT INTO oauth_access_tokens (token_hash, grant_id, expires_at) VALUES ($1, $2, $3)', [hashToken(accessToken), grantId, accessTokenExpiresAt]);
-    await client.query('INSERT INTO oauth_refresh_tokens (token_hash, grant_id, expires_at) VALUES ($1, $2, $3)', [hashToken(refreshToken), grantId, refreshTokenExpiresAt]);
+    await transaction.insert(oauthAccessTokens).values({
+      tokenHash: hashToken(accessToken),
+      grantId,
+      expiresAt: accessTokenExpiresAt,
+    });
+    await transaction.insert(oauthRefreshTokens).values({
+      tokenHash: hashToken(refreshToken),
+      grantId,
+      expiresAt: refreshTokenExpiresAt,
+    });
     return { accessToken, refreshToken, accessTokenExpiresAt };
-  }
-
-  private async withTransaction<T>(operation: (client: pg.PoolClient) => Promise<T>): Promise<T> {
-    const client = await this.pool.connect();
-    try {
-      await client.query('BEGIN');
-      const result = await operation(client);
-      await client.query('COMMIT');
-      return result;
-    } catch (error) {
-      await client.query('ROLLBACK');
-      throw error;
-    } finally {
-      client.release();
-    }
   }
 
   async saveCredential(userId: string, providerId: ProviderId, credential: StoredCredential): Promise<void> {
     const payload: CredentialPayload = { accessToken: credential.accessToken };
     if (credential.refreshToken !== undefined) payload.refreshToken = credential.refreshToken;
-    const encrypted = encryptSecret(JSON.stringify(payload), this.config.encryptionKey);
-    await this.pool.query(
-      `INSERT INTO provider_credentials (user_id, provider_id, encrypted_payload, expires_at, scopes)
-       VALUES ($1, $2, $3, $4, $5)
-       ON CONFLICT (user_id, provider_id) DO UPDATE SET encrypted_payload = EXCLUDED.encrypted_payload,
-         expires_at = EXCLUDED.expires_at, scopes = EXCLUDED.scopes, updated_at = now()`,
-      [userId, providerId, encrypted, credential.expiresAt ?? null, credential.scopes],
-    );
+    const encryptedPayload = encryptSecret(JSON.stringify(payload), this.config.encryptionKey);
+    await this.database
+      .insert(providerCredentials)
+      .values({
+        userId,
+        providerId,
+        encryptedPayload,
+        expiresAt: credential.expiresAt ?? null,
+        scopes: [...credential.scopes],
+      })
+      .onConflictDoUpdate({
+        target: [providerCredentials.userId, providerCredentials.providerId],
+        set: {
+          encryptedPayload,
+          expiresAt: credential.expiresAt ?? null,
+          scopes: [...credential.scopes],
+          updatedAt: sql`now()`,
+        },
+      });
   }
 
   async getCredential(userId: string, providerId: ProviderId): Promise<StoredCredential | undefined> {
-    const result = await this.pool.query<{
-      encrypted_payload: EncryptedSecret;
-      expires_at: Date | null;
-      scopes: string[];
-    }>('SELECT encrypted_payload, expires_at, scopes FROM provider_credentials WHERE user_id = $1 AND provider_id = $2', [userId, providerId]);
-    const row = result.rows[0];
+    const [row] = await this.database
+      .select({
+        encryptedPayload: providerCredentials.encryptedPayload,
+        expiresAt: providerCredentials.expiresAt,
+        scopes: providerCredentials.scopes,
+      })
+      .from(providerCredentials)
+      .where(and(eq(providerCredentials.userId, userId), eq(providerCredentials.providerId, providerId)))
+      .limit(1);
     if (!row) return undefined;
     // Parsed, not asserted: a row that decrypts to something else must fail
     // here rather than hand a non-string token to an outbound request.
-    const payload = credentialPayloadSchema.parse(JSON.parse(decryptSecret(row.encrypted_payload, this.config.encryptionKey)));
+    const payload = credentialPayloadSchema.parse(JSON.parse(decryptSecret(row.encryptedPayload, this.config.encryptionKey)));
     return {
       accessToken: payload.accessToken,
       ...(payload.refreshToken === undefined ? {} : { refreshToken: payload.refreshToken }),
-      ...(row.expires_at === null ? {} : { expiresAt: row.expires_at }),
+      ...(row.expiresAt === null ? {} : { expiresAt: row.expiresAt }),
       scopes: row.scopes,
     };
   }
 
   async deleteCredential(userId: string, providerId: ProviderId): Promise<void> {
-    await this.pool.query('DELETE FROM provider_credentials WHERE user_id = $1 AND provider_id = $2', [userId, providerId]);
+    await this.database
+      .delete(providerCredentials)
+      .where(and(eq(providerCredentials.userId, userId), eq(providerCredentials.providerId, providerId)));
   }
 
   async connectedProviders(userId: string): Promise<Set<ProviderId>> {
-    const result = await this.pool.query<{ provider_id: ProviderId }>('SELECT provider_id FROM provider_credentials WHERE user_id = $1', [userId]);
-    return new Set(result.rows.map((row) => row.provider_id));
+    const rows = await this.database
+      .select({ providerId: providerCredentials.providerId })
+      .from(providerCredentials)
+      .where(eq(providerCredentials.userId, userId));
+    return new Set(rows.map((row) => row.providerId));
   }
 
   /**
@@ -435,38 +499,42 @@ export class Database {
    * next to the column that decides it.
    */
   async listConnections(userId: string): Promise<readonly { providerId: ProviderId; connectedAt: Date; accountLabel: string | undefined; needsReconnect: boolean }[]> {
-    const result = await this.pool.query<{ provider_id: ProviderId; created_at: Date; account_label: string | null; needs_reconnect: boolean }>(
-      `SELECT provider_id, created_at, account_label, (expires_at IS NOT NULL AND expires_at <= now()) AS needs_reconnect
-       FROM provider_credentials WHERE user_id = $1`,
-      [userId],
-    );
-    return result.rows.map((row) => ({
-      providerId: row.provider_id,
-      connectedAt: row.created_at,
-      accountLabel: row.account_label ?? undefined,
-      needsReconnect: row.needs_reconnect,
-    }));
+    const rows = await this.database
+      .select({
+        providerId: providerCredentials.providerId,
+        connectedAt: providerCredentials.createdAt,
+        accountLabel: providerCredentials.accountLabel,
+        needsReconnect: sql<boolean>`${providerCredentials.expiresAt} is not null and ${providerCredentials.expiresAt} <= now()`,
+      })
+      .from(providerCredentials)
+      .where(eq(providerCredentials.userId, userId));
+    return rows.map((row) => ({ ...row, accountLabel: row.accountLabel ?? undefined }));
   }
 
   /** Best-effort display name. A connection stays perfectly usable without one. */
   async setAccountLabel(userId: string, providerId: ProviderId, accountLabel: string): Promise<void> {
-    await this.pool.query('UPDATE provider_credentials SET account_label = $3 WHERE user_id = $1 AND provider_id = $2', [userId, providerId, accountLabel]);
+    await this.database
+      .update(providerCredentials)
+      .set({ accountLabel })
+      .where(and(eq(providerCredentials.userId, userId), eq(providerCredentials.providerId, providerId)));
   }
 
   async hiddenProviders(userId: string): Promise<Set<ProviderId>> {
-    const result = await this.pool.query<{ provider_id: ProviderId }>(
-      'SELECT provider_id FROM user_provider_preferences WHERE user_id = $1 AND is_hidden = true',
-      [userId],
-    );
-    return new Set(result.rows.map((row) => row.provider_id));
+    const rows = await this.database
+      .select({ providerId: userProviderPreferences.providerId })
+      .from(userProviderPreferences)
+      .where(and(eq(userProviderPreferences.userId, userId), eq(userProviderPreferences.isHidden, true)));
+    return new Set(rows.map((row) => row.providerId));
   }
 
   async setProviderHidden(userId: string, providerId: ProviderId, isHidden: boolean): Promise<void> {
-    await this.pool.query(
-      `INSERT INTO user_provider_preferences (user_id, provider_id, is_hidden) VALUES ($1, $2, $3)
-       ON CONFLICT (user_id, provider_id) DO UPDATE SET is_hidden = EXCLUDED.is_hidden`,
-      [userId, providerId, isHidden],
-    );
+    await this.database
+      .insert(userProviderPreferences)
+      .values({ userId, providerId, isHidden })
+      .onConflictDoUpdate({
+        target: [userProviderPreferences.userId, userProviderPreferences.providerId],
+        set: { isHidden },
+      });
   }
 
   /**
@@ -475,19 +543,21 @@ export class Database {
    * `isToolPreferred` decides.
    */
   async toolPreferences(userId: string): Promise<ReadonlyMap<string, boolean>> {
-    const result = await this.pool.query<{ tool_name: string; is_enabled: boolean }>(
-      'SELECT tool_name, is_enabled FROM user_tool_preferences WHERE user_id = $1',
-      [userId],
-    );
-    return new Map(result.rows.map((row) => [row.tool_name, row.is_enabled]));
+    const rows = await this.database
+      .select({ toolName: userToolPreferences.toolName, isEnabled: userToolPreferences.isEnabled })
+      .from(userToolPreferences)
+      .where(eq(userToolPreferences.userId, userId));
+    return new Map(rows.map((row) => [row.toolName, row.isEnabled]));
   }
 
   async setToolPreference(userId: string, toolName: string, isEnabled: boolean): Promise<void> {
-    await this.pool.query(
-      `INSERT INTO user_tool_preferences (user_id, tool_name, is_enabled) VALUES ($1, $2, $3)
-       ON CONFLICT (user_id, tool_name) DO UPDATE SET is_enabled = EXCLUDED.is_enabled`,
-      [userId, toolName, isEnabled],
-    );
+    await this.database
+      .insert(userToolPreferences)
+      .values({ userId, toolName, isEnabled })
+      .onConflictDoUpdate({
+        target: [userToolPreferences.userId, userToolPreferences.toolName],
+        set: { isEnabled },
+      });
   }
 }
 

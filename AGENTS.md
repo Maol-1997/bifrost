@@ -136,7 +136,8 @@ src/
   routes/              public, OAuth-server, /mcp and signed-in API route families
   mcp.ts               per-request MCP server assembly, tool execution, rate/concurrency limits
   errors.ts            AgentFacingError: the only error messages that reach the calling agent
-  db.ts                every SQL query; the only place SQL lives
+  database/            Drizzle schema, connection and migration runner
+  db.ts                persistence operations through Drizzle
   oauth.ts             Bifrost as an OAuth client (Google + providers)
   config.ts            Zod-validated env; refuses to start on bad config
   coordination.ts      Redis locks, rate limits, concurrency leases (degrades to in-process)
@@ -148,7 +149,7 @@ src/
   clients/describe.ts  user agent -> recognizable client name, monogram and logo
   api/                 bifrost.ts facade over live.ts / mock.ts, chosen once by VITE_USE_MOCK_API
   pages/, components/, lib/   the React SPA
-migrations/            node-pg-migrate, .cjs, applied on container boot
+migrations/            generated Drizzle SQL, applied on container boot
 test/                  vitest, pure units only; no database in tests
 ```
 
