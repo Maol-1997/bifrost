@@ -92,36 +92,62 @@ export async function handleAuthorize(context: OAuthServerContext, url: URL, use
     );
   }
 
-  const fail = (code: OAuthErrorCode, description: string): OAuthHttpResult =>
-    redirectFailure(context, request.redirect_uri, code, description, request.state);
+  const validated = validateAuthorizeRequest(context, request);
+  if (validated.kind === 'rejected') return validated.result;
 
-  if (request.response_type !== 'code') return fail('unsupported_response_type', 'Only the authorization code flow is supported');
-  if (!isSupportedChallengeMethod(request.code_challenge_method)) return fail('invalid_request', 'code_challenge_method must be S256');
-
-  const resource = normalizeResource(context, request.resource);
-  if (!resource) return fail('invalid_target', 'The resource parameter does not name this MCP server');
-
-  const scopes = parseScopes(request.scope);
-  if (!scopes) return fail('invalid_scope', `The only supported scope is ${MCP_SCOPE}`);
-
-  const pending: PendingConsent = {
-    clientId: client.clientId,
-    clientName: client.clientName,
-    userId,
-    redirectUri: request.redirect_uri,
-    codeChallenge: request.code_challenge,
-    scopes,
-    resource,
-    ...(request.state === undefined ? {} : { state: request.state }),
-  };
+  const pending = pendingConsentFor({ client, request, userId, ...validated.granted });
 
   // Approving the same client again would ask the same question and get the
   // same answer, so a client that is already authorized reconnects silently.
-  if (await context.database.hasOAuthGrant(userId, client.clientId, resource)) {
+  if (await context.database.hasOAuthGrant(userId, client.clientId, pending.resource)) {
     return issueAuthorizationCode(context, pending);
   }
+  return askForConsent(context, client, pending);
+}
 
-  const user = await context.database.getUser(userId);
+type AuthorizeRequest = z.infer<typeof authorizeRequestSchema>;
+type GrantedRequest = { resource: string; scopes: readonly string[] };
+type ValidatedAuthorizeRequest =
+  | { kind: 'granted'; granted: GrantedRequest }
+  | { kind: 'rejected'; result: OAuthHttpResult };
+
+/**
+ * The protocol checks that run once `redirect_uri` is trusted, so every
+ * rejection here travels back to the client as an error redirect.
+ */
+function validateAuthorizeRequest(context: OAuthServerContext, request: AuthorizeRequest): ValidatedAuthorizeRequest {
+  const reject = (code: OAuthErrorCode, description: string): ValidatedAuthorizeRequest => ({
+    kind: 'rejected',
+    result: redirectFailure(context, { redirectUri: request.redirect_uri, code, description, state: request.state }),
+  });
+
+  if (request.response_type !== 'code') return reject('unsupported_response_type', 'Only the authorization code flow is supported');
+  if (!isSupportedChallengeMethod(request.code_challenge_method)) return reject('invalid_request', 'code_challenge_method must be S256');
+
+  const resource = normalizeResource(context, request.resource);
+  if (!resource) return reject('invalid_target', 'The resource parameter does not name this MCP server');
+
+  const scopes = parseScopes(request.scope);
+  if (!scopes) return reject('invalid_scope', `The only supported scope is ${MCP_SCOPE}`);
+
+  return { kind: 'granted', granted: { resource, scopes } };
+}
+
+function pendingConsentFor(input: { client: RegisteredClient; request: AuthorizeRequest; userId: string } & GrantedRequest): PendingConsent {
+  return {
+    clientId: input.client.clientId,
+    clientName: input.client.clientName,
+    userId: input.userId,
+    redirectUri: input.request.redirect_uri,
+    codeChallenge: input.request.code_challenge,
+    scopes: [...input.scopes],
+    resource: input.resource,
+    ...(input.request.state === undefined ? {} : { state: input.request.state }),
+  };
+}
+
+async function askForConsent(context: OAuthServerContext, client: RegisteredClient, pending: PendingConsent): Promise<OAuthHttpResult> {
+  const user = await context.database.getUser(pending.userId);
   if (!user) return errorPage('Account not found', 'The signed-in account no longer exists. Sign in again and retry.');
 
   const consentToken = randomBytes(TOKEN_BYTES).toString('base64url');
@@ -131,9 +157,9 @@ export async function handleAuthorize(context: OAuthServerContext, url: URL, use
     status: 200,
     body: renderConsentPage({
       clientName: client.clientName,
-      redirectUri: request.redirect_uri,
+      redirectUri: pending.redirectUri,
       redirectUris: client.redirectUris,
-      scopes,
+      scopes: pending.scopes,
       userEmail: user.email,
       consentToken,
     }),
@@ -163,7 +189,7 @@ export async function handleConsent(context: OAuthServerContext, body: URLSearch
   }
 
   if (body.get('decision') !== 'approve') {
-    return redirectFailure(context, pending.redirectUri, 'access_denied', 'The user declined the request', pending.state);
+    return redirectFailure(context, { redirectUri: pending.redirectUri, code: 'access_denied', description: 'The user declined the request', state: pending.state });
   }
   logger.info({ clientId: pending.clientId, userId }, 'Client authorized by user');
   return issueAuthorizationCode(context, pending);
@@ -218,15 +244,12 @@ async function issueAuthorizationCode(context: OAuthServerContext, pending: Pend
 
 function redirectFailure(
   context: OAuthServerContext,
-  redirectUri: string,
-  code: OAuthErrorCode,
-  description: string,
-  state: string | undefined,
+  failure: { redirectUri: string; code: OAuthErrorCode; description: string; state: string | undefined },
 ): OAuthHttpResult {
-  const location = new URL(redirectUri);
-  location.searchParams.set('error', code);
-  location.searchParams.set('error_description', description);
-  if (state !== undefined) location.searchParams.set('state', state);
+  const location = new URL(failure.redirectUri);
+  location.searchParams.set('error', failure.code);
+  location.searchParams.set('error_description', failure.description);
+  if (failure.state !== undefined) location.searchParams.set('state', failure.state);
   location.searchParams.set('iss', issuerUrl(context.config.PUBLIC_URL));
   return { kind: 'redirect', location: location.toString() };
 }
