@@ -119,7 +119,7 @@ Worth knowing before touching `src/oauth-server/`:
 - **Refresh tokens rotate with replay detection.** A spent token presented again destroys the
   entire grant rather than just declining, because a replay means the value leaked.
 - **Tokens are opaque, stored as SHA-256 hashes.** Not JWTs: this gives instant revocation and no
-  key management, and the bearer regex in `authenticate()` would not match a JWT's dots anyway.
+  key management, and the bearer regex in `authenticateAgent()` would not match a JWT's dots anyway.
 - **`redirect-uri.ts` implements the RFC 8252 loopback port exception.** It looks like a
   loophole and is not: Claude Code publishes `http://localhost/callback` with no port and binds an
   ephemeral one at runtime, so without this its CIMD flow cannot complete.

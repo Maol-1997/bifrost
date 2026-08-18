@@ -20,8 +20,10 @@ export function isWellFormedVerifier(verifier: string): boolean {
 }
 
 /**
- * Compared in constant time. The challenge is not secret, but a timing oracle on
- * this comparison would leak how much of a guessed verifier is correct.
+ * Compared in constant time. Nothing here is secret (the challenge is public
+ * and a hash digest does not reveal its preimage byte by byte), so this is not
+ * closing a known oracle; it is the habit of never comparing credential-shaped
+ * values with `===`, kept uniform so no reader has to judge the exception.
  */
 export function verifyCodeChallenge(verifier: string, challenge: string): boolean {
   if (!isWellFormedVerifier(verifier)) return false;

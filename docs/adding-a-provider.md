@@ -19,7 +19,7 @@ Adding a provider should be mechanical. If a mounted tool does not appear, prefi
 - Registration, namespace, supported-app connection lookup, and credential mapping must use the identical prefix and provider ID.
 - Provider modules expose explicit wrapper tools, not dynamic upstream pass-through.
 - Inputs are Zod-validated before execution.
-- A write tool starts off for every user and stays off until they enable it in Connections. If the
+- A write tool starts off for every user and stays off until they enable it in Integrations. If the
   deployment sets `WRITE_TOOL_ALLOWLIST`, only the exact names listed there can be enabled at all;
   an empty allowlist is no ceiling rather than a blanket denial.
 - Credentials only cross the isolated AES-256-GCM storage boundary in `src/security/secrets.ts` and `src/db.ts`.

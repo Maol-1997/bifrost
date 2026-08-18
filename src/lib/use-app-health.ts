@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
 import { getAppHealth, type HealthSnapshot } from '@/api/bifrost';
 
-// The vendors' feeds are cached for a minute server-side, so polling faster
-// would only re-fetch the same snapshot; polling slower would make the
-// "last checked" line on the status screen lie.
+// The server caches the vendors' feeds for a minute. Polling at half that
+// means a tab picks up a fresh snapshot within 30s of the cache turning over,
+// instead of up to a full minute late if the two clocks line up badly; the
+// extra requests are cheap because they hit the cache.
 const POLL_INTERVAL_MS = 30_000;
 
 export type AppHealthState = {

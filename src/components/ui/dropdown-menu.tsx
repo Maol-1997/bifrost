@@ -14,7 +14,6 @@ import { cn } from "@/lib/utils"
 const MENU_SURFACE =
   "rounded-xl border-[0.5px] border-menu-border bg-menu p-1.5 text-app-text-primary shadow-[0_3px_8px_rgb(0_0_0/0.125),0_2px_5px_rgb(0_0_0/0.125),0_1px_1px_rgb(0_0_0/0.125)]"
 
-// 32px rows with a 14px text inset, sitting inside the card's 6px padding.
 const MENU_ITEM =
   "relative flex h-8 cursor-default select-none items-center gap-2 rounded-md pl-3.5 pr-[18px] text-[13px] font-normal outline-none transition-colors focus:bg-menu-hover data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&>svg]:size-4 [&>svg]:shrink-0"
 

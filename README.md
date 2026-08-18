@@ -48,11 +48,11 @@ For local MCP verification without live Google credentials, set `BIFROST_DEV_USE
 - `POST /mcp/internal`: explicit `501` service-path stub.
 - `GET /api/status.json`: mount status and tool counts.
 - `GET /api/app-connections.json`: authenticated user's connections and hidden preferences.
-- `GET /api/provider-health.json`: each vendor's own uptime feed (GitHub, Linear and Notion are Statuspage tenants; Slack has its own API), cached for a minute. Authenticated so the fan-out cannot be used as an amplifier.
+- `GET /api/provider-health.json`: each vendor's own uptime feed (GitHub, Linear and Notion are Statuspage tenants; Slack has its own API). Public, because it is the one screen you need when you cannot sign in; a one-minute single-flight cache, not authentication, is what keeps it from amplifying traffic onto the upstream status pages.
 - `GET /api/clients.json`: the caller's live sessions, with `isCurrent` marking the browser making the request.
 - `GET /api/me.json`: the signed-in user's name and email. The client treats a `401` as "nobody is signed in" rather than redirecting, so the public status screen stays readable when sign-in is unavailable.
-- `POST /api/clients/:sessionId/revoke` and `/renew`: both scoped by `user_id`, so a session id from one account can never touch another's. Renewal is refused once a session has expired — that program has to sign in again.
-- `GET /`: server-rendered status and connection links.
+- `POST /api/clients/:kind/:id/revoke` and `/renew`, where `:kind` is `browser` or `agent`: both scoped by `user_id`, so an id from one account can never touch another's. Only browser sessions can be renewed (agents keep themselves connected through OAuth refresh), and renewal is refused once a session has expired — that browser has to sign in again.
+- `GET /`: the React SPA. Its own router lands on `/integrations`.
 - `GET /healthz`: container health.
 
 Every MCP request emits structured JSON fields for user ID, client ID, JSON-RPC method, optional tool name, latency, status code, and request ID. Tool calls have independent latency logging. Redis coordinates OAuth refresh rotation, outbound starts, and in-flight concurrency across workers; without Redis the same safeguards degrade to process-local state with a warning.

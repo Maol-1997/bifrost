@@ -11,8 +11,8 @@ import { Slack } from '@/components/ui/svgs/slack';
 // is white — anything else disappears against our dark tiles. Linear's mark is
 // drawn with `currentColor`, so the `text-logo` below is what colours it;
 // Slack keeps its own colours because its mark is only legible in full colour.
-// Partial on purpose: the provider list grows server-side, and a provider with
-// no logo yet must fall back to its monogram rather than render an empty tile.
+// Partial on purpose: a catalog entry can exist before its logo does, and it
+// must fall back to its monogram rather than render an empty tile.
 const providerLogos: Partial<Record<ProviderId, ComponentType<SVGProps<SVGSVGElement>>>> = {
   github: GithubDark,
   linear: Linear,
