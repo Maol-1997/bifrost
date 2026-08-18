@@ -9,6 +9,13 @@ describe('redirect URI registration rules', () => {
     expect(isRedirectUriRegistrable('http://app.example.com/callback')).toBe(false);
   });
 
+  it('counts the IPv6 loopback address as loopback', () => {
+    // A client on an IPv6-only host writes its callback this way, and reading
+    // it as an ordinary hostname would reject a perfectly local redirect.
+    expect(isRedirectUriRegistrable('http://[::1]/callback')).toBe(true);
+    expect(isRedirectUriRegistrable('http://[::1]:3118/callback')).toBe(true);
+  });
+
   it('refuses fragments, which the authorization response could not survive', () => {
     expect(isRedirectUriRegistrable('https://app.example.com/callback#done')).toBe(false);
   });
@@ -42,6 +49,14 @@ describe('redirect URI matching', () => {
     // port and binds an ephemeral one when it actually starts listening.
     expect(isRedirectUriAllowed('http://localhost:3118/callback', ['http://localhost/callback'])).toBe(true);
     expect(isRedirectUriAllowed('http://127.0.0.1:51234/cb', ['http://127.0.0.1:8080/cb'])).toBe(true);
+  });
+
+  it('lets a portless loopback registration receive on whatever port it binds', () => {
+    // Claude Code publishes `http://localhost/callback` with no port and binds
+    // an ephemeral one at runtime, so without this its CIMD flow cannot finish.
+    const portless = ['http://localhost/callback'];
+    expect(isRedirectUriAllowed('http://localhost:54321/callback', portless)).toBe(true);
+    expect(isRedirectUriAllowed('http://localhost:54321/other', portless)).toBe(false);
   });
 
   it('relaxes the port and nothing else on loopback', () => {

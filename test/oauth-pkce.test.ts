@@ -1,9 +1,11 @@
-import { createHash, randomBytes } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import { isSupportedChallengeMethod, isWellFormedVerifier, verifyCodeChallenge } from '../src/oauth-server/pkce.js';
 
-const verifier = randomBytes(48).toString('base64url');
-const challenge = createHash('sha256').update(verifier).digest('base64url');
+// The RFC 7636 Appendix B vector, so a hashing regression fails against the
+// spec's own numbers rather than against whatever we happened to generate.
+const verifier = 'dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk';
+const challenge = 'E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM';
+const nearMissVerifier = `${verifier.slice(0, -1)}j`;
 
 describe('challenge method', () => {
   it('accepts only S256', () => {
@@ -33,7 +35,7 @@ describe('verifying a code challenge', () => {
   });
 
   it('rejects any other verifier', () => {
-    expect(verifyCodeChallenge(randomBytes(48).toString('base64url'), challenge)).toBe(false);
+    expect(verifyCodeChallenge(nearMissVerifier, challenge)).toBe(false);
   });
 
   it('rejects a malformed verifier before hashing it', () => {

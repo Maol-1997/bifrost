@@ -1,6 +1,7 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
-  isClientIdMetadataDocumentUrl, parseClientMetadataDocument, parseRegistrationRequest, registrationResponse,
+  fetchClientMetadataDocument, isClientIdMetadataDocumentUrl, parseClientMetadataDocument, parseRegistrationRequest,
+  registrationResponse,
 } from '../src/oauth-server/clients.js';
 import { OAuthError } from '../src/oauth-server/errors.js';
 
@@ -95,5 +96,102 @@ describe('dynamic registration', () => {
     });
     expect(response.client_secret).toBeUndefined();
     expect(response.token_endpoint_auth_method).toBe('none');
+  });
+});
+
+const { lookupMock } = vi.hoisted(() => ({
+  lookupMock: vi.fn<(hostname: string, options: { all: true }) => Promise<{ address: string; family: number }[]>>(),
+}));
+vi.mock('node:dns/promises', () => ({ lookup: lookupMock }));
+
+const fetchMock = vi.fn<(input: string, init: RequestInit) => Promise<Response>>();
+
+/** Every case that gets as far as the request needs the host to survive the SSRF check first. */
+function resolvesToAPublicAddress(): void {
+  lookupMock.mockResolvedValue([{ address: '93.184.216.34', family: 4 }]);
+}
+
+function documentOfExactly(byteLength: number): string {
+  const json = JSON.stringify(validDocument);
+  // Trailing whitespace is ignored by JSON.parse, so padding changes only the size.
+  return json + ' '.repeat(byteLength - json.length);
+}
+
+describe('fetching a client metadata document', () => {
+  beforeEach(() => {
+    vi.stubGlobal('fetch', fetchMock);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.resetAllMocks();
+  });
+
+  it('refuses a host that resolves to a private address, before making any request', async () => {
+    lookupMock.mockResolvedValue([{ address: '10.0.0.1', family: 4 }]);
+    await expect(fetchClientMetadataDocument(documentUrl)).rejects.toThrow(OAuthError);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('refuses a host that resolves to nothing at all', async () => {
+    lookupMock.mockResolvedValue([]);
+    await expect(fetchClientMetadataDocument(documentUrl)).rejects.toThrow(OAuthError);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('refuses a redirect instead of following it onto another address', async () => {
+    resolvesToAPublicAddress();
+    fetchMock.mockResolvedValue(new Response('', { status: 302, headers: { location: 'http://169.254.169.254/' } }));
+    await expect(fetchClientMetadataDocument(documentUrl)).rejects.toThrow(OAuthError);
+    expect(fetchMock.mock.calls[0]?.[1].redirect).toBe('manual');
+  });
+
+  it('accepts a document sitting exactly on the size cap', async () => {
+    resolvesToAPublicAddress();
+    fetchMock.mockResolvedValue(new Response(documentOfExactly(65_536)));
+    const { client } = await fetchClientMetadataDocument(documentUrl);
+    expect(client.clientName).toBe('Example MCP Client');
+  });
+
+  it('refuses a document one byte over the size cap', async () => {
+    resolvesToAPublicAddress();
+    fetchMock.mockResolvedValue(new Response(documentOfExactly(65_537)));
+    await expect(fetchClientMetadataDocument(documentUrl)).rejects.toThrow(OAuthError);
+  });
+
+  it('refuses a body that is not JSON', async () => {
+    resolvesToAPublicAddress();
+    fetchMock.mockResolvedValue(new Response('<html>not json</html>'));
+    await expect(fetchClientMetadataDocument(documentUrl)).rejects.toThrow(OAuthError);
+  });
+
+  it('refuses a document claiming a client_id other than the URL it was served from', async () => {
+    resolvesToAPublicAddress();
+    fetchMock.mockResolvedValue(new Response(JSON.stringify({ ...validDocument, client_id: 'https://evil.example.com/c.json' })));
+    await expect(fetchClientMetadataDocument(documentUrl)).rejects.toThrow(OAuthError);
+  });
+
+  it('caches for an hour when the document says nothing', async () => {
+    resolvesToAPublicAddress();
+    fetchMock.mockResolvedValue(new Response(JSON.stringify(validDocument)));
+    await expect(fetchClientMetadataDocument(documentUrl)).resolves.toMatchObject({ cacheForMs: 3_600_000 });
+  });
+
+  it('honours a max-age that falls inside the bounds', async () => {
+    resolvesToAPublicAddress();
+    fetchMock.mockResolvedValue(new Response(JSON.stringify(validDocument), { headers: { 'cache-control': 'public, max-age=7200' } }));
+    await expect(fetchClientMetadataDocument(documentUrl)).resolves.toMatchObject({ cacheForMs: 7_200_000 });
+  });
+
+  it('raises a max-age below the floor, so a hostile document cannot force a fetch per authorization', async () => {
+    resolvesToAPublicAddress();
+    fetchMock.mockResolvedValue(new Response(JSON.stringify(validDocument), { headers: { 'cache-control': 'max-age=60' } }));
+    await expect(fetchClientMetadataDocument(documentUrl)).resolves.toMatchObject({ cacheForMs: 300_000 });
+  });
+
+  it('lowers a max-age above the ceiling, so a rotated redirect_uris list still applies within a day', async () => {
+    resolvesToAPublicAddress();
+    fetchMock.mockResolvedValue(new Response(JSON.stringify(validDocument), { headers: { 'cache-control': 'max-age=999999' } }));
+    await expect(fetchClientMetadataDocument(documentUrl)).resolves.toMatchObject({ cacheForMs: 86_400_000 });
   });
 });

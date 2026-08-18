@@ -1,7 +1,7 @@
 import pino, { type Logger } from 'pino';
 
 const REDACTED = '[REDACTED]';
-const SECRET_KEYS = new Set(['token', 'accesstoken', 'refreshtoken', 'secret', 'clientsecret', 'authorization', 'cookie', 'code', 'authcode', 'jwt']);
+const SECRET_KEYS = new Set(['token', 'accesstoken', 'refreshtoken', 'secret', 'clientsecret', 'authorization', 'cookie', 'code', 'authcode', 'jwt', 'apikey', 'password', 'privatekey']);
 const JWT_PATTERN = /\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b/g;
 const BEARER_PATTERN = /Bearer\s+[^\s,]+/gi;
 
