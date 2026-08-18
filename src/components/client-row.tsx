@@ -15,7 +15,7 @@ export function ClientRow({ client, onRenew, onRevoke }: { client: ConnectedClie
     .filter(Boolean)
     .join(' · ');
   return (
-    <div className="flex flex-wrap items-center gap-3 border-t border-white/6 p-3.5 first:border-t-0 sm:flex-nowrap">
+    <div className="flex flex-wrap items-center gap-3 border-t-[0.5px] border-app-border-pane p-3.5 first:border-t-0 sm:flex-nowrap">
       <ClientIcon logo={client.logo} monogram={client.monogram} />
       <div className="min-w-[220px] flex-1"><div className="text-[13.5px] font-semibold">{client.name}</div><div className="mt-0.5 text-xs text-app-text-tertiary">{metadata}</div></div>
       <div className="ml-11 text-right sm:ml-0"><StatusBadge status={client.health} /><div className="mt-0.5 text-[11.5px] text-app-text-quaternary">Last used {relativeTime(client.lastUsedAt)}</div></div>

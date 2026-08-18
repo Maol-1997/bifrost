@@ -54,7 +54,7 @@ export function AccountSecurityPage(): React.JSX.Element {
       <p className="mt-1 text-[12.5px] text-app-text-tertiary">One place to see it all — click through to change anything.</p>
       {hasLoadError ? <ErrorState title="We couldn't load this summary" body="Nothing has changed on your account — this page just failed to load it. It usually fixes itself on retry." onRetry={() => void load()} /> : (
         <SectionCard className="mt-3">
-          {summaryRows.map((row) => <button type="button" key={row.big} onClick={() => { void navigate(row.to); }} className="flex min-h-11 w-full items-center gap-3 border-t border-white/6 px-3.5 py-3 text-left first:border-t-0 hover:bg-white/2.5"><span className="min-w-0 flex-1"><strong className="text-[13px] font-semibold">{row.big}</strong><span className="ml-2 text-[12.5px] text-app-text-tertiary">{row.detail}</span></span><span className="text-app-text-quaternary">→</span></button>)}
+          {summaryRows.map((row) => <button type="button" key={row.big} onClick={() => { void navigate(row.to); }} className="flex min-h-11 w-full items-center gap-3 border-t-[0.5px] border-app-border-pane px-3.5 py-3 text-left first:border-t-0 hover:bg-white/2.5"><span className="min-w-0 flex-1"><strong className="text-[13px] font-semibold">{row.big}</strong><span className="ml-2 text-[12.5px] text-app-text-tertiary">{row.detail}</span></span><span className="text-app-text-quaternary">→</span></button>)}
         </SectionCard>
       )}
     </section>

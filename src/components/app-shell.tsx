@@ -39,7 +39,7 @@ export function AppShell(): React.JSX.Element {
   const badge = statusBadge(health.snapshot);
   return (
     <div className="min-h-dvh bg-app-bg-primary text-app-text-primary lg:flex">
-      <aside className="border-b border-app-border-2 bg-app-bg-sidebar px-3 py-3 lg:fixed lg:inset-y-0 lg:w-(--sidebar-width) lg:border-r lg:border-b-0">
+      <aside className="border-b-[0.5px] border-app-border-pane bg-app-bg-sidebar px-3 py-3 lg:fixed lg:inset-y-0 lg:w-(--sidebar-width) lg:border-r-[0.5px] lg:border-b-0">
         <div className="flex items-center gap-2 px-2 pb-3.5"><BifrostMark className="size-[22px]" /><span className="text-sm font-semibold tracking-[-0.01em]">Bifrost</span></div>
         <nav aria-label="Primary" className="flex gap-1 overflow-x-auto lg:flex-col">
           {navItems.map((item) => (

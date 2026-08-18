@@ -14,7 +14,7 @@ export function ProviderCard({ provider, isConnecting, onConnect, onHide, onDisc
   const isConnected = provider.status === 'connected';
   const needsReconnect = provider.status === 'needs-reconnect';
   return (
-    <div className={cn('flex min-h-[59px] items-center gap-3 border-t border-white/6 px-3.5 py-3 first:border-t-0', isUnavailable && 'opacity-55', provider.isHidden && 'opacity-75')}>
+    <div className={cn('flex min-h-[59px] items-center gap-3 border-t-[0.5px] border-app-border-pane px-3.5 py-3 first:border-t-0', isUnavailable && 'opacity-55', provider.isHidden && 'opacity-75')}>
       <button type="button" aria-label={`View ${provider.name} tools`} disabled={isUnavailable} onClick={() => { void navigate(integrationDetailPath(provider.id)); }} className="flex min-w-0 flex-1 items-center gap-3 text-left disabled:cursor-default">
         <ProviderIcon providerId={provider.id} monogram={provider.monogram} />
         <span className="min-w-0 flex-1">

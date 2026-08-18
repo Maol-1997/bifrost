@@ -73,7 +73,7 @@ export function IntegrationDetailPage(): React.JSX.Element {
         <div className="min-w-[220px] flex-1"><div className="flex items-center gap-2.5"><h1 className="text-lg font-semibold tracking-[-0.01em]">{provider.name}</h1><StatusBadge status={provider.status} /></div><div className="mt-0.5 text-[12.5px] text-app-text-tertiary">{accountLine}</div></div>
         {provider.status === 'not-connected' || provider.status === 'needs-reconnect' ? <Button variant={provider.status === 'needs-reconnect' ? 'default' : 'ghost'} onClick={() => { if (isConnectableProvider(provider.id)) void startProviderConnection(provider.id); }} className={provider.status === 'needs-reconnect' ? 'bg-warning text-app-bg-primary hover:bg-warning/90' : ''}>{provider.status === 'needs-reconnect' ? 'Reconnect' : `Connect ${provider.name}`}</Button> : null}
       </div>
-      {banner ? <div className={`mt-[18px] rounded-[9px] border px-3.5 py-3 text-[12.5px] leading-5 ${provider.status === 'unavailable' ? 'border-white/10 bg-white/3 text-app-text-tertiary' : 'border-warning/35 bg-warning/7 text-app-text-secondary'}`}>{banner}</div> : null}
+      {banner ? <div className={`mt-[18px] rounded-[9px] border-[0.5px] px-3.5 py-3 text-[12.5px] leading-5 ${provider.status === 'unavailable' ? 'border-app-border-pane bg-white/3 text-app-text-tertiary' : 'border-warning/35 bg-warning/7 text-app-text-secondary'}`}>{banner}</div> : null}
 
       <h2 className="mt-7 text-[13.5px] font-semibold">{canDisconnect ? 'What you allowed' : 'What you’ll be asked to approve'}</h2>
       <SectionCard className="mt-2.5 py-1.5">
@@ -86,11 +86,11 @@ export function IntegrationDetailPage(): React.JSX.Element {
       <SectionCard className="mt-3 overflow-hidden">
         <div className="bg-white/2.5 px-3.5 py-2 text-[11px] font-semibold uppercase tracking-[.07em] text-app-text-quaternary">Read — looks things up, changes nothing</div>
         {readTools.map((tool) => <ToolRow key={tool.name} tool={tool} isAvailable={isConnected} onToggle={(isEnabled) => void toggleTool(tool.name, isEnabled)} />)}
-        <div className="border-t border-white/5 bg-warning/5 px-3.5 py-2 text-[11px] font-semibold uppercase tracking-[.07em] text-warning">Write — acts in your name, and starts off</div>
+        <div className="border-t-[0.5px] border-app-border-pane bg-warning/5 px-3.5 py-2 text-[11px] font-semibold uppercase tracking-[.07em] text-warning">Write — acts in your name, and starts off</div>
         {writeTools.map((tool) => <ToolRow key={tool.name} tool={tool} isAvailable={isConnected} onToggle={(isEnabled) => void toggleTool(tool.name, isEnabled)} />)}
       </SectionCard>
       {toolError ? <p role="alert" className="mt-2 text-[12.5px] leading-5 text-danger">{toolError}</p> : null}
-      {canDisconnect ? <div className="mt-6 flex flex-col items-start justify-between gap-3 rounded-[10px] border border-app-border-2 p-3.5 sm:flex-row sm:items-center"><div className="text-[12.5px] leading-5 text-app-text-tertiary">Disconnecting cuts your agents' access immediately. Nothing gets deleted on {provider.name}.</div><Button variant="outline" className="shrink-0 border-danger/35 text-danger hover:bg-danger/10 hover:text-danger" onClick={() => void disconnect()}>Disconnect {provider.name}</Button></div> : null}
+      {canDisconnect ? <div className="mt-6 flex flex-col items-start justify-between gap-3 rounded-[10px] border-[0.5px] border-app-border-pane p-3.5 sm:flex-row sm:items-center"><div className="text-[12.5px] leading-5 text-app-text-tertiary">Disconnecting cuts your agents' access immediately. Nothing gets deleted on {provider.name}.</div><Button variant="outline" className="shrink-0 border-danger/35 text-danger hover:bg-danger/10 hover:text-danger" onClick={() => void disconnect()}>Disconnect {provider.name}</Button></div> : null}
     </section>
   );
 }

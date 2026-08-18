@@ -51,7 +51,7 @@ export function ServiceStatusPage(): React.JSX.Element {
               const provider = providerMap.get(app.appId);
               const name = provider?.name ?? app.appId;
               return (
-                <div key={app.appId} className="flex items-center gap-3 border-t border-white/6 p-3.5 first:border-t-0">
+                <div key={app.appId} className="flex items-center gap-3 border-t-[0.5px] border-app-border-pane p-3.5 first:border-t-0">
                   <ProviderIcon providerId={app.appId} monogram={provider?.monogram ?? '?'} />
                   <div className="flex-1 text-[13.5px] font-semibold">{name}</div>
                   <div className="text-right">

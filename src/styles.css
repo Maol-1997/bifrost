@@ -17,6 +17,11 @@
   --color-border: #1a1b1d;
   --color-border-2: #232426;
   --color-border-3: #28282b;
+  /* The one structural border in the app: the hairline Linear draws around its
+     content pane, measured live as lch(13.08% 1.48 272) at 0.5px. Cards, row
+     dividers, the sidebar edge and code boxes all use it, so the page reads as
+     one surface. Icon plates and controls keep their own, heavier borders. */
+  --color-border-pane: #212224;
   --color-accent: #5e6ad2;
   --color-accent-hover: #7c88e8;
   --color-link: #828fff;
@@ -82,7 +87,7 @@
   --accent: var(--color-bg-quaternary);
   --accent-foreground: var(--color-text-primary);
   --destructive: var(--color-danger);
-  --border: var(--color-border-2);
+  --border: var(--color-border-pane);
   --input: var(--color-border-3);
   --ring: var(--color-accent);
 }
@@ -118,6 +123,7 @@
   --color-app-text-tertiary: var(--color-text-tertiary);
   --color-app-text-quaternary: var(--color-text-quaternary);
   --color-app-border-2: var(--color-border-2);
+  --color-app-border-pane: var(--color-border-pane);
   --color-app-border-3: var(--color-border-3);
   --color-brand: var(--color-accent);
   --color-brand-hover: var(--color-accent-hover);
@@ -150,7 +156,7 @@
    silently overrides every text-* utility on a link — which turned the whole
    sidebar nav into link-violet. */
 @layer base {
-  * { box-sizing: border-box; border-color: var(--color-border-2); }
+  * { box-sizing: border-box; border-color: var(--color-border-pane); }
   html { background: var(--color-bg-primary); color-scheme: dark; }
   body { margin: 0; min-width: 320px; min-height: 100vh; background: var(--color-bg-primary); color: var(--color-text-primary); font-family: "Geist", ui-sans-serif, system-ui, sans-serif; font-size: 13px; -webkit-font-smoothing: antialiased; }
   button, a { -webkit-tap-highlight-color: transparent; }
