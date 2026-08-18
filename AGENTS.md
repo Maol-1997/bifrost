@@ -28,8 +28,8 @@ serves three different kinds of traffic on one port:
 | Agent calls to `/mcp` | OAuth 2.1 bearer token | `oauth_access_tokens` table |
 | OAuth endpoints, discovery, `/healthz` | nothing | — |
 
-`authenticateBrowser` and `authenticateAgent` are deliberately separate functions over separate
-tables. They used to share one, which meant a leaked session cookie worked as an API token.
+`authenticateBrowser` and `authenticateAgent` (`src/http/auth.ts`) are deliberately separate
+functions over separate tables. They used to share one, which meant a leaked session cookie worked as an API token.
 Do not merge them back.
 
 The React SPA (`src/pages`, `src/components`) is built by Vite and served as static files by
@@ -131,8 +131,11 @@ Worth knowing before touching `src/oauth-server/`:
 
 ```
 src/
-  server.ts            routing, auth, every HTTP endpoint
+  server.ts            bootstrap and the top-level dispatcher; ~80 lines
+  http/                context types, response/body helpers, static files, the two authenticators
+  routes/              public, OAuth-server, /mcp and signed-in API route families
   mcp.ts               per-request MCP server assembly, tool execution, rate/concurrency limits
+  errors.ts            AgentFacingError: the only error messages that reach the calling agent
   db.ts                every SQL query; the only place SQL lives
   oauth.ts             Bifrost as an OAuth client (Google + providers)
   config.ts            Zod-validated env; refuses to start on bad config
@@ -143,7 +146,8 @@ src/
   security/            secrets.ts (AES-256-GCM), access.ts (sign-in allowlist)
   status/upstream.ts   vendors' public uptime feeds
   clients/describe.ts  user agent -> recognizable client name, monogram and logo
-  api/, pages/, components/, lib/   the React SPA
+  api/                 bifrost.ts facade over live.ts / mock.ts, chosen once by VITE_USE_MOCK_API
+  pages/, components/, lib/   the React SPA
 migrations/            node-pg-migrate, .cjs, applied on container boot
 test/                  vitest, pure units only; no database in tests
 ```

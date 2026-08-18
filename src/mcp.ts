@@ -67,7 +67,7 @@ export function createHumanMcpHandler(dependencies: {
       { name: 'bifrost', version: '0.1.0' },
       { capabilities: { tools: {} }, instructions: `Bifrost unified internal gateway. Protocol ${LATEST_PROTOCOL_VERSION}.` },
     );
-    for (const tool of tools) registerTool(server, tool, userId, requestContext.authInfo, dependencies);
+    for (const tool of tools) registerTool(server, tool, { userId, authInfo: requestContext.authInfo, dependencies });
     return server;
   }, {
     legacy: 'reject',
@@ -76,17 +76,13 @@ export function createHumanMcpHandler(dependencies: {
   });
 }
 
-function registerTool(
-  server: McpServer,
-  tool: ToolDefinition,
-  userId: string,
-  authInfo: AuthInfo | undefined,
-  dependencies: {
-    config: Config;
-    coordinator: Coordinator;
-    oauth: OAuthService;
-  },
-): void {
+type ToolRegistration = {
+  userId: string;
+  authInfo: AuthInfo | undefined;
+  dependencies: { config: Config; coordinator: Coordinator; oauth: OAuthService };
+};
+
+function registerTool(server: McpServer, tool: ToolDefinition, { userId, authInfo, dependencies }: ToolRegistration): void {
   const providerId = providerForTool(tool.name);
   server.registerTool(tool.name, {
     title: tool.title,
