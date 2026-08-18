@@ -7,7 +7,7 @@ import { PageHead } from '@app/components/ui/page-head';
 import { SectionCard } from '@app/components/ui/section-card';
 import { startProviderConnection, disconnectProvider, getProviderCatalog, isConnectableProvider, setProviderHidden, type Provider, type ProviderId } from '@app/api/bifrost';
 import { providersQueryOptions } from '@app/api/query-options';
-import { ProviderCard } from './provider-card';
+import { ProviderCard } from './components/provider-card';
 
 const CONNECTION_SETTLE_MS = 900;
 const emptyDemoProviders = getProviderCatalog().map((provider) => ({
@@ -19,7 +19,7 @@ function waitForConnectionRedirect(): Promise<void> {
   return new Promise((resolve) => window.setTimeout(resolve, CONNECTION_SETTLE_MS));
 }
 
-export function IntegrationsScreen(): React.JSX.Element {
+export default function Integrations(): React.JSX.Element {
   const [searchParams, setSearchParams] = useSearchParams();
   const requestedState = searchParams.get('state');
   const usesLiveData = requestedState !== 'loading' && requestedState !== 'empty' && requestedState !== 'error';

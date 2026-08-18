@@ -10,7 +10,7 @@ import { getProviderCatalog } from '@app/api/bifrost';
 import { connectedClientsQueryOptions, providersQueryOptions } from '@app/api/query-options';
 import { APP_ROUTES } from '@features/utils/routes';
 
-export function AccountSecurityScreen(): React.JSX.Element {
+export default function AccountSecurity(): React.JSX.Element {
   const navigate = useNavigate();
   const { user } = useOutletContext<AppShellContext>();
   const providersQuery = useQuery(providersQueryOptions);

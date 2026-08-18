@@ -71,7 +71,7 @@ function CommandBlock({ value }: { value: string }): React.JSX.Element {
   return <div className="mt-2.5 flex gap-2"><code className="min-w-0 flex-1 overflow-x-auto whitespace-nowrap rounded-lg border-[0.5px] border-app-border-pane bg-black/30 px-3 py-2.5 font-mono text-xs text-app-text-secondary">{value}</code><CopyButton value={value} /></div>;
 }
 
-export function AddAgentScreen(): React.JSX.Element {
+export default function AddAgent(): React.JSX.Element {
   const queryClient = useQueryClient();
   const { data: address } = useQuery({ queryKey: ['mcp-address'], queryFn: getMcpAddress });
   const checkMutation = useMutation({

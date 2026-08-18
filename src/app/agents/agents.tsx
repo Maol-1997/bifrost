@@ -9,9 +9,9 @@ import { SectionCard } from '@app/components/ui/section-card';
 import { renewClient, revokeClient } from '@app/api/bifrost';
 import { connectedClientsQueryOptions } from '@app/api/query-options';
 import { APP_ROUTES } from '@features/utils/routes';
-import { ClientRow } from './client-row';
+import { ClientRow } from './components/client-row';
 
-export function AgentsSessionsScreen(): React.JSX.Element {
+export default function Agents(): React.JSX.Element {
   const [searchParams] = useSearchParams();
   const isEmptyDemo = searchParams.get('state') === 'empty';
   const queryClient = useQueryClient();

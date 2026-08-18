@@ -27,7 +27,7 @@ function healthDetail(app: AppHealth, appName: string): string {
   return app.incidentTitle ? `Since ${clockTime(app.since)} — ${app.incidentTitle}` : `Since ${clockTime(app.since)}`;
 }
 
-export function ServiceStatusScreen(): React.JSX.Element {
+export default function ServiceStatus(): React.JSX.Element {
   // The shell already polls this so its sidebar badge cannot contradict the table.
   const { snapshot, hasFailed, reload } = useOutletContext<AppShellContext>().health;
   const providerMap = new Map(getProviderCatalog().map((provider) => [provider.id, provider]));

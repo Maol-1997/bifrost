@@ -11,7 +11,7 @@ function parseVariant(value: string | null): ResultVariant | undefined {
   return value === 'success' || value === 'cancelled' || value === 'error' ? value : undefined;
 }
 
-export function ConnectionResultScreen(): React.JSX.Element {
+export default function ConnectionResult(): React.JSX.Element {
   const [searchParams] = useSearchParams();
   const provider = getProviderCatalog().find((entry) => entry.id === searchParams.get('provider'));
   const variant = parseVariant(searchParams.get('result'));

@@ -20,7 +20,7 @@ function formatList(items: readonly string[]): string {
   return `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`;
 }
 
-export function SignInScreen(): React.JSX.Element {
+export default function SignIn(): React.JSX.Element {
   const [searchParams, setSearchParams] = useSearchParams();
   const isDenied = searchParams.get('denied') === 'true';
   const { data: policy } = useQuery({ queryKey: ['sign-in-policy'], queryFn: getSignInPolicy });

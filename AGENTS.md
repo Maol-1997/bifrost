@@ -151,7 +151,7 @@ src/
   status/upstream.ts   vendors' public uptime feeds
   clients/describe.ts  user agent -> recognizable client name, monogram and logo
   app/                 React SPA; route folders, shared chrome/UI, client API and frontend helpers
-    <route>/page.tsx   thin route boundary; delegates to its local components/*-screen.tsx
+    <route>/<route>.tsx   route entry imported directly by React Router
     components/        app-wide chrome and design-system UI only
     api/               bifrost.ts facade over live.ts / mock.ts, chosen once by VITE_USE_MOCK_API
     lib/               app-wide formatting and presentation helpers
@@ -173,11 +173,12 @@ URLs explicitly in `src/app/app.tsx`; the folders organize ownership and do not 
 - **A file lives at the closest folder that is an ancestor of every consumer.** Route-only code
   stays under that route. Code used by multiple routes moves to `app/components`, `app/lib` or
   `app/api`. Only code used by both the browser and Node belongs in `features`.
-- **The route tree mirrors the URL.** Each route owns a `page.tsx` boundary and, when needed,
-  `components/`, `hooks/` and `utils/`. Dynamic segments use bracket folders such as
+- **The route tree mirrors the URL.** Each route owns a `<domain>.tsx` entry at its root and,
+  when needed, `components/`, `hooks/` and `utils/`. Dynamic segments use bracket folders such as
   `integrations/[providerId]/` even though React Router, not Vite, interprets the parameter.
-- **`page.tsx` stays thin.** It wires or re-exports the route's `components/<domain>-screen.tsx`;
-  behavior and presentation live with that screen and its local companions.
+- **Do not create one-line route wrappers.** Vite gives `page.tsx` no special behavior, so
+  `app.tsx` lazy-loads each route entry directly. Re-export-only modules are allowed only when
+  a real package boundary needs a deliberate public API.
 - **The root tree must describe product boundaries, not framework buckets.** Do not recreate
   root-level `pages/`, `components/`, `hooks/`, `lib/` or client `api/` folders.
 - **Single-file items stay flat.** Create an item folder only when it has companions such as a
@@ -249,7 +250,7 @@ needing one is verified by running it.
 
 ## Gotchas that cost real time
 
-- **Vite does not discover `page.tsx`.** Every new route folder must also be registered in
+- **Vite does not discover route files.** Every new route entry must be registered in
   `src/app/app.tsx` and, when the server must serve the SPA there, in `src/http/static.ts`.
 - **The Docker image contains its own copy of `dist`.** Rebuilding on the host does nothing to a
   running container. Deploying a change means `docker compose up -d --build app`. Forgetting this

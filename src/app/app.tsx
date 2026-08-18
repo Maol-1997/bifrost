@@ -3,14 +3,14 @@ import { Navigate, Route, Routes } from 'react-router-dom';
 import { AppShell } from '@app/components/chrome/app-shell';
 import { APP_ROUTES } from '@features/utils/routes';
 
-const AccountSecurity = lazy(() => import('./account-security/page'));
-const AgentSetup = lazy(() => import('./agents/add/page'));
-const AgentSessions = lazy(() => import('./agents/page'));
-const ConnectionResult = lazy(() => import('./connection-result/page'));
-const IntegrationDetail = lazy(() => import('./integrations/[providerId]/page'));
-const Integrations = lazy(() => import('./integrations/page'));
-const ServiceStatus = lazy(() => import('./service-status/page'));
-const SignIn = lazy(() => import('./sign-in/page'));
+const AccountSecurity = lazy(() => import('./account-security/account-security'));
+const AgentSetup = lazy(() => import('./agents/add/add-agent'));
+const AgentSessions = lazy(() => import('./agents/agents'));
+const ConnectionResult = lazy(() => import('./connection-result/connection-result'));
+const IntegrationDetail = lazy(() => import('./integrations/[providerId]/integration-detail'));
+const Integrations = lazy(() => import('./integrations/integrations'));
+const ServiceStatus = lazy(() => import('./service-status/service-status'));
+const SignIn = lazy(() => import('./sign-in/sign-in'));
 
 export function App(): React.JSX.Element {
   return (

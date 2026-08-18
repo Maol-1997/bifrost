@@ -8,13 +8,13 @@ import { shortDate } from '@app/lib/format/short-date';
 import { startProviderConnection, disconnectProvider, getProviderCatalog, isConnectableProvider, setToolEnabled, type Provider, type ProviderId } from '@app/api/bifrost';
 import { providersQueryOptions } from '@app/api/query-options';
 import { APP_ROUTES } from '@features/utils/routes';
-import { ToolRow } from './tool-row';
+import { ToolRow } from './components/tool-row';
 
 function isProviderId(value: string | undefined): value is ProviderId {
   return value === 'github' || value === 'linear' || value === 'slack' || value === 'notion';
 }
 
-export function IntegrationDetailScreen(): React.JSX.Element {
+export default function IntegrationDetail(): React.JSX.Element {
   const { providerId: routeProviderId } = useParams();
   const providerId: ProviderId = isProviderId(routeProviderId) ? routeProviderId : 'github';
   const queryClient = useQueryClient();
