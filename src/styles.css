@@ -6,6 +6,7 @@
 
 :root {
   --color-bg-primary: #121213;
+  --color-bg-sidebar: #09090a;
   --color-bg-secondary: #161617;
   --color-bg-tertiary: #17181a;
   --color-bg-quaternary: #1a1a1b;
@@ -106,6 +107,7 @@
   --color-app-bg-secondary: var(--color-bg-secondary);
   --color-app-bg-tertiary: var(--color-bg-tertiary);
   --color-app-bg-quaternary: var(--color-bg-quaternary);
+  --color-app-bg-sidebar: var(--color-bg-sidebar);
   --color-app-text-primary: var(--color-text-primary);
   --color-app-text-secondary: var(--color-text-secondary);
   --color-app-text-tertiary: var(--color-text-tertiary);
