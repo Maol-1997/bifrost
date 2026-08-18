@@ -22,12 +22,20 @@ export const INTERNAL_ONLY_PREFIXES = new Set<string>();
 
 export const PROVIDER_REGISTRY: readonly ProviderDefinition[] = [githubProvider, linearProvider, slackProvider];
 
-export function assertPrefixInvariant(
-  registry: readonly ProviderDefinition[] = PROVIDER_REGISTRY,
-  namespaces: Readonly<Record<string, string>> = PROVIDER_NAMESPACES,
-  apps: readonly string[] = SUPPORTED_APPS,
-  credentialMapping: Readonly<Record<string, string>> = CREDENTIAL_PROVIDER_BY_PREFIX,
-): void {
+/** The four places a prefix is spelled. Each defaults to the real one; tests substitute a drifted copy. */
+export type PrefixInvariantInputs = {
+  registry?: readonly ProviderDefinition[];
+  namespaces?: Readonly<Record<string, string>>;
+  apps?: readonly string[];
+  credentialMapping?: Readonly<Record<string, string>>;
+};
+
+export function assertPrefixInvariant({
+  registry = PROVIDER_REGISTRY,
+  namespaces = PROVIDER_NAMESPACES,
+  apps = SUPPORTED_APPS,
+  credentialMapping = CREDENTIAL_PROVIDER_BY_PREFIX,
+}: PrefixInvariantInputs = {}): void {
   const problems: string[] = [];
   for (const provider of registry) {
     if (namespaces[provider.id] !== provider.prefix) problems.push(`${provider.id}: namespace differs from registry prefix`);
