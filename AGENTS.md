@@ -203,6 +203,10 @@ URLs explicitly in `src/app/app.tsx`; the folders organize ownership and do not 
   in `public.ts`, `browser.ts`, `mcp.ts` or `oauth-server/http.ts`, not in `server.ts`.
 - Use Hono's `context.json`, `context.html`, `context.redirect`, cookie helpers and static
   middleware. Do not recreate a generic `respond.ts` wrapper.
+- Route parameters and browser JSON bodies use `@hono/zod-validator`; handlers receive validated
+  values and do not parse request input themselves. Zod details never reach the caller.
+- The global Hono `requestId()` middleware owns `X-Request-Id`; use `context.get('requestId')`
+  instead of generating or copying request ids inside handlers.
 - Preserve the **1,048,576-byte** request-body limit and return `400` for malformed JSON.
 - Host validation is port-agnostic and allows only the `PUBLIC_URL` hostname, `localhost` and
   `127.0.0.1`. Security headers are global; OAuth protocol responses are always `no-store`.

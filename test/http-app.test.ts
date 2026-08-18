@@ -75,6 +75,11 @@ describe('HTTP security boundaries', () => {
     expect(response.headers.get('Content-Security-Policy')).toContain("default-src 'self'");
   });
 
+  it('adds a request id when the caller does not provide one', async () => {
+    const response = await request('/healthz');
+    expect(response.headers.get('X-Request-Id')).toMatch(/^[0-9a-f-]{36}$/);
+  });
+
   it('does not accept a browser session cookie at the MCP endpoint', async () => {
     const response = await request('/mcp', {
       method: 'POST',
@@ -110,6 +115,28 @@ describe('request handling', () => {
       body: '{',
     });
     expect(response.status).toBe(400);
+  });
+
+  it('rejects invalid browser route parameters before the handler', async () => {
+    const response = await request('/api/clients/browser/not-a-uuid/revoke', {
+      method: 'POST',
+      headers: { 'X-Bifrost-Dev-User': DEVELOPMENT_USER_ID },
+    });
+    expect(response.status).toBe(404);
+    await expect(response.json()).resolves.toEqual({ error: 'Not found' });
+  });
+
+  it('rejects invalid browser JSON without exposing Zod details', async () => {
+    const response = await request('/api/connections/github/preference', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Bifrost-Dev-User': DEVELOPMENT_USER_ID,
+      },
+      body: JSON.stringify({ isHidden: 'yes' }),
+    });
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({ error: 'Invalid request body' });
   });
 
   it('passes the web-standard request, parsed body, and agent identity directly to the MCP handler', async () => {

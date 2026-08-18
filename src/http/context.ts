@@ -1,5 +1,6 @@
 import type { McpHttpHandler } from '@modelcontextprotocol/server';
 import type { Context } from 'hono';
+import type { RequestIdVariables } from 'hono/request-id';
 import type { Config } from '../config.js';
 import type { Coordinator } from '../coordination.js';
 import type { Database } from '../db.js';
@@ -18,7 +19,7 @@ export type AppDependencies = {
 };
 
 export type AppEnv = {
-  Variables: {
+  Variables: RequestIdVariables & {
     dependencies: AppDependencies;
     browserIdentity: HumanIdentity;
     agentIdentity: HumanIdentity;

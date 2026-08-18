@@ -1,3 +1,4 @@
+import { zValidator, type Hook } from '@hono/zod-validator';
 import type { Next } from 'hono';
 import { Hono } from 'hono';
 import { z } from 'zod';
@@ -9,18 +10,29 @@ import { knownToolNames, toolAvailability } from '../tools/preferences.js';
 import { authenticateBrowser, clearSessionCookie } from './auth.js';
 import type { AppContext, AppEnv } from './context.js';
 import { callbackParameters } from './public.js';
-import { limitRequestBody, readJsonBody } from './request-body.js';
+import { limitRequestBody } from './request-body.js';
 
 const KNOWN_TOOL_NAMES = knownToolNames(PROVIDER_REGISTRY);
 // A live session inside this window still works, but the UI warns that it will
 // need renewal soon.
 const RENEWAL_WINDOW_MS = 7 * 86_400_000;
-const providerIdSchema = z.enum(SUPPORTED_APPS);
+const providerPathSchema = z.object({ providerId: z.enum(SUPPORTED_APPS) });
 const clientActionSchema = z.object({
   kind: z.enum(['browser', 'agent']),
   id: z.uuid(),
   action: z.enum(['revoke', 'renew']),
 });
+const providerPreferenceSchema = z.object({ isHidden: z.boolean() });
+const toolPathSchema = z.object({
+  toolName: z.string().refine((toolName) => KNOWN_TOOL_NAMES.has(toolName)),
+});
+const toolPreferenceSchema = z.object({ isEnabled: z.boolean() });
+
+const validateProviderPath = validateRequest('param', providerPathSchema, { status: 404, message: 'Not found' });
+const validateClientAction = validateRequest('param', clientActionSchema, { status: 404, message: 'Not found' });
+const validateToolPath = validateRequest('param', toolPathSchema, { status: 404, message: 'That tool does not exist' });
+const validateProviderPreference = validateRequest('json', providerPreferenceSchema, { status: 400, message: 'Invalid request body' });
+const validateToolPreference = validateRequest('json', toolPreferenceSchema, { status: 400, message: 'Invalid request body' });
 
 export function createBrowserRoutes(): Hono<AppEnv> {
   const routes = new Hono<AppEnv>();
@@ -34,14 +46,51 @@ export function createBrowserRoutes(): Hono<AppEnv> {
     if (!user) return context.json({ error: 'Your account could not be found' }, 404);
     return context.json(user);
   });
-  routes.post('/api/clients/:kind/:id/:action', handleClientAction);
+  routes.post('/api/clients/:kind/:id/:action', validateClientAction, (context) => (
+    handleClientAction(context, context.req.valid('param'))
+  ));
   routes.post('/auth/logout', logout);
-  routes.get('/oauth/:providerId/start', startProviderAuthorization);
-  routes.get('/oauth/:providerId/callback', finishProviderAuthorization);
-  routes.post('/api/connections/:providerId/disconnect', disconnectProvider);
-  routes.post('/api/connections/:providerId/preference', setProviderPreference);
-  routes.post('/api/tools/:toolName/preference', setToolPreference);
+  routes.get('/oauth/:providerId/start', validateProviderPath, (context) => (
+    startProviderAuthorization(context, context.req.valid('param').providerId)
+  ));
+  routes.get('/oauth/:providerId/callback', validateProviderPath, (context) => (
+    finishProviderAuthorization(context, context.req.valid('param').providerId)
+  ));
+  routes.post('/api/connections/:providerId/disconnect', validateProviderPath, (context) => (
+    disconnectProvider(context, context.req.valid('param').providerId)
+  ));
+  routes.post(
+    '/api/connections/:providerId/preference',
+    validateProviderPath,
+    validateProviderPreference,
+    (context) => setProviderPreference(
+      context,
+      context.req.valid('param').providerId,
+      context.req.valid('json'),
+    ),
+  );
+  routes.post(
+    '/api/tools/:toolName/preference',
+    validateToolPath,
+    validateToolPreference,
+    (context) => setToolPreference(
+      context,
+      context.req.valid('param').toolName,
+      context.req.valid('json'),
+    ),
+  );
   return routes;
+}
+
+function validateRequest<Schema extends z.ZodType, Target extends 'json' | 'param'>(
+  target: Target,
+  schema: Schema,
+  error: { status: 400 | 404; message: string },
+) {
+  const reject: Hook<z.infer<Schema>, AppEnv, string, Target, object, Schema> = (result, context) => {
+    if (!result.success) return context.json({ error: error.message }, error.status);
+  };
+  return zValidator<Schema, Target, AppEnv, string, typeof reject>(target, schema, reject);
 }
 
 async function requireBrowserIdentity(context: AppContext, next: Next): Promise<Response | undefined> {
@@ -58,17 +107,13 @@ async function logout(context: AppContext): Promise<Response> {
   return context.redirect('/');
 }
 
-async function startProviderAuthorization(context: AppContext): Promise<Response> {
-  const providerId = providerFromPath(context);
-  if (!providerId) return context.json({ error: 'Not found' }, 404);
+async function startProviderAuthorization(context: AppContext, providerId: ProviderId): Promise<Response> {
   const { oauth } = context.get('dependencies');
   const location = await oauth.startProviderAuthorization(context.get('browserIdentity').userId, providerId);
   return context.redirect(location);
 }
 
-async function finishProviderAuthorization(context: AppContext): Promise<Response> {
-  const expectedProvider = providerFromPath(context);
-  if (!expectedProvider) return context.json({ error: 'Not found' }, 404);
+async function finishProviderAuthorization(context: AppContext, expectedProvider: ProviderId): Promise<Response> {
   const url = new URL(context.req.url);
   if (url.searchParams.has('error')) {
     return context.redirect(`/connection-result?result=cancelled&provider=${expectedProvider}`);
@@ -84,63 +129,59 @@ async function finishProviderAuthorization(context: AppContext): Promise<Respons
   }
 }
 
-async function disconnectProvider(context: AppContext): Promise<Response> {
-  const providerId = providerFromPath(context);
-  if (!providerId) return context.json({ error: 'Not found' }, 404);
+async function disconnectProvider(context: AppContext, providerId: ProviderId): Promise<Response> {
   const { database } = context.get('dependencies');
   await database.deleteCredential(context.get('browserIdentity').userId, providerId);
   return context.json({ connected: false });
 }
 
-async function setProviderPreference(context: AppContext): Promise<Response> {
-  const providerId = providerFromPath(context);
-  if (!providerId) return context.json({ error: 'Not found' }, 404);
-  const body = z.object({ isHidden: z.boolean() }).parse(await readJsonBody(context));
+async function setProviderPreference(
+  context: AppContext,
+  providerId: ProviderId,
+  preference: z.infer<typeof providerPreferenceSchema>,
+): Promise<Response> {
   const { database } = context.get('dependencies');
-  await database.setProviderHidden(context.get('browserIdentity').userId, providerId, body.isHidden);
-  return context.json({ isHidden: body.isHidden });
+  await database.setProviderHidden(context.get('browserIdentity').userId, providerId, preference.isHidden);
+  return context.json(preference);
 }
 
-async function setToolPreference(context: AppContext): Promise<Response> {
-  const toolName = context.req.param('toolName') ?? '';
-  if (!KNOWN_TOOL_NAMES.has(toolName)) return context.json({ error: 'That tool does not exist' }, 404);
-  const body = z.object({ isEnabled: z.boolean() }).parse(await readJsonBody(context));
+async function setToolPreference(
+  context: AppContext,
+  toolName: string,
+  preference: z.infer<typeof toolPreferenceSchema>,
+): Promise<Response> {
   const { database } = context.get('dependencies');
-  await database.setToolPreference(context.get('browserIdentity').userId, toolName, body.isEnabled);
-  return context.json({ isEnabled: body.isEnabled });
+  await database.setToolPreference(context.get('browserIdentity').userId, toolName, preference.isEnabled);
+  return context.json(preference);
 }
 
-async function handleClientAction(context: AppContext): Promise<Response> {
-  const request = clientActionSchema.safeParse(context.req.param());
-  if (!request.success) return context.json({ error: 'Not found' }, 404);
+async function handleClientAction(
+  context: AppContext,
+  request: z.infer<typeof clientActionSchema>,
+): Promise<Response> {
   const { database } = context.get('dependencies');
   const identity = context.get('browserIdentity');
 
-  if (request.data.action === 'renew') {
-    if (request.data.kind === 'agent') {
+  if (request.action === 'renew') {
+    if (request.kind === 'agent') {
       return context.json({ error: 'This client keeps itself connected and does not need renewing' }, 400);
     }
-    const renewedUntil = await database.renewSession(identity.userId, request.data.id);
+    const renewedUntil = await database.renewSession(identity.userId, request.id);
     if (!renewedUntil) {
       return context.json({ error: 'That client has to sign in again before it can keep working' }, 409);
     }
     return context.json({ expiresAt: renewedUntil.toISOString() });
   }
 
-  const isRevoked = request.data.kind === 'agent'
-    ? await database.revokeOAuthGrant(identity.userId, request.data.id)
-    : await database.revokeSession(identity.userId, request.data.id);
+  const isRevoked = request.kind === 'agent'
+    ? await database.revokeOAuthGrant(identity.userId, request.id)
+    : await database.revokeSession(identity.userId, request.id);
   if (!isRevoked) return context.json({ error: 'That client is no longer connected' }, 404);
   const wasCurrentClient = identity.kind === 'browser'
-    && request.data.kind === 'browser'
-    && request.data.id === identity.sessionId;
+    && request.kind === 'browser'
+    && request.id === identity.sessionId;
   if (wasCurrentClient) clearSessionCookie(context);
   return context.json({ revoked: true, wasCurrentClient });
-}
-
-function providerFromPath(context: AppContext): ProviderId | undefined {
-  const parsed = providerIdSchema.safeParse(context.req.param('providerId'));
-  return parsed.success ? parsed.data : undefined;
 }
 
 async function clientList(context: AppContext): Promise<{ clients: readonly object[] }> {

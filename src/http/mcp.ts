@@ -1,4 +1,3 @@
-import { randomUUID } from 'node:crypto';
 import type { Next } from 'hono';
 import { Hono } from 'hono';
 import { z } from 'zod';
@@ -33,8 +32,7 @@ async function executeMcp(context: AppContext): Promise<Response> {
   if (context.req.method !== 'POST') return context.json({ error: 'MCP requires POST' }, 405);
 
   const startedAt = performance.now();
-  const requestId = context.req.header('x-request-id') ?? randomUUID();
-  context.header('X-Request-Id', requestId);
+  const requestId = context.get('requestId');
 
   let parsedBody: unknown;
   try {
@@ -50,7 +48,6 @@ async function executeMcp(context: AppContext): Promise<Response> {
     authInfo: toAuthInfo(identity),
     parsedBody,
   });
-  response.headers.set('X-Request-Id', requestId);
   logMcpRequest({
     body: parsedBody,
     clientId: identity.clientId,
@@ -60,7 +57,7 @@ async function executeMcp(context: AppContext): Promise<Response> {
     statusCode: response.status,
     userId: identity.userId,
   });
-  return response;
+  return context.newResponse(response.body, response);
 }
 
 function mcpMissingCredential(context: AppContext, config: Config): Response {

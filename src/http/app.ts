@@ -1,6 +1,7 @@
 import { hostHeaderValidation } from '@modelcontextprotocol/hono';
 import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
+import { requestId } from 'hono/request-id';
 import { secureHeaders } from 'hono/secure-headers';
 import { errorSummary, logger } from '../logger.js';
 import { createOAuthRoutes } from '../oauth-server/http.js';
@@ -25,6 +26,7 @@ export function createApp(dependencies: AppDependencies): Hono<AppEnv> {
 
   app.use('*', securityHeaders());
   app.use('*', hostHeaderValidation(allowedHostnames(dependencies.config.PUBLIC_URL)));
+  app.use('*', requestId());
   app.use('*', async (context, next) => {
     context.set('dependencies', dependencies);
     await next();
