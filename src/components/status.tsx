@@ -24,7 +24,7 @@ function statusColor(status: StatusValue): string {
   return 'text-app-text-quaternary';
 }
 
-export function StatusDot({ status, className }: { status: StatusValue; className?: string }): React.JSX.Element {
+function StatusDot({ status, className }: { status: StatusValue; className?: string }): React.JSX.Element {
   const isHollow = status === 'not-connected';
   return <span aria-hidden className={cn('size-1.5 shrink-0 rounded-full', statusColor(status), isHollow ? 'border-[1.5px] border-current bg-transparent' : 'bg-current', className)} />;
 }

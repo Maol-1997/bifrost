@@ -29,12 +29,3 @@ export function visibleTools(
     return provider.tools.filter((tool) => !visibility.disabledTools.has(tool.name));
   });
 }
-
-export function findVisibleTool(
-  name: string,
-  providers: readonly ProviderDefinition[],
-  mounts: readonly ProviderMount[],
-  visibility: UserToolVisibility,
-): ToolDefinition | undefined {
-  return visibleTools(providers, mounts, visibility).find((tool) => tool.name === name);
-}

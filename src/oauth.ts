@@ -56,7 +56,7 @@ class TokenExchangeRejectedError extends Error {
   }
 }
 
-export class ReconnectRequiredError extends AgentFacingError {
+class ReconnectRequiredError extends AgentFacingError {
   constructor(providerId: ProviderId) {
     super(`${providerId} connection expired; reconnect this provider`);
     this.name = 'ReconnectRequiredError';
