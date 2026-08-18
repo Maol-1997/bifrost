@@ -1,62 +1,136 @@
 # Bifrost
 
-Bifrost is one internal MCP endpoint for user-attributed GitHub, Linear, and Slack tools. It keeps provider credentials server-side, encrypts them with AES-256-GCM, and filters discovery and calls by provider health, connection state, user preferences, and endpoint policy.
+**One MCP endpoint that lets your coding agent use GitHub, Linear and Slack as *you*, without ever holding your tokens.**
 
-The human endpoint is `POST /mcp`. The reserved service endpoint, `POST /mcp/internal`, deliberately returns `501` until service-account identity and per-service prefix allowlists are implemented.
+You sign in once with Google, connect your own GitHub, Linear and Slack accounts, and point Claude Code (or any MCP client) at `POST /mcp`. From then on the agent reads pull requests, searches issues and posts messages under your identity and permissions, and you decide, tool by tool, what it is allowed to do.
 
-## Local start
+---
 
-Requirements: Docker with Compose v2.
+## Why it exists
+
+Giving an AI agent access to your team's tools usually means one of two bad options: paste a personal access token into a config file on your laptop, or share a bot account whose actions nobody can attribute to a person. Bifrost replaces both with a small internal gateway:
+
+- **Credentials stay on the server.** Provider tokens are encrypted with AES-256-GCM at rest and only ever decrypted to make an outbound call. The agent never sees them.
+- **Every action is attributed to a person.** The agent authenticates to Bifrost with a short-lived OAuth token issued *to that user*, so a comment on GitHub or a message in Slack is posted by them, with their permissions.
+- **Users control the blast radius.** Read tools are on by default; write tools are off until the user switches them on in the UI. The deployment can put a hard ceiling on top of that.
+
+## How it works
+
+```
+                 ┌──────────────────────── Bifrost ────────────────────────┐
+                 │                                                          │
+  Browser ──cookie──▶  React UI  ──▶  /api/*     Postgres (encrypted creds, │
+  (Google sign-in)                                sessions, OAuth grants)  │
+                 │                                                          │
+  Claude Code ──bearer──▶  POST /mcp  ──▶  per-request MCP server          │──▶ GitHub
+  Cursor, etc.   │        (OAuth 2.1)       built from *your* connections   │──▶ Linear
+                 │                          and *your* tool preferences     │──▶ Slack
+                 └──────────────────────────────────────────────────────────┘
+```
+
+Three ideas explain most of the design:
+
+1. **The MCP server is rebuilt on every request.** Bifrost loads the caller's connected providers and tool preferences and registers only those tools. A tool that is hidden is not merely absent from `tools/list`, it is uncallable, because it was never registered for that request.
+2. **Bifrost is on both sides of OAuth.** It is an OAuth *client* to Google and to each provider (that is how it obtains your tokens), and it is an OAuth 2.1 *authorization server* to MCP clients (that is how Claude Code gets its own credential). Agent access does not silently expire: clients hold a 1-hour access token and a rotating 90-day refresh token.
+3. **Two authorities decide what a tool may do.** The deployment ceiling (`WRITE_TOOL_ALLOWLIST`) and the user's own per-tool switch must both agree before a write tool is registered.
+
+## What agents get
+
+17 hand-written tools, each with a strict input schema. Nothing is a pass-through to the upstream API.
+
+| Provider | Read tools | Write tools |
+| --- | --- | --- |
+| GitHub | list pull requests, get pull request, get PR diff, list review comments, list check runs | create issue comment |
+| Linear | search issues, get issue, list my issues, list teams and projects | create issue, add comment |
+| Slack | search messages, read channel history, get thread, list channels | post message |
+
+Every tool name carries its provider prefix (`github_`, `linear_`, `slack_`), and that prefix is what routes the call to the right credential.
+
+## Quick start
+
+Requirements: Docker with Compose v2, and OAuth apps for Google plus each provider you want (see [SETUP.md](SETUP.md)).
 
 ```bash
 cp .env.example .env
-# Put the output into ENCRYPTION_KEY in .env. Do not commit it.
-openssl rand -base64 32
+openssl rand -base64 32     # paste into ENCRYPTION_KEY in .env
 docker compose up --build
 ```
 
-Open <http://localhost:3000>. Provider app registration is documented in [SETUP.md](SETUP.md).
+Open <http://localhost:3000>, sign in with Google, and connect a provider from **Integrations**. Migrations run automatically when the container boots. The server refuses to start without `ENCRYPTION_KEY`.
 
-The application refuses to start without a valid 32-byte base64 `ENCRYPTION_KEY`. Write tools start off for every user and only work once that user enables them in Integrations. `WRITE_TOOL_ALLOWLIST` is a deployment ceiling on top of that: name tools there and no other write tool can be enabled at all, leave it empty and there is no ceiling. The server logs a warning at startup when none is set.
+### Connect an agent
 
-Sign-in is gated by `ALLOWED_EMAIL_DOMAINS` and `ALLOWED_EMAILS`, which OR together: domains for the team, exact addresses for anyone outside them. The check runs before the user row is created, so a rejected account leaves nothing behind, and it is enforced on the last `@` of the address so `you@allowed.dev@evil.com` cannot pass. With both empty any verified Google account may sign in; the server logs a warning at startup and the sign-in screen states that plainly rather than implying a restriction.
+Bifrost implements the MCP `2026-07-28` authorization spec, so a compliant client needs only the URL:
+
+```bash
+claude mcp add --transport http bifrost https://bifrost.your-company.dev/mcp
+```
+
+The client discovers the authorization server, opens the browser for consent, and stores its own token. **Agents & sessions** in the UI lists every connected client and lets you revoke any of them.
+
+## Configuration
+
+All settings are environment variables, validated at startup by `src/config.ts`.
+
+| Variable | Required | What it does |
+| --- | --- | --- |
+| `ENCRYPTION_KEY` | yes | 32-byte base64 key for provider credentials. No dev default, on purpose. |
+| `PUBLIC_URL` | yes in prod | The origin agents and OAuth redirects use. Default `http://localhost:3000`. |
+| `DATABASE_URL` | yes | Postgres. Outside Docker, point it at `localhost:5432`, not `postgres`. |
+| `REDIS_URL` | no | Shares locks, rate limits and concurrency leases across workers. Empty degrades to in-process state with a startup warning. |
+| `GOOGLE_CLIENT_ID` / `_SECRET` | yes | Sign-in. |
+| `GITHUB_*`, `LINEAR_*`, `SLACK_*` | per provider | Provider OAuth apps. A provider without credentials still mounts; connecting it fails until they are set. |
+| `ALLOWED_EMAIL_DOMAINS`, `ALLOWED_EMAILS` | recommended | Who may sign in. The two lists OR together. **Both empty lets any verified Google account in**; the server warns and the sign-in screen says so. |
+| `WRITE_TOOL_ALLOWLIST` | no | Deployment ceiling on write tools. **Empty means no ceiling** (each user decides per tool). Naming tools forbids every other write outright. |
+| `OAUTH_ACCESS_TOKEN_TTL_SECONDS` | no | Default 3600. |
+| `OAUTH_REFRESH_TOKEN_TTL_DAYS` | no | Default 90, slid forward on every use. |
+| `OAUTH_ENABLE_CLIENT_ID_METADATA_DOCUMENTS` | no | Default `true`. Advertise CIMD support (the 2026-07-28 replacement for dynamic registration). |
+| `BIFROST_DEV_USER_ID` | dev only | UUID accepted from the `X-Bifrost-Dev-User` header when `NODE_ENV=development`. Never set in production. |
+| `SLOW_REQUEST_MS`, `SLOW_TOOL_MS` | no | Latency thresholds that turn a log line into a warning. |
 
 ## Development
 
 ```bash
 npm ci
-npm run dev        # everything: Postgres, Redis, watched API, Vite UI
-npm run typecheck
-npm run lint
-npm test
-npm run build
+npm run dev        # Postgres + Redis containers, migrations, watched API on :3000, Vite on :5173
+npm run lint && npm run typecheck && npm test
+npm run build      # Node server to dist/, React bundle to dist/client
 ```
 
-`npm run dev` starts the Postgres and Redis containers, applies migrations, then runs the API under `tsx watch` on port 3000 and Vite on port 5173. Work against <http://localhost:5173>; it proxies `/api`, `/auth`, `/oauth`, and `/mcp` to the API. It also stops the `app` container, because that container and the watched API both want port 3000. Use `docker compose up --build` when you want to exercise the production image instead.
+Work against <http://localhost:5173>; Vite proxies `/api`, `/auth`, `/oauth` and `/mcp` to the API. `npm run dev` stops the `app` container because both want port 3000. For UI work with no backend at all, `VITE_USE_MOCK_API=true npm run dev` swaps in an in-memory API (Service status is never mocked; it reads the vendors' real feeds).
 
-`npm run build` produces the Node server and the static React application. The Node server serves the client bundle and its SPA routes from the same deployment.
+The Docker image bundles its own `dist`, so after changing code, `docker compose up -d --build app`; rebuilding on the host does nothing to a running container.
 
-Migrations run automatically when the app container boots, so `docker compose up` needs no extra step. `npm run migrate` is for running the server outside Docker; it reads `DATABASE_URL` from `.env`, which must point at `localhost:5432` rather than the compose-internal `postgres` host.
+Tests are pure units, no database, focused on the places where being wrong is expensive: the prefix invariant, the visibility filter, tool defaults, PKCE, redirect-URI matching, SSRF address ranges, metadata documents, encryption, log redaction and sign-in rules.
 
-For frontend-only design work without a running API, use `VITE_USE_MOCK_API=true npm run dev`. Production builds use the real connection endpoints unless that variable is explicitly enabled. Service status has no mock at any time: it reads the vendors' own public feeds, so faking it would defeat the only purpose that screen has.
+## Layout
 
-For local MCP verification without live Google credentials, set `BIFROST_DEV_USER_ID` to a UUID and send that same value in `X-Bifrost-Dev-User`. This path only exists when `NODE_ENV=development`; never configure it in production.
+```
+src/
+  server.ts          bootstrap and the top-level dispatcher
+  http/              request context, response helpers, static files, the two authenticators
+  routes/            public, OAuth-server, /mcp and signed-in API route families
+  mcp.ts             per-request MCP server assembly and tool execution
+  oauth.ts           Bifrost as an OAuth client (Google + providers)
+  oauth-server/      Bifrost as an OAuth 2.1 authorization server for MCP clients
+  providers/         one file per provider, plus the registry and its prefix invariant
+  tools/             who sees which tool, and why
+  security/          AES-256-GCM secrets, sign-in allowlist
+  db.ts              every SQL query
+  api/, pages/, components/, lib/   the React SPA (served by the same Node process)
+migrations/          node-pg-migrate, applied on container boot
+test/                vitest, pure units
+```
 
-## Surfaces
+[AGENTS.md](AGENTS.md) is the deeper guide for anyone changing the code: request shape, the visibility axes, OAuth details, conventions and the gotchas that cost real time. [docs/adding-a-provider.md](docs/adding-a-provider.md) walks through adding a fourth provider.
 
-- `POST /mcp`: modern MCP `2026-07-28`, human identity only.
-- `POST /mcp/internal`: explicit `501` service-path stub.
-- `GET /api/status.json`: mount status and tool counts.
-- `GET /api/app-connections.json`: authenticated user's connections and hidden preferences.
-- `GET /api/provider-health.json`: each vendor's own uptime feed (GitHub, Linear and Notion are Statuspage tenants; Slack has its own API). Public, because it is the one screen you need when you cannot sign in; a one-minute single-flight cache, not authentication, is what keeps it from amplifying traffic onto the upstream status pages.
-- `GET /api/clients.json`: the caller's live sessions, with `isCurrent` marking the browser making the request.
-- `GET /api/me.json`: the signed-in user's name and email. The client treats a `401` as "nobody is signed in" rather than redirecting, so the public status screen stays readable when sign-in is unavailable.
-- `POST /api/clients/:kind/:id/revoke` and `/renew`, where `:kind` is `browser` or `agent`: both scoped by `user_id`, so an id from one account can never touch another's. Only browser sessions can be renewed (agents keep themselves connected through OAuth refresh), and renewal is refused once a session has expired — that browser has to sign in again.
-- `GET /`: the React SPA. Its own router lands on `/integrations`.
-- `GET /healthz`: container health.
+## Security notes
 
-Every MCP request emits structured JSON fields for user ID, client ID, JSON-RPC method, optional tool name, latency, status code, and request ID. Tool calls have independent latency logging. Redis coordinates OAuth refresh rotation, outbound starts, and in-flight concurrency across workers; without Redis the same safeguards degrade to process-local state with a warning.
+- Browser sessions (cookie) and agent access (bearer token) resolve against different tables through different functions. A leaked cookie is not an API credential and vice versa.
+- OAuth tokens are opaque and stored as SHA-256 hashes; a replayed refresh token destroys its whole grant, because a replay means the value leaked.
+- The one server-side fetch of a caller-supplied URL (Client ID Metadata Documents) is HTTPS-only, refuses private and link-local address ranges, follows no redirects, and is capped at 5 s and 64 KB, and it only happens for a signed-in user.
+- Logs redact tokens, secrets, cookies, API keys and JWT-shaped strings, and only errors written for the agent are ever returned to it.
 
-## Protocol decision
+## Status
 
-The official TypeScript SDK v2 split packages (`@modelcontextprotocol/server`, `@modelcontextprotocol/node`, and `@modelcontextprotocol/core`) implement the `2026-07-28` stateless protocol. Bifrost uses `createMcpHandler` with `legacy: 'reject'`, so there is no initialize handshake or `Mcp-Session-Id`.
+Working and in use for GitHub, Linear and Slack. Two things are deliberately unbuilt and documented as such in AGENTS.md: `POST /mcp/internal` (service-account access) returns `501`, and OAuth issues a single `mcp` scope rather than per-provider scopes. Notion appears in the UI catalog as a placeholder and has no server-side provider.
