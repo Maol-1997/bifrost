@@ -67,9 +67,14 @@ export function isClientIdMetadataDocumentUrl(clientId: string): boolean {
 export function parseRegistrationRequest(payload: unknown): { clientName: string; redirectUris: readonly string[] } {
   const parsed = registrationRequestSchema.safeParse(payload);
   if (!parsed.success) throw new OAuthError('invalid_request', 'Registration requires redirect_uris');
-  const { client_name: clientName, redirect_uris: redirectUris, grant_types: grantTypes, token_endpoint_auth_method: authMethod } = parsed.data;
+  const { client_name: clientName, redirect_uris: redirectUris, grant_types: grantTypes, response_types: responseTypes, token_endpoint_auth_method: authMethod } = parsed.data;
   if (grantTypes?.some((grantType) => !SUPPORTED_GRANT_TYPES.has(grantType))) {
     throw new OAuthError('invalid_request', 'Only the authorization_code and refresh_token grants are supported');
+  }
+  // Absent means "code" per RFC 7591; an empty list or anything else declares a
+  // flow this server does not run, and registering it would only defer the failure.
+  if (responseTypes !== undefined && (responseTypes.length === 0 || responseTypes.some((responseType) => responseType !== 'code'))) {
+    throw new OAuthError('invalid_request', 'Only the code response type is supported');
   }
   if (authMethod !== undefined && authMethod !== 'none') {
     throw new OAuthError('invalid_request', 'Only public clients are supported, so token_endpoint_auth_method must be none');
@@ -119,8 +124,8 @@ export function parseClientMetadataDocument(clientId: string, payload: unknown):
  * onto an internal address. The gap this leaves is deliberate and unavoidable:
  * DNS is re-resolved by `fetch`, so a record that changes between the check and
  * the request would slip past — a rebinding window that closing properly would
- * need a pinned-IP agent. The exposure is bounded by this only running inside an
- * already-authenticated authorization request.
+ * need a pinned-IP agent. The exposure is bounded by `handleAuthorize` refusing
+ * to resolve a client until the browser has a signed-in session.
  */
 export async function fetchClientMetadataDocument(clientId: string): Promise<{ client: RegisteredClient; cacheForMs: number }> {
   if (!isClientIdMetadataDocumentUrl(clientId)) throw new OAuthError('invalid_client', 'A client_id URL must use https and include a path');

@@ -69,6 +69,11 @@ export async function handleAuthorize(context: OAuthServerContext, url: URL, use
   }
   const request = parsed.data;
 
+  // Before anything is resolved: resolving a metadata-document client is an
+  // outbound fetch of a URL the caller chose, and that must only ever happen
+  // on behalf of somebody who has already signed in.
+  if (!userId) return { kind: 'sign-in-required', returnTo: `${url.pathname}${url.search}` };
+
   let client: RegisteredClient;
   try {
     client = await resolveClient(context, request.client_id);
@@ -98,8 +103,6 @@ export async function handleAuthorize(context: OAuthServerContext, url: URL, use
 
   const scopes = parseScopes(request.scope);
   if (!scopes) return fail('invalid_scope', `The only supported scope is ${MCP_SCOPE}`);
-
-  if (!userId) return { kind: 'sign-in-required', returnTo: `${url.pathname}${url.search}` };
 
   const pending: PendingConsent = {
     clientId: client.clientId,

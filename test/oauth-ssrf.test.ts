@@ -50,6 +50,26 @@ describe('outbound address filtering', () => {
     expect(isPubliclyRoutableAddress('::ffff:8.8.8.8')).toBe(true);
   });
 
+  it('sees through the hexadecimal spelling of an IPv4-mapped address too', () => {
+    // ::ffff:7f00:1 is ::ffff:127.0.0.1 written differently; the spelling must
+    // not decide whether the loopback rule applies.
+    expect(isPubliclyRoutableAddress('::ffff:7f00:1')).toBe(false);
+    expect(isPubliclyRoutableAddress('::ffff:a9fe:a9fe')).toBe(false);
+    expect(isPubliclyRoutableAddress('0:0:0:0:0:ffff:7f00:1')).toBe(false);
+    expect(isPubliclyRoutableAddress('::ffff:808:808')).toBe(true);
+  });
+
+  it('blocks the documentation ranges, which are never routed', () => {
+    expect(isPubliclyRoutableAddress('192.0.2.1')).toBe(false);
+    expect(isPubliclyRoutableAddress('198.51.100.1')).toBe(false);
+    expect(isPubliclyRoutableAddress('203.0.113.1')).toBe(false);
+    expect(isPubliclyRoutableAddress('2001:db8::1')).toBe(false);
+    expect(isPubliclyRoutableAddress('192.0.3.1')).toBe(true);
+    expect(isPubliclyRoutableAddress('198.51.101.1')).toBe(true);
+    expect(isPubliclyRoutableAddress('203.0.114.1')).toBe(true);
+    expect(isPubliclyRoutableAddress('2001:db9::1')).toBe(true);
+  });
+
   it('fails closed on anything it cannot parse', () => {
     expect(isPubliclyRoutableAddress('')).toBe(false);
     expect(isPubliclyRoutableAddress('example.com')).toBe(false);

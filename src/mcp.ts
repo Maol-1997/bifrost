@@ -3,6 +3,7 @@ import { createMcpHandler, LATEST_PROTOCOL_VERSION, McpServer, type AuthInfo, ty
 import type { Config } from './config.js';
 import { Coordinator } from './coordination.js';
 import { Database } from './db.js';
+import { AgentFacingError } from './errors.js';
 import { errorSummary, logger } from './logger.js';
 import { OAuthService } from './oauth.js';
 import { PROVIDER_REGISTRY } from './providers/registry.js';
@@ -112,7 +113,9 @@ function registerTool(
       return { content: [{ type: 'text' as const, text: JSON.stringify(result) }], structuredContent: { result } };
     } catch (error) {
       logToolCall({ startedAt, userId, clientId: authInfo?.clientId ?? 'unknown', toolName: tool.name, requestId: normalizedRequestId, status: 'error' }, dependencies.config.SLOW_TOOL_MS, error);
-      return { content: [{ type: 'text' as const, text: error instanceof Error ? error.message : 'Tool call failed' }], isError: true };
+      // Only errors written for the agent travel back verbatim. Everything else
+      // was logged above and would only narrate internals to the caller.
+      return { content: [{ type: 'text' as const, text: error instanceof AgentFacingError ? error.message : 'Tool call failed' }], isError: true };
     }
   });
 }

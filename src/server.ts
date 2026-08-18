@@ -481,18 +481,23 @@ function inspectMcpRequest(body: unknown): { method: string; toolName?: string }
   return { method: parsed.data.method, ...(parsed.data.params?.name ? { toolName: parsed.data.params.name } : {}) };
 }
 
+/**
+ * Stamps the request id into `params._meta` so the tool handler logs the same
+ * id as the request log. `_meta` is created when absent, which is the ordinary
+ * case; only a `_meta` that is present but not an object is left alone, since
+ * overwriting it would hide a malformed request rather than let it fail.
+ */
 function attachRequestId(body: unknown, requestId: string): unknown {
-  if (body === null || typeof body !== 'object' || Array.isArray(body)) return body;
-  const requestBody = body as Record<string, unknown>;
-  const params = requestBody.params;
-  if (params === null || typeof params !== 'object' || Array.isArray(params)) return body;
-  const parameterObject = params as Record<string, unknown>;
-  const metadata = parameterObject._meta;
-  if (metadata === null || typeof metadata !== 'object' || Array.isArray(metadata)) return body;
-  return {
-    ...requestBody,
-    params: { ...parameterObject, _meta: { ...metadata, requestId } },
-  };
+  if (!isPlainObject(body)) return body;
+  const params = body.params;
+  if (!isPlainObject(params)) return body;
+  const metadata = params._meta ?? {};
+  if (!isPlainObject(metadata)) return body;
+  return { ...body, params: { ...params, _meta: { ...metadata, requestId } } };
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 
 async function readJsonBody(request: IncomingMessage): Promise<unknown> {
@@ -505,12 +510,17 @@ async function readFormBody(request: IncomingMessage): Promise<URLSearchParams> 
 }
 
 async function readTextBody(request: IncomingMessage): Promise<string> {
-  let body = '';
+  // Decoded once at the end: a multibyte character split across two chunks
+  // would otherwise be decoded as two replacement characters.
+  const chunks: Buffer[] = [];
+  let receivedBytes = 0;
   for await (const chunk of request) {
-    body += Buffer.isBuffer(chunk) ? chunk.toString('utf8') : String(chunk);
-    if (Buffer.byteLength(body) > MAX_BODY_BYTES) throw new Error('Request body too large');
+    const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(String(chunk));
+    receivedBytes += buffer.byteLength;
+    if (receivedBytes > MAX_BODY_BYTES) throw new Error('Request body too large');
+    chunks.push(buffer);
   }
-  return body;
+  return Buffer.concat(chunks).toString('utf8');
 }
 
 function setSecurityHeaders(response: ServerResponse): void {

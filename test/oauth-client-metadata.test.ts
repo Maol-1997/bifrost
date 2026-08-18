@@ -65,6 +65,18 @@ describe('dynamic registration', () => {
 
   it('refuses grants and auth methods Bifrost does not implement', () => {
     expect(() => parseRegistrationRequest({ redirect_uris: ['https://a.example/cb'], grant_types: ['implicit'] })).toThrow(OAuthError);
+  });
+
+  it('rejects response types other than code', () => {
+    expect(() => parseRegistrationRequest({ redirect_uris: ['https://a.example/cb'], response_types: ['token'] })).toThrow(OAuthError);
+  });
+
+  it('rejects an empty response type list, which declares no supported flow at all', () => {
+    expect(() => parseRegistrationRequest({ redirect_uris: ['https://a.example/cb'], response_types: [] })).toThrow(OAuthError);
+  });
+
+  it('accepts code as the only response type', () => {
+    expect(parseRegistrationRequest({ redirect_uris: ['https://a.example/cb'], response_types: ['code'] }).redirectUris).toEqual(['https://a.example/cb']);
     expect(() => parseRegistrationRequest({ redirect_uris: ['https://a.example/cb'], token_endpoint_auth_method: 'client_secret_post' })).toThrow(OAuthError);
   });
 

@@ -1,4 +1,5 @@
 import type { z } from 'zod';
+import { AgentFacingError } from '../errors.js';
 
 export type ProviderId = 'github' | 'linear' | 'slack';
 export type ToolMutability = 'read' | 'write';
@@ -18,7 +19,12 @@ export function defineTool<InputSchema extends z.ZodType>(definition: Omit<ToolD
 }): ToolDefinition {
   return {
     ...definition,
-    execute: (input, context) => definition.execute(definition.inputSchema.parse(input), context),
+    execute: async (input, context) => {
+      const parsed = definition.inputSchema.safeParse(input);
+      // The agent chose these arguments, so the validation message is its to see.
+      if (!parsed.success) throw new AgentFacingError(`Invalid input for ${definition.name}: ${parsed.error.issues.map((issue) => `${issue.path.join('.') || 'input'}: ${issue.message}`).join('; ')}`);
+      return definition.execute(parsed.data as z.infer<InputSchema>, context);
+    },
   };
 }
 

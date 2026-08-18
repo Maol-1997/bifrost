@@ -5,6 +5,7 @@ import { WEB_CLIENT_ID } from './clients/describe.js';
 import type { Config } from './config.js';
 import { Coordinator } from './coordination.js';
 import { Database, type StoredCredential } from './db.js';
+import { AgentFacingError } from './errors.js';
 import { errorSummary, logger } from './logger.js';
 import { PROVIDER_REGISTRY } from './providers/registry.js';
 import type { ProviderDefinition, ProviderId } from './providers/types.js';
@@ -13,6 +14,8 @@ import { emailDomain, isEmailAllowed } from './security/access.js';
 const OAUTH_STATE_TTL_SECONDS = 600;
 const EXPIRY_SKEW_MS = 60_000;
 const ACCOUNT_LABEL_TIMEOUT_MS = 5_000;
+/** Shorter than the refresh lock lease, so a hung exchange releases the lock before it expires. */
+const TOKEN_EXCHANGE_TIMEOUT_MS = 10_000;
 const googleJwks = createRemoteJWKSet(new URL('https://www.googleapis.com/oauth2/v3/certs'));
 
 const tokenResponseSchema = z.object({
@@ -45,7 +48,15 @@ export class EmailNotAllowedError extends Error {
   }
 }
 
-export class ReconnectRequiredError extends Error {
+/** The provider answered the token endpoint and declined: the grant itself is no good. */
+class TokenExchangeRejectedError extends Error {
+  constructor(providerName: string) {
+    super(`${providerName} token exchange failed; reconnect provider`);
+    this.name = 'TokenExchangeRejectedError';
+  }
+}
+
+export class ReconnectRequiredError extends AgentFacingError {
   constructor(providerId: ProviderId) {
     super(`${providerId} connection expired; reconnect this provider`);
     this.name = 'ReconnectRequiredError';
@@ -81,6 +92,7 @@ export class OAuthService {
     const storedState = await this.takeState(state);
     const response = await fetch('https://oauth2.googleapis.com/token', {
       method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      signal: AbortSignal.timeout(TOKEN_EXCHANGE_TIMEOUT_MS),
       body: new URLSearchParams({
         code, client_id: this.requiredConfig('GOOGLE_CLIENT_ID'), client_secret: this.requiredConfig('GOOGLE_CLIENT_SECRET'),
         redirect_uri: `${this.config.PUBLIC_URL}/auth/google/callback`, grant_type: 'authorization_code', code_verifier: storedState.verifier,
@@ -153,16 +165,22 @@ export class OAuthService {
       if (!latest) throw new ReconnectRequiredError(providerId);
       if (!latest.expiresAt || latest.expiresAt.getTime() > Date.now() + EXPIRY_SKEW_MS) return latest.accessToken;
       if (!latest.refreshToken) throw new ReconnectRequiredError(providerId);
+      const provider = findProvider(providerId);
+      let exchanged: z.infer<typeof tokenResponseSchema>;
       try {
-        const provider = findProvider(providerId);
-        const refreshed = normalizeCredential(await this.exchangeProviderToken(provider, new URLSearchParams({
+        exchanged = await this.exchangeProviderToken(provider, new URLSearchParams({
           grant_type: 'refresh_token', refresh_token: latest.refreshToken,
-        })), latest.refreshToken);
-        await this.database.saveCredential(userId, providerId, refreshed);
-        return refreshed.accessToken;
-      } catch {
-        throw new ReconnectRequiredError(providerId);
+        }));
+      } catch (error) {
+        // Only the provider saying no means the user has to reconnect. A
+        // network fault or a timeout says nothing about the grant, and telling
+        // the user to reconnect over it would be both wrong and irreversible.
+        if (error instanceof TokenExchangeRejectedError) throw new ReconnectRequiredError(providerId);
+        throw error;
       }
+      const refreshed = normalizeCredential(exchanged, latest.refreshToken);
+      await this.database.saveCredential(userId, providerId, refreshed);
+      return refreshed.accessToken;
     });
   }
 
@@ -171,9 +189,10 @@ export class OAuthService {
     parameters.set('client_secret', this.providerClientSecret(provider.id));
     const response = await fetch(provider.tokenUrl, {
       method: 'POST', headers: { Accept: 'application/json', 'Content-Type': 'application/x-www-form-urlencoded' }, body: parameters,
+      signal: AbortSignal.timeout(TOKEN_EXCHANGE_TIMEOUT_MS),
     });
     const parsed = tokenResponseSchema.safeParse(await response.json());
-    if (!response.ok || !parsed.success || parsed.data.error) throw new Error(`${provider.displayName} token exchange failed; reconnect provider`);
+    if (!response.ok || !parsed.success || parsed.data.error) throw new TokenExchangeRejectedError(provider.displayName);
     return parsed.data;
   }
 
