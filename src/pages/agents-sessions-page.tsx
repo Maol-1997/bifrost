@@ -6,24 +6,24 @@ import { PageHeader } from '@/components/page-header';
 import { SectionCard } from '@/components/section-card';
 import { Button } from '@/components/ui/button';
 import { APP_ROUTES } from '@/lib/routes';
-import { getClientSessions, renewClient, revokeClient, type ClientSession } from '@/api/bifrost';
+import { getConnectedClients, renewClient, revokeClient, type ConnectedClient } from '@/api/bifrost';
 
 export function AgentsSessionsPage(): React.JSX.Element {
   const [searchParams] = useSearchParams();
-  const [clients, setClients] = useState<readonly ClientSession[]>([]);
+  const [clients, setClients] = useState<readonly ConnectedClient[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [hasLoadError, setHasLoadError] = useState(false);
   const load = useCallback(async (): Promise<void> => {
     setIsLoading(true); setHasLoadError(false);
     try {
-      setClients(searchParams.get('state') === 'empty' ? [] : await getClientSessions());
+      setClients(searchParams.get('state') === 'empty' ? [] : await getConnectedClients());
     } catch {
       setHasLoadError(true);
     } finally { setIsLoading(false); }
   }, [searchParams]);
   useEffect(() => { void load(); }, [load]);
-  async function renew(client: ClientSession): Promise<void> { await renewClient(client); await load(); }
-  async function revoke(client: ClientSession): Promise<void> { await revokeClient(client); await load(); }
+  async function renew(client: ConnectedClient): Promise<void> { await renewClient(client); await load(); }
+  async function revoke(client: ConnectedClient): Promise<void> { await revokeClient(client); await load(); }
   return (
     <section>
       <div className="flex flex-wrap items-start justify-between gap-4">

@@ -18,13 +18,15 @@ const CONCURRENCY_LIMITS: Readonly<Record<ProviderId, number>> = { github: 10, l
  * Who is calling, however they proved it.
  *
  * `browser` is a cookie-backed session; `agent` is an OAuth grant reached with a
- * bearer access token. `id` is the handle "Agents & sessions" revokes, and it means a
- * session or a grant depending on `kind` — the two live in different tables and
- * must never be confused for one another.
+ * bearer access token. The two live in different tables and must never be
+ * confused for one another, so each carries its own handle instead of a shared
+ * `id` whose meaning depends on `kind`.
  */
-export type HumanIdentity = {
-  kind: 'browser' | 'agent';
-  id: string;
+export type HumanIdentity =
+  | ({ kind: 'browser'; sessionId: string } & HumanIdentityCommon)
+  | ({ kind: 'agent'; grantId: string } & HumanIdentityCommon);
+
+type HumanIdentityCommon = {
   userId: string;
   clientId: string;
   expiresAt: Date;
@@ -103,7 +105,7 @@ function registerTool(
         throw new Error(`Write tool ${tool.name} is not permitted by this deployment`);
       }
       await dependencies.coordinator.enforceRateLimit(providerId, RATE_LIMITS_PER_MINUTE[providerId]);
-      const accessToken = await dependencies.oauth.accessToken(userId, providerId);
+      const accessToken = await dependencies.oauth.getOrRefreshAccessToken(userId, providerId);
       const result = await dependencies.coordinator.withConcurrencyLease(
         providerId,
         CONCURRENCY_LIMITS[providerId],

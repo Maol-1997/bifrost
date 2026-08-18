@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { relativeTime } from '@/lib/time';
 import { APP_ROUTES } from '@/lib/routes';
-import { checkClientConnection, getMcpAddress, type ClientSession } from '@/api/bifrost';
+import { checkClientConnection, getMcpAddress, type ConnectedClient } from '@/api/bifrost';
 
 type ClientTab = { id: string; label: string; steps: readonly string[]; command: (address: string) => string };
 
@@ -46,7 +46,7 @@ const clientTabs: readonly ClientTab[] = [
 type CheckState =
   | { kind: 'idle' }
   | { kind: 'checking' }
-  | { kind: 'connected'; client: ClientSession }
+  | { kind: 'connected'; client: ConnectedClient }
   | { kind: 'waiting' };
 
 function checkLabel(state: CheckState): string {

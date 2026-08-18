@@ -7,20 +7,20 @@ import { PageHeader } from '@/components/page-header';
 import { SectionCard } from '@/components/section-card';
 import { ErrorState } from '@/components/states';
 import { APP_ROUTES } from '@/lib/routes';
-import { getClientSessions, getProviderCatalog, getProviders, type ClientSession, type Provider } from '@/api/bifrost';
+import { getConnectedClients, getProviderCatalog, getProviders, type ConnectedClient, type Provider } from '@/api/bifrost';
 
 export function AccountSecurityPage(): React.JSX.Element {
   const navigate = useNavigate();
   const { user } = useOutletContext<AppShellContext>();
   const [providers, setProviders] = useState<readonly Provider[]>(getProviderCatalog());
-  const [clients, setClients] = useState<readonly ClientSession[]>([]);
+  const [clients, setClients] = useState<readonly ConnectedClient[]>([]);
   const [hasLoadError, setHasLoadError] = useState(false);
   // No fallback to the catalog on failure: this screen summarizes what is
   // authorized, and a fixture shown here would read as a real answer.
   const load = useCallback(async (): Promise<void> => {
     setHasLoadError(false);
     try {
-      const [loadedProviders, loadedClients] = await Promise.all([getProviders(), getClientSessions()]);
+      const [loadedProviders, loadedClients] = await Promise.all([getProviders(), getConnectedClients()]);
       setProviders(loadedProviders); setClients(loadedClients);
     } catch {
       setHasLoadError(true);

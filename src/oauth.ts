@@ -75,7 +75,7 @@ export class OAuthService {
    * way back out of `takeState`, so a caller cannot turn sign-in into a redirect
    * to somebody else's site.
    */
-  async googleAuthorizationUrl(returnTo: string): Promise<string> {
+  async startGoogleAuthorization(returnTo: string): Promise<string> {
     const clientId = this.requiredConfig('GOOGLE_CLIENT_ID');
     const { state, verifier, challenge } = createPkce();
     await this.coordinator.setEphemeral(`oauth:state:${state}`, JSON.stringify({ verifier, returnTo }), OAUTH_STATE_TTL_SECONDS);
@@ -116,7 +116,7 @@ export class OAuthService {
     return { userId, sessionToken: session.token, returnTo: storedState.returnTo };
   }
 
-  async providerAuthorizationUrl(userId: string, providerId: ProviderId): Promise<string> {
+  async startProviderAuthorization(userId: string, providerId: ProviderId): Promise<string> {
     const provider = findProvider(providerId);
     const { state, verifier, challenge } = createPkce();
     await this.coordinator.setEphemeral(`oauth:state:${state}`, JSON.stringify({ userId, providerId, verifier, returnTo: '/' }), OAUTH_STATE_TTL_SECONDS);
@@ -156,7 +156,7 @@ export class OAuthService {
     }
   }
 
-  async accessToken(userId: string, providerId: ProviderId): Promise<string> {
+  async getOrRefreshAccessToken(userId: string, providerId: ProviderId): Promise<string> {
     const credential = await this.database.getCredential(userId, providerId);
     if (!credential) throw new ReconnectRequiredError(providerId);
     if (!credential.expiresAt || credential.expiresAt.getTime() > Date.now() + EXPIRY_SKEW_MS) return credential.accessToken;

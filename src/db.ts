@@ -132,7 +132,7 @@ export class Database {
    * that "Agents & sessions" reflects what is actually talking to Bifrost. Expired
    * sessions match nothing and are therefore never revived by this call.
    */
-  async resolveSession(token: string, userAgent?: string): Promise<{ sessionId: string; userId: string; clientId: string; expiresAt: Date } | undefined> {
+  async resolveSessionAndTouch(token: string, userAgent?: string): Promise<{ sessionId: string; userId: string; clientId: string; expiresAt: Date } | undefined> {
     const result = await this.pool.query<{ id: string; user_id: string; client_id: string; expires_at: Date }>(
       `UPDATE sessions SET last_used_at = now(), user_agent = COALESCE($2, user_agent)
        WHERE token_hash = $1 AND expires_at > now()
@@ -291,7 +291,7 @@ export class Database {
    * Stamps `last_used_at` in the same statement, so "Agents & sessions" stays honest
    * without a second round trip on every MCP call. Expired tokens match nothing.
    */
-  async resolveOAuthAccessToken(token: string, userAgent?: string): Promise<OAuthIdentity | undefined> {
+  async resolveOAuthAccessTokenAndTouch(token: string, userAgent?: string): Promise<OAuthIdentity | undefined> {
     const result = await this.pool.query<{
       id: string; user_id: string; client_id: string; resource: string; scopes: string[]; expires_at: Date;
     }>(

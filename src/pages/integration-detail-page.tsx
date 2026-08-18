@@ -7,7 +7,7 @@ import { StatusBadge } from '@/components/status';
 import { ToolRow } from '@/components/tool-row';
 import { APP_ROUTES } from '@/lib/routes';
 import { shortDate } from '@/lib/time';
-import { connectProvider, disconnectProvider, getProviderCatalog, getProviders, isConnectableProvider, setToolEnabled, type Provider, type ProviderId } from '@/api/bifrost';
+import { startProviderConnection, disconnectProvider, getProviderCatalog, getProviders, isConnectableProvider, setToolEnabled, type Provider, type ProviderId } from '@/api/bifrost';
 
 function isProviderId(value: string | undefined): value is ProviderId {
   return value === 'github' || value === 'linear' || value === 'slack' || value === 'notion';
@@ -29,8 +29,8 @@ export function IntegrationDetailPage(): React.JSX.Element {
   const isConnected = provider.status === 'connected';
   const canDisconnect = isConnected || provider.status === 'needs-reconnect';
   const enabledCount = provider.tools.filter((tool) => tool.isEnabled).length;
-  const readTools = provider.tools.filter((tool) => tool.kind === 'read');
-  const writeTools = provider.tools.filter((tool) => tool.kind === 'write');
+  const readTools = provider.tools.filter((tool) => tool.mutability === 'read');
+  const writeTools = provider.tools.filter((tool) => tool.mutability === 'write');
 
   function setToolState(toolName: string, isEnabled: boolean): void {
     setProvider((current) => ({ ...current, tools: current.tools.map((tool) => tool.name === toolName ? { ...tool, isEnabled } : tool) }));
@@ -71,7 +71,7 @@ export function IntegrationDetailPage(): React.JSX.Element {
       <div className="flex flex-wrap items-center gap-3">
         <ProviderIcon providerId={provider.id} monogram={provider.monogram} size="lg" />
         <div className="min-w-[220px] flex-1"><div className="flex items-center gap-2.5"><h1 className="text-lg font-semibold tracking-[-0.01em]">{provider.name}</h1><StatusBadge status={provider.status} /></div><div className="mt-0.5 text-[12.5px] text-app-text-tertiary">{accountLine}</div></div>
-        {provider.status === 'not-connected' || provider.status === 'needs-reconnect' ? <Button variant={provider.status === 'needs-reconnect' ? 'default' : 'ghost'} onClick={() => { if (isConnectableProvider(provider.id)) void connectProvider(provider.id); }} className={provider.status === 'needs-reconnect' ? 'bg-warning text-app-bg-primary hover:bg-warning/90' : ''}>{provider.status === 'needs-reconnect' ? 'Reconnect' : `Connect ${provider.name}`}</Button> : null}
+        {provider.status === 'not-connected' || provider.status === 'needs-reconnect' ? <Button variant={provider.status === 'needs-reconnect' ? 'default' : 'ghost'} onClick={() => { if (isConnectableProvider(provider.id)) void startProviderConnection(provider.id); }} className={provider.status === 'needs-reconnect' ? 'bg-warning text-app-bg-primary hover:bg-warning/90' : ''}>{provider.status === 'needs-reconnect' ? 'Reconnect' : `Connect ${provider.name}`}</Button> : null}
       </div>
       {banner ? <div className={`mt-[18px] rounded-[9px] border px-3.5 py-3 text-[12.5px] leading-5 ${provider.status === 'unavailable' ? 'border-white/10 bg-white/3 text-app-text-tertiary' : 'border-warning/35 bg-warning/7 text-app-text-secondary'}`}>{banner}</div> : null}
 

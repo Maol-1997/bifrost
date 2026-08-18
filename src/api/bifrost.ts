@@ -4,7 +4,7 @@ export type ProviderId = 'github' | 'linear' | 'slack' | 'notion';
 /** Notion is catalog-only: it renders as a card but has no server-side provider to connect to. */
 export type ConnectableProviderId = Exclude<ProviderId, 'notion'>;
 export type ConnectionStatus = 'connected' | 'needs-reconnect' | 'not-connected' | 'unavailable';
-export type ToolKind = 'read' | 'write';
+export type ToolMutability = 'read' | 'write';
 export type ClientHealth = 'healthy' | 'needs-renewal';
 /** `unknown` means the vendor's own status page was unreachable, not that they are fine. */
 export type SystemHealth = 'operational' | 'degraded' | 'down' | 'unknown';
@@ -14,7 +14,7 @@ export type ProviderTool = {
   name: string;
   title: string;
   description: string;
-  kind: ToolKind;
+  mutability: ToolMutability;
   isEnabled: boolean;
   /** Off because the deployment forbids it, so the switch cannot help. */
   isBlockedByServer: boolean;
@@ -51,7 +51,7 @@ export type ClientKind = 'browser' | 'agent';
  */
 export type ClientLogoId = 'claude-code' | 'codex' | 'cursor' | 'opencode';
 
-export type ClientSession = {
+export type ConnectedClient = {
   id: string;
   kind: ClientKind;
   name: string;
@@ -100,7 +100,7 @@ type ConnectionsResponse = {
     isConnected: boolean;
     isHidden: boolean;
     needsReconnect: boolean;
-    tools: readonly { name: string; title: string; description: string; mutability: ToolKind; isEnabled: boolean; isBlockedByServer: boolean }[];
+    tools: readonly { name: string; title: string; description: string; mutability: ToolMutability; isEnabled: boolean; isBlockedByServer: boolean }[];
     connectedAt?: string;
     accountLabel?: string;
   }[];
@@ -153,7 +153,7 @@ function daysAgo(days: number): string {
  * Design-preview fixture, using the real MCP tool names on purpose. A preview
  * built on invented tools is how this screen drifted into fiction the first time.
  */
-const mockTools: Readonly<Record<string, readonly [string, string, ToolKind][]>> = {
+const mockTools: Readonly<Record<string, readonly [string, string, ToolMutability][]>> = {
   github: [
     ['github_list_pull_requests', 'List pull requests', 'read'],
     ['github_get_pull_request', 'Get pull request', 'read'],
@@ -181,11 +181,11 @@ const mockTools: Readonly<Record<string, readonly [string, string, ToolKind][]>>
 
 let mockProviders: Provider[] = providerCatalog.map((provider) => ({
   ...structuredClone(provider),
-  tools: (mockTools[provider.id] ?? []).map(([name, title, kind]) => ({
-    name, title, description: `${title}.`, kind, isEnabled: kind === 'read', isBlockedByServer: false,
+  tools: (mockTools[provider.id] ?? []).map(([name, title, mutability]) => ({
+    name, title, description: `${title}.`, mutability, isEnabled: mutability === 'read', isBlockedByServer: false,
   })),
 }));
-let mockClients: ClientSession[] = [
+let mockClients: ConnectedClient[] = [
   { id: 'web', kind: 'browser', name: 'Bifrost web', monogram: 'BW', isCurrent: true, firstConnectedAt: daysAgo(65), lastUsedAt: daysAgo(0), expiresAt: daysAgo(-29), health: 'healthy' },
   { id: 'cc', kind: 'agent', name: 'Claude Code', monogram: '>_', logo: 'claude-code', isCurrent: false, firstConnectedAt: daysAgo(65), lastUsedAt: daysAgo(0.0014), health: 'healthy' },
   { id: 'cur', kind: 'agent', name: 'Cursor', monogram: 'Cu', logo: 'cursor', isCurrent: false, firstConnectedAt: daysAgo(110), lastUsedAt: daysAgo(12), health: 'healthy' },
@@ -195,14 +195,14 @@ function isMockMode(): boolean {
   return import.meta.env.VITE_USE_MOCK_API === 'true';
 }
 
-async function fetchJson<Response>(path: string, options?: RequestInit): Promise<Response> {
+async function fetchJson<ResponseBody>(path: string, options?: RequestInit): Promise<ResponseBody> {
   const response = await fetch(path, options);
   if (response.status === 401) {
     window.location.assign(APP_ROUTES.signIn);
     throw new Error('Authentication required');
   }
   if (!response.ok) throw new Error(`Bifrost request failed with status ${response.status}`);
-  return response.json() as Promise<Response>;
+  return response.json() as Promise<ResponseBody>;
 }
 
 /**
@@ -245,7 +245,7 @@ export async function getProviders(): Promise<readonly Provider[]> {
       // wipe every choice on reload.
       tools: (connection?.tools ?? []).map((tool) => ({
         name: tool.name, title: tool.title, description: tool.description,
-        kind: tool.mutability, isEnabled: tool.isEnabled, isBlockedByServer: tool.isBlockedByServer,
+        mutability: tool.mutability, isEnabled: tool.isEnabled, isBlockedByServer: tool.isBlockedByServer,
       })),
     };
   });
@@ -275,7 +275,7 @@ export function getProviderCatalog(): readonly Provider[] {
   return providerCatalog.map((provider) => ({ ...structuredClone(provider), tools: [] }));
 }
 
-export async function connectProvider(providerId: ConnectableProviderId): Promise<void> {
+export async function startProviderConnection(providerId: ConnectableProviderId): Promise<void> {
   if (!isMockMode()) {
     window.location.assign(`/oauth/${providerId}/start`);
     return;
@@ -314,13 +314,13 @@ export async function setToolEnabled(toolName: string, isEnabled: boolean): Prom
   mockProviders = mockProviders.map((provider) => ({ ...provider, tools: provider.tools.map((tool) => tool.name === toolName ? { ...tool, isEnabled } : tool) }));
 }
 
-export async function getClientSessions(): Promise<readonly ClientSession[]> {
+export async function getConnectedClients(): Promise<readonly ConnectedClient[]> {
   if (isMockMode()) return structuredClone(mockClients);
-  const { clients } = await fetchJson<{ clients: readonly ClientSession[] }>('/api/clients.json');
+  const { clients } = await fetchJson<{ clients: readonly ConnectedClient[] }>('/api/clients.json');
   return clients;
 }
 
-export async function renewClient(client: ClientSession): Promise<void> {
+export async function renewClient(client: ConnectedClient): Promise<void> {
   if (!isMockMode()) {
     await fetchJson(`/api/clients/${client.kind}/${client.id}/renew`, { method: 'POST' });
     return;
@@ -328,7 +328,7 @@ export async function renewClient(client: ClientSession): Promise<void> {
   mockClients = mockClients.map((entry) => entry.id === client.id ? { ...entry, health: 'healthy', expiresAt: daysAgo(-30) } : entry);
 }
 
-export async function revokeClient(client: ClientSession): Promise<void> {
+export async function revokeClient(client: ConnectedClient): Promise<void> {
   if (!isMockMode()) {
     const { wasCurrentClient } = await fetchJson<{ wasCurrentClient: boolean }>(`/api/clients/${client.kind}/${client.id}/revoke`, { method: 'POST' });
     // Revoking the session you are browsing with is a sign-out; staying on the
@@ -369,7 +369,7 @@ export async function getMcpAddress(): Promise<string> {
  * Answers "has a real MCP client reached Bifrost?" for the setup screen.
  * The web session does not count — it is the browser the user is already in.
  */
-export async function checkClientConnection(): Promise<ClientSession | undefined> {
-  const clients = await getClientSessions();
+export async function checkClientConnection(): Promise<ConnectedClient | undefined> {
+  const clients = await getConnectedClients();
   return clients.find((client) => client.kind === 'agent');
 }

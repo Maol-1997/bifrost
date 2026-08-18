@@ -137,7 +137,7 @@ async function route(context: {
   }
 
   if (url.pathname === '/mcp/internal') return json(response, 501, { error: 'Service-to-service MCP endpoint is reserved but not implemented; use /mcp for human-attributed access' });
-  if (url.pathname === '/auth/google/start') return redirect(response, await oauth.googleAuthorizationUrl('/'));
+  if (url.pathname === '/auth/google/start') return redirect(response, await oauth.startGoogleAuthorization('/'));
   if (url.pathname === '/auth/google/callback') return finishGoogle(url, response, oauth, config);
 
   if (url.pathname === '/mcp') {
@@ -191,7 +191,7 @@ async function route(context: {
   }
 
   const oauthStartProvider = providerInPath(url.pathname, /^\/oauth\/([a-z]+)\/start$/);
-  if (oauthStartProvider) return redirect(response, await oauth.providerAuthorizationUrl(identity.userId, oauthStartProvider));
+  if (oauthStartProvider) return redirect(response, await oauth.startProviderAuthorization(identity.userId, oauthStartProvider));
   const oauthCallbackProvider = providerInPath(url.pathname, /^\/oauth\/([a-z]+)\/callback$/);
   if (oauthCallbackProvider) return finishProvider(url, response, oauth, oauthCallbackProvider);
   const disconnectProvider = providerInPath(url.pathname, /^\/api\/connections\/([a-z]+)\/disconnect$/);
@@ -260,10 +260,10 @@ async function authenticateBrowser(request: IncomingMessage, database: Database,
   if (development) return development;
   const token = parseCookies(headerValue(request, 'cookie'))[SESSION_COOKIE];
   if (!token) return undefined;
-  const resolved = await database.resolveSession(token, headerValue(request, 'user-agent'));
+  const resolved = await database.resolveSessionAndTouch(token, headerValue(request, 'user-agent'));
   if (!resolved) return undefined;
   return {
-    kind: 'browser', id: resolved.sessionId, userId: resolved.userId, clientId: resolved.clientId,
+    kind: 'browser', sessionId: resolved.sessionId, userId: resolved.userId, clientId: resolved.clientId,
     expiresAt: resolved.expiresAt, token, scopes: [MCP_SCOPE],
   };
 }
@@ -274,7 +274,7 @@ async function authenticateAgent(request: IncomingMessage, database: Database, c
   if (development) return development;
   const token = headerValue(request, 'authorization')?.match(/^Bearer ([A-Za-z0-9_-]+)$/)?.[1];
   if (!token) return undefined;
-  const grant = await database.resolveOAuthAccessToken(token, headerValue(request, 'user-agent'));
+  const grant = await database.resolveOAuthAccessTokenAndTouch(token, headerValue(request, 'user-agent'));
   if (!grant) return undefined;
   // Audience binding. Every token Bifrost issues names this resource, so a
   // mismatch means the value came from somewhere else and is not ours to honour.
@@ -283,7 +283,7 @@ async function authenticateAgent(request: IncomingMessage, database: Database, c
     return undefined;
   }
   return {
-    kind: 'agent', id: grant.grantId, userId: grant.userId, clientId: grant.clientId,
+    kind: 'agent', grantId: grant.grantId, userId: grant.userId, clientId: grant.clientId,
     expiresAt: grant.expiresAt, token, scopes: grant.scopes,
   };
 }
@@ -292,7 +292,7 @@ function developmentIdentity(request: IncomingMessage, config: Config): HumanIde
   const devUserId = headerValue(request, 'x-bifrost-dev-user');
   if (config.NODE_ENV !== 'development' || !config.BIFROST_DEV_USER_ID || devUserId !== config.BIFROST_DEV_USER_ID) return undefined;
   return {
-    kind: 'browser', id: 'development-session', userId: devUserId,
+    kind: 'browser', sessionId: 'development-session', userId: devUserId,
     clientId: headerValue(request, 'x-bifrost-client-id') ?? 'development-client',
     expiresAt: new Date(Date.now() + 3_600_000), token: 'development-header-auth', scopes: [MCP_SCOPE],
   };
@@ -324,7 +324,7 @@ async function sendOAuthResult(response: ServerResponse, result: OAuthHttpResult
     response.end(result.body);
     return;
   }
-  return redirect(response, await oauth.googleAuthorizationUrl(result.returnTo));
+  return redirect(response, await oauth.startGoogleAuthorization(result.returnTo));
 }
 
 /**
@@ -342,7 +342,7 @@ async function clientList(identity: HumanIdentity, database: Database): Promise<
       id: session.id,
       kind: 'browser' as const,
       ...describeClient(session.clientId, session.userAgent),
-      isCurrent: identity.kind === 'browser' && session.id === identity.id,
+      isCurrent: identity.kind === 'browser' && session.id === identity.sessionId,
       firstConnectedAt: session.createdAt.toISOString(),
       lastUsedAt: session.lastUsedAt.toISOString(),
       expiresAt: session.expiresAt.toISOString(),
@@ -384,7 +384,7 @@ async function clientAction(
     ? await database.revokeOAuthGrant(identity.userId, request.id)
     : await database.revokeSession(identity.userId, request.id);
   if (!isRevoked) return json(response, 404, { error: 'That client is no longer connected' });
-  const wasCurrentClient = request.kind === 'browser' && request.id === identity.id;
+  const wasCurrentClient = identity.kind === 'browser' && request.kind === 'browser' && request.id === identity.sessionId;
   // Revoking the session you are browsing with is a sign-out; leaving the
   // cookie behind would just make every later request 401 on a dead token.
   if (wasCurrentClient) response.setHeader('Set-Cookie', clearSessionCookie(config));

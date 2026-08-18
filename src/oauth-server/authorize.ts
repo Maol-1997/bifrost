@@ -76,7 +76,7 @@ export async function handleAuthorize(context: OAuthServerContext, url: URL, use
 
   let client: RegisteredClient;
   try {
-    client = await resolveClient(context, request.client_id);
+    client = await getOrFetchClient(context, request.client_id);
   } catch (error) {
     if (error instanceof OAuthError) return errorPage('This client could not be verified', error.description);
     throw error;
@@ -175,7 +175,7 @@ export async function handleConsent(context: OAuthServerContext, body: URLSearch
  * A metadata-document client is re-fetched once its cached copy lapses, so a
  * client that rotates its redirect URIs takes effect without anyone re-registering.
  */
-async function resolveClient(context: OAuthServerContext, clientId: string): Promise<RegisteredClient> {
+async function getOrFetchClient(context: OAuthServerContext, clientId: string): Promise<RegisteredClient> {
   const isMetadataDocument = isClientIdMetadataDocumentUrl(clientId);
   if (isMetadataDocument && !context.config.OAUTH_ENABLE_CLIENT_ID_METADATA_DOCUMENTS) {
     throw new OAuthError('invalid_client', 'This server is not accepting client metadata documents; register the client instead');

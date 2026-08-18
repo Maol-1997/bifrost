@@ -2,9 +2,9 @@ import { Button } from '@/components/ui/button';
 import { ClientIcon } from '@/components/client-icon';
 import { StatusBadge } from '@/components/status';
 import { relativeTime, shortDate } from '@/lib/time';
-import type { ClientSession } from '@/api/bifrost';
+import type { ConnectedClient } from '@/api/bifrost';
 
-export function ClientRow({ client, onRenew, onRevoke }: { client: ClientSession; onRenew: () => void; onRevoke: () => void }): React.JSX.Element {
+export function ClientRow({ client, onRenew, onRevoke }: { client: ConnectedClient; onRenew: () => void; onRevoke: () => void }): React.JSX.Element {
   const metadata = [
     client.isCurrent ? 'this browser' : null,
     `first connected ${shortDate(client.firstConnectedAt)}`,
