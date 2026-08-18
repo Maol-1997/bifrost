@@ -133,4 +133,4 @@ test/                vitest, pure units
 
 ## Status
 
-Working and in use for GitHub, Linear and Slack. Two things are deliberately unbuilt and documented as such in AGENTS.md: `POST /mcp/internal` (service-account access) returns `501`, and OAuth issues a single `mcp` scope rather than per-provider scopes. Notion appears in the UI catalog as a placeholder and has no server-side provider.
+Working and in use for GitHub, Linear and Slack. One thing is deliberately unbuilt and documented as such in AGENTS.md: OAuth issues a single `mcp` scope rather than per-provider scopes. Notion appears in the UI catalog as a placeholder and has no server-side provider.

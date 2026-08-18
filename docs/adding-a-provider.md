@@ -33,8 +33,7 @@ Check these in order:
 2. Is the provider mount marked healthy in `/api/status.json`?
 3. Does the current user have a `provider_credentials` row for the exact provider ID?
 4. Is the provider hidden in `user_provider_preferences`?
-5. Is the prefix internal-only, or is an internal caller missing its per-service prefix allowance?
-6. Does the requested tool name exactly match the registered wrapper name?
+5. Does the requested tool name exactly match the registered wrapper name?
 
 Do not weaken the filter to diagnose visibility. Each axis fails closed deliberately.
 

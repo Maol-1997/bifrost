@@ -18,8 +18,6 @@ export const CREDENTIAL_PROVIDER_BY_PREFIX = {
   slack_: 'slack',
 } as const satisfies Record<(typeof PROVIDER_NAMESPACES)[ProviderId], ProviderId>;
 
-export const INTERNAL_ONLY_PREFIXES = new Set<string>();
-
 export const PROVIDER_REGISTRY: readonly ProviderDefinition[] = [githubProvider, linearProvider, slackProvider];
 
 /** The four places a prefix is spelled. Each defaults to the real one; tests substitute a drifted copy. */

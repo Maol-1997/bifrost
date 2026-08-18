@@ -14,10 +14,6 @@ import { bearerChallenge } from '../oauth-server/metadata.js';
 /** `POST /mcp`, the one endpoint an agent talks to. Returns false for any other path. */
 export async function handleMcpRoute(context: RequestContext): Promise<boolean> {
   const { request, response, url, deps } = context;
-  if (url.pathname === '/mcp/internal') {
-    json(response, 501, { error: 'Service-to-service MCP endpoint is reserved but not implemented; use /mcp for human-attributed access' });
-    return true;
-  }
   if (url.pathname !== '/mcp') return false;
   const agent = await authenticateAgent(request, deps.database, deps.config);
   // A caller that presented something gets told the credential is the problem,

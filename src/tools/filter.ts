@@ -1,4 +1,4 @@
-import { CREDENTIAL_PROVIDER_BY_PREFIX, INTERNAL_ONLY_PREFIXES } from '../providers/registry.js';
+import { CREDENTIAL_PROVIDER_BY_PREFIX } from '../providers/registry.js';
 import type { ProviderDefinition, ProviderId, ProviderMount, ToolDefinition } from '../providers/types.js';
 
 export type UserToolVisibility = {
@@ -10,8 +10,6 @@ export type UserToolVisibility = {
    * `tools/list` and calling it by name finds nothing to call.
    */
   disabledTools: ReadonlySet<string>;
-  endpoint: 'human' | 'internal';
-  internalAllowedPrefixes?: ReadonlySet<string>;
 };
 
 export function visibleTools(
@@ -24,8 +22,6 @@ export function visibleTools(
     const mappedProvider = CREDENTIAL_PROVIDER_BY_PREFIX[provider.prefix];
     if (!mounted.has(provider.id) || mappedProvider !== provider.id) return [];
     if (!visibility.connectedProviders.has(provider.id) || visibility.hiddenProviders.has(provider.id)) return [];
-    if (INTERNAL_ONLY_PREFIXES.has(provider.prefix) && visibility.endpoint !== 'internal') return [];
-    if (visibility.endpoint === 'internal' && !visibility.internalAllowedPrefixes?.has(provider.prefix)) return [];
     return provider.tools.filter((tool) => !visibility.disabledTools.has(tool.name));
   });
 }

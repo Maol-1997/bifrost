@@ -58,7 +58,6 @@ export function createHumanMcpHandler(dependencies: {
     const hiddenProviders = await dependencies.database.hiddenProviders(userId);
     const toolPreferences = await dependencies.database.toolPreferences(userId);
     const tools = visibleTools(PROVIDER_REGISTRY, dependencies.mounts, {
-      endpoint: 'human',
       connectedProviders,
       hiddenProviders,
       disabledTools: disabledToolNames(PROVIDER_REGISTRY, toolPreferences, dependencies.config.writeToolAllowlist),

@@ -218,9 +218,6 @@ needing one is verified by running it.
 
 Honest state, so nobody rediscovers these as bugs:
 
-- `POST /mcp/internal` returns `501`. Service-account identity and per-service prefix allowlists
-  were designed and deliberately not built; `INTERNAL_ONLY_PREFIXES` and the `endpoint` axis in
-  `UserToolVisibility` are the scaffolding left for it.
 - OAuth issues a single `mcp` scope. Per-provider scopes are the natural next axis, which is why
   grants store a `text[]` rather than one string.
 - Bifrost logs `userId` in the clear on every MCP call. Hashing it in logs would be an
