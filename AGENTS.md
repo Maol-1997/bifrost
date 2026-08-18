@@ -94,7 +94,7 @@ pass-through to the upstream API.
 in `src/providers/registry.ts`. `assertPrefixInvariant` runs at startup and refuses to boot on a
 one-character drift, because prefix drift silently breaks credential lookup rather than erroring.
 
-Notion appears in the frontend catalog (`src/api/bifrost.ts`) but has **no server-side provider**.
+Notion appears in the frontend catalog (`src/api/catalog.ts`) but has **no server-side provider**.
 `/api/app-connections.json` only ever returns `SUPPORTED_APPS`, so Notion renders as a
 decorative, permanently unavailable card. Do not treat it as a fourth provider.
 
