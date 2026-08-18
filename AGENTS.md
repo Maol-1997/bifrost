@@ -47,7 +47,7 @@ That makes filtering *the* enforcement mechanism, not a display concern. A tool 
 registered on the object handling this request. There is no second check to keep in sync.
 
 The one deliberate exception is the write-ceiling assert inside `registerTool`
-(`src/mcp.ts:101`). It is redundant with the filter on purpose: hiding a tool should never be
+(`src/mcp.ts:100`). It is redundant with the filter on purpose: hiding a tool should never be
 the only thing standing between an agent and a write.
 
 ## Tool visibility: the axes that can hide a tool
