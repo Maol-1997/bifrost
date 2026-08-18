@@ -1,6 +1,8 @@
 import { APP_ROUTES } from '@/lib/routes';
 
 export type ProviderId = 'github' | 'linear' | 'slack' | 'notion';
+/** Notion is catalog-only: it renders as a card but has no server-side provider to connect to. */
+export type ConnectableProviderId = Exclude<ProviderId, 'notion'>;
 export type ConnectionStatus = 'connected' | 'needs-reconnect' | 'not-connected' | 'unavailable';
 export type ToolKind = 'read' | 'write';
 export type ClientHealth = 'healthy' | 'needs-renewal';
@@ -212,8 +214,13 @@ async function fetchJson<Response>(path: string, options?: RequestInit): Promise
  */
 export async function getCurrentUser(): Promise<CurrentUser | undefined> {
   const response = await fetch('/api/me.json');
-  if (!response.ok) return undefined;
+  if (response.status === 401) return undefined;
+  if (!response.ok) throw new Error(`Bifrost request failed with status ${response.status}`);
   return response.json() as Promise<CurrentUser>;
+}
+
+export function isConnectableProvider(providerId: ProviderId): providerId is ConnectableProviderId {
+  return providerId !== 'notion';
 }
 
 export async function getProviders(): Promise<readonly Provider[]> {
@@ -226,15 +233,10 @@ export async function getProviders(): Promise<readonly Provider[]> {
   const connectionById = new Map(connections.apps.map((connection) => [connection.providerId, connection]));
   return providerCatalog.map((provider) => {
     const mount = mountById.get(provider.id);
-    const connection = connectionById.get(provider.id as 'github' | 'linear' | 'slack');
-    const providerStatus: ConnectionStatus = mount?.isMounted === false
-      ? 'unavailable'
-      : connection?.isConnected
-        ? (connection.needsReconnect ? 'needs-reconnect' : 'connected')
-        : provider.id === 'notion' ? 'unavailable' : 'not-connected';
+    const connection = isConnectableProvider(provider.id) ? connectionById.get(provider.id) : undefined;
     return {
       ...provider,
-      status: providerStatus,
+      status: deriveConnectionStatus(provider.id, mount, connection),
       isHidden: connection?.isHidden ?? false,
       ...(connection?.connectedAt ? { connectedAt: connection.connectedAt } : {}),
       ...(connection?.accountLabel ? { accountLabel: connection.accountLabel } : {}),
@@ -250,6 +252,22 @@ export async function getProviders(): Promise<readonly Provider[]> {
 }
 
 /**
+ * Server facts win in this order: an unmounted provider is unavailable no
+ * matter what the user connected; a connection decides between connected and
+ * needs-reconnect; with neither, only Notion (no server-side provider) is
+ * unavailable rather than merely not connected.
+ */
+function deriveConnectionStatus(
+  providerId: ProviderId,
+  mount: StatusResponse['providers'][number] | undefined,
+  connection: ConnectionsResponse['apps'][number] | undefined,
+): ConnectionStatus {
+  if (mount?.isMounted === false) return 'unavailable';
+  if (connection?.isConnected) return connection.needsReconnect ? 'needs-reconnect' : 'connected';
+  return providerId === 'notion' ? 'unavailable' : 'not-connected';
+}
+
+/**
  * The prose skeleton, with no tools. Used as a first paint before the real list
  * arrives, so a screen never invents tools it cannot vouch for.
  */
@@ -257,7 +275,7 @@ export function getProviderCatalog(): readonly Provider[] {
   return providerCatalog.map((provider) => ({ ...structuredClone(provider), tools: [] }));
 }
 
-export async function connectProvider(providerId: ProviderId): Promise<void> {
+export async function connectProvider(providerId: ConnectableProviderId): Promise<void> {
   if (!isMockMode()) {
     window.location.assign(`/oauth/${providerId}/start`);
     return;
@@ -353,11 +371,5 @@ export async function getMcpAddress(): Promise<string> {
  */
 export async function checkClientConnection(): Promise<ClientSession | undefined> {
   const clients = await getClientSessions();
-  return clients.find((client) => !client.isCurrent && client.name !== 'Bifrost web');
-}
-
-// Mock: the backend has no atomic revoke-all endpoint.
-export async function revokeEverything(): Promise<void> {
-  mockProviders = mockProviders.map((provider) => ({ ...provider, status: provider.id === 'notion' ? 'unavailable' : 'not-connected', isHidden: false, tools: provider.tools.map((tool) => ({ ...tool, isEnabled: false })) }));
-  mockClients = [];
+  return clients.find((client) => client.kind === 'agent');
 }

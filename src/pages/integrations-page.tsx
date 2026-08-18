@@ -4,7 +4,7 @@ import { EmptyState, ErrorState, LoadingState } from '@/components/states';
 import { PageHeader } from '@/components/page-header';
 import { ProviderCard } from '@/components/provider-card';
 import { SectionCard } from '@/components/section-card';
-import { connectProvider, disconnectProvider, getProviderCatalog, getProviders, setProviderHidden, type Provider, type ProviderId } from '@/api/bifrost';
+import { connectProvider, disconnectProvider, getProviderCatalog, getProviders, isConnectableProvider, setProviderHidden, type Provider, type ProviderId } from '@/api/bifrost';
 
 export function IntegrationsPage(): React.JSX.Element {
   const [searchParams] = useSearchParams();
@@ -30,6 +30,7 @@ export function IntegrationsPage(): React.JSX.Element {
   useEffect(() => { if (requestedState === 'error') { setIsLoading(false); setError('Demo error'); } else void load(); }, [load, requestedState]);
 
   async function connect(providerId: ProviderId): Promise<void> {
+    if (!isConnectableProvider(providerId)) return;
     setConnectingId(providerId);
     await connectProvider(providerId);
     window.setTimeout(() => { setConnectingId(null); void load(); }, 900);

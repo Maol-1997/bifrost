@@ -1,19 +1,23 @@
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, Navigate, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { SectionCard } from '@/components/section-card';
 import { EmptyState } from '@/components/states';
 import { APP_ROUTES, integrationDetailPath } from '@/lib/routes';
-import { getProviderCatalog, type ProviderId } from '@/api/bifrost';
+import { getProviderCatalog } from '@/api/bifrost';
 
 type ResultVariant = 'success' | 'cancelled' | 'error';
 
+function parseVariant(value: string | null): ResultVariant | undefined {
+  return value === 'success' || value === 'cancelled' || value === 'error' ? value : undefined;
+}
+
 export function ConnectionResultPage(): React.JSX.Element {
   const [searchParams] = useSearchParams();
-  const requestedProvider = searchParams.get('provider');
-  const providerId: ProviderId = requestedProvider === 'linear' || requestedProvider === 'slack' || requestedProvider === 'notion' ? requestedProvider : 'github';
-  const provider = getProviderCatalog().find((entry) => entry.id === providerId)!;
-  const requestedVariant = searchParams.get('result');
-  const variant: ResultVariant = requestedVariant === 'cancelled' || requestedVariant === 'error' ? requestedVariant : 'success';
+  const provider = getProviderCatalog().find((entry) => entry.id === searchParams.get('provider'));
+  const variant = parseVariant(searchParams.get('result'));
+  // Both come from the URL. A page that defaulted to "connected" for a
+  // malformed one would claim access was granted when nothing happened.
+  if (!provider || !variant) return <Navigate to={APP_ROUTES.integrations} replace />;
   const content = variant === 'success'
     ? { icon: '✓', title: `${provider.name} is connected`, body: `Your agents can use ${provider.name} as you from now on. Here’s what that means — and you can turn any of it off:`, primary: 'Add an agent', primaryTo: APP_ROUTES.addAgent }
     : variant === 'cancelled'
