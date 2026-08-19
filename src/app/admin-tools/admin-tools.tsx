@@ -193,7 +193,7 @@ function ProviderTools({ provider, normalizedSearch, selectedToolNames, disabled
 }
 
 function BatchActions({ selectedCount, disabled, onClear, onChange }: { selectedCount: number; disabled: boolean; onClear: () => void; onChange: (state: ToolPolicyState) => void }): React.JSX.Element {
-  return <div aria-label="Batch actions" className="sticky top-3 z-20 mt-4 flex flex-wrap items-center justify-between gap-2 rounded-lg border-[0.5px] border-app-border-pane bg-app-bg-primary/95 p-2 shadow-lg backdrop-blur"><div aria-live="polite" className="px-2 text-[12.5px] font-medium tabular-nums">{selectedCount} selected</div><div className="flex items-center gap-1.5"><Button type="button" variant="ghost" size="large" disabled={disabled} onClick={onClear}>Clear</Button><PolicyMenu ariaLabel={`Set policy for ${selectedCount} selected tools`} disabled={disabled} triggerLabel={disabled ? 'Applying…' : 'Set policy'} className="w-40" onChange={onChange} /></div></div>;
+  return <div aria-label="Batch actions" className="flex min-h-11 items-center justify-between gap-3"><div aria-live="polite" className="text-[12.5px] font-medium tabular-nums">{selectedCount} selected</div><div className="flex items-center gap-1.5"><Button type="button" variant="ghost" size="large" disabled={disabled} onClick={onClear}>Clear</Button><PolicyMenu ariaLabel={`Set policy for ${selectedCount} selected tools`} disabled={disabled} triggerLabel={disabled ? 'Applying…' : 'Set policy'} className="w-40" onChange={onChange} /></div></div>;
 }
 
 function AdminProviderTools({ providerId }: { providerId: ConnectableProviderId }): React.JSX.Element {
@@ -229,10 +229,13 @@ function AdminProviderTools({ providerId }: { providerId: ConnectableProviderId 
   return (
     <section>
       <PageHead title={`${providerName(providerId)} tools`} subtitle={`Review tools discovered from ${providerName(providerId)}'s official MCP server. New or changed contracts stay blocked until you approve their current fingerprint.`} />
-      <div className="mt-4 flex justify-end"><Button type="button" variant="outline" size="large" disabled={refreshMutation.isPending} className="min-w-28" onClick={() => { refreshMutation.mutate(); }}>{refreshMutation.isPending ? 'Refreshing…' : 'Refresh tools'}</Button></div>
+      <div className="mt-4 min-h-11">
+        {selectedToolNames.size > 0
+          ? <BatchActions selectedCount={selectedToolNames.size} disabled={policyMutation.isPending} onClear={() => { setSelectedToolNames(new Set()); }} onChange={changeSelected} />
+          : <div className="flex min-h-11 items-center justify-end"><Button type="button" variant="outline" size="large" disabled={refreshMutation.isPending} className="min-w-28" onClick={() => { refreshMutation.mutate(); }}>{refreshMutation.isPending ? 'Refreshing…' : 'Refresh tools'}</Button></div>}
+      </div>
       <label htmlFor="tool-search" className="mt-6 block text-[11px] font-medium text-app-text-tertiary">Search tools</label>
       <SearchInput id="tool-search" variant="content" value={search} onChange={(event) => { setSearch(event.target.value); }} placeholder="Name or description" containerClassName="mt-1" className="h-11" />
-      {selectedToolNames.size > 0 ? <BatchActions selectedCount={selectedToolNames.size} disabled={policyMutation.isPending} onClear={() => { setSelectedToolNames(new Set()); }} onChange={changeSelected} /> : null}
       {toolsQuery.isPending ? <LoadingState label="Loading official provider tools…" /> : null}
       {toolsQuery.isError ? <ErrorState title="We couldn't load tool administration" body="You may not have administrator access, or provider discovery failed before the catalog could load." onRetry={() => { void toolsQuery.refetch(); }} /> : null}
       {policyMutation.isError ? <p role="alert" className="mt-4 text-[12.5px] text-danger">No policies were saved. A selected tool may have changed, refresh and review it again.</p> : null}
