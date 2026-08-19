@@ -11,7 +11,8 @@ import { providersQueryOptions } from '@app/api/query-options';
 import { ProviderCard } from './components/provider-card';
 
 const CONNECTION_SETTLE_MS = 900;
-const emptyDemoProviders = getProviderCatalog().map((provider) => ({
+const integrationCatalog = getProviderCatalog();
+const emptyDemoProviders = integrationCatalog.map((provider) => ({
   ...provider,
   status: 'not-connected' as const,
 }));
@@ -62,7 +63,7 @@ export default function Integrations(): React.JSX.Element {
   return (
     <section>
       <PageHead title="Integrations" subtitle="The apps and tools your agents can use as you. Connect an app once here, and every agent you use picks it up automatically." />
-      {isLoading ? <LoadingState label="Loading your integrations…" /> : null}
+      {isLoading ? <LoadingState label="Loading your integrations…" rowCount={integrationCatalog.length} /> : null}
       {hasLoadError ? <ErrorState title="We couldn't load your integrations" body="Your integrations are fine — this page just failed to load them. It usually fixes itself on retry." onRetry={retry} /> : null}
       {!isLoading && !hasLoadError ? (
         <>
