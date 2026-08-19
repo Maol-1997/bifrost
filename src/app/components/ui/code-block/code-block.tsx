@@ -4,6 +4,7 @@ import css from "highlight.js/lib/languages/css"
 import javascript from "highlight.js/lib/languages/javascript"
 import json from "highlight.js/lib/languages/json"
 import markdownLanguage from "highlight.js/lib/languages/markdown"
+import python from "highlight.js/lib/languages/python"
 import typescript from "highlight.js/lib/languages/typescript"
 import xml from "highlight.js/lib/languages/xml"
 import * as React from "react"
@@ -28,6 +29,8 @@ const languageLabels: Record<string, string> = {
   json: "JSON",
   markdown: "Markdown",
   md: "Markdown",
+  py: "Python",
+  python: "Python",
   shell: "Shell",
   ts: "TypeScript",
   typescript: "TypeScript",
@@ -41,6 +44,8 @@ hljs.registerLanguage("js", javascript)
 hljs.registerLanguage("json", json)
 hljs.registerLanguage("markdown", markdownLanguage)
 hljs.registerLanguage("md", markdownLanguage)
+hljs.registerLanguage("python", python)
+hljs.registerLanguage("py", python)
 hljs.registerLanguage("typescript", typescript)
 hljs.registerLanguage("ts", typescript)
 hljs.registerLanguage("html", xml)
