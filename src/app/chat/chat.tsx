@@ -111,7 +111,7 @@ function ChatHistory({ active, owner }: { active: boolean; owner: string }): Rea
     }
 
     setActiveConversation(createEmptyConversation(owner))
-    void navigate(APP_ROUTES.chat, { replace: true })
+    void navigate(APP_ROUTES.chat, { flushSync: true, replace: true })
   }, [
     active,
     activeConversation?.id,
@@ -122,15 +122,18 @@ function ChatHistory({ active, owner }: { active: boolean; owner: string }): Rea
   ])
 
   function openConversationUrl(conversationId: string): void {
-    void navigate(`${APP_ROUTES.chat}?${CHAT_ID_QUERY_PARAMETER}=${encodeURIComponent(conversationId)}`)
+    void navigate(
+      `${APP_ROUTES.chat}?${CHAT_ID_QUERY_PARAMETER}=${encodeURIComponent(conversationId)}`,
+      { flushSync: true },
+    )
   }
 
   function openNewChatUrl(): void {
-    void navigate(APP_ROUTES.chat)
+    void navigate(APP_ROUTES.chat, { flushSync: true })
   }
 
   function replaceWithNewChatUrl(): void {
-    void navigate(APP_ROUTES.chat, { replace: true })
+    void navigate(APP_ROUTES.chat, { flushSync: true, replace: true })
   }
 
   function selectConversation(id: string): void {
@@ -143,7 +146,7 @@ function ChatHistory({ active, owner }: { active: boolean; owner: string }): Rea
 
   const startConversation = useCallback((): void => {
     setActiveConversation(createEmptyConversation(owner))
-    void navigate(APP_ROUTES.chat)
+    void navigate(APP_ROUTES.chat, { flushSync: true })
   }, [navigate, owner])
 
   const updateConversation = useCallback((conversation: StoredConversation): void => {
