@@ -1,3 +1,4 @@
+import { differenceInDays, parseISO } from 'date-fns';
 import { Link, useOutletContext } from 'react-router-dom';
 import type { AppShellContext } from '@app/components/chrome/app-shell';
 import { ErrorState } from '@app/components/ui/error-state';
@@ -11,15 +12,13 @@ import { relativeTime } from '@app/lib/format/time-ago';
 import { getProviderCatalog, type AppHealth } from '@app/api/bifrost';
 import { APP_ROUTES } from '@features/utils/routes';
 
-const DAY_MS = 86_400_000;
-
 function healthDetail(app: AppHealth, appName: string): string {
   if (app.health === 'unknown') return `Couldn't reach ${appName}'s status page`;
   if (app.health === 'operational') {
     if (!app.quietSince) return 'No issues reported';
     // Under a day the streak is not the story — the recent recovery is, and
     // "no issues for 0 days" would read as a lie to anyone who felt the outage.
-    const quietDays = Math.floor((Date.now() - new Date(app.quietSince).getTime()) / DAY_MS);
+    const quietDays = differenceInDays(new Date(), parseISO(app.quietSince));
     if (quietDays < 1) return `Back to normal ${relativeTime(app.quietSince)}`;
     return `No issues for ${quietDays} ${quietDays === 1 ? 'day' : 'days'}`;
   }

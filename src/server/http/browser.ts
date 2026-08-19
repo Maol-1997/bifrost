@@ -34,52 +34,52 @@ const validateToolPath = validateRequest('param', toolPathSchema, { status: 404,
 const validateProviderPreference = validateRequest('json', providerPreferenceSchema, { status: 400, message: 'Invalid request body' });
 const validateToolPreference = validateRequest('json', toolPreferenceSchema, { status: 400, message: 'Invalid request body' });
 
-export function createBrowserRoutes(): Hono<AppEnv> {
+export function createBrowserRoutes() {
   const routes = new Hono<AppEnv>();
   routes.use('*', requireBrowserIdentity);
   routes.use('*', limitRequestBody);
 
-  routes.get('/api/app-connections.json', async (context) => context.json(await appConnections(context)));
-  routes.get('/api/clients.json', async (context) => context.json(await clientList(context)));
-  routes.get('/api/me.json', async (context) => {
-    const user = await context.get('dependencies').database.getUser(context.get('browserIdentity').userId);
-    if (!user) return context.json({ error: 'Your account could not be found' }, 404);
-    return context.json(user);
-  });
-  routes.post('/api/clients/:kind/:id/:action', validateClientAction, (context) => (
-    handleClientAction(context, context.req.valid('param'))
-  ));
-  routes.post('/auth/logout', logout);
-  routes.get('/oauth/:providerId/start', validateProviderPath, (context) => (
-    startProviderAuthorization(context, context.req.valid('param').providerId)
-  ));
-  routes.get('/oauth/:providerId/callback', validateProviderPath, (context) => (
-    finishProviderAuthorization(context, context.req.valid('param').providerId)
-  ));
-  routes.post('/api/connections/:providerId/disconnect', validateProviderPath, (context) => (
-    disconnectProvider(context, context.req.valid('param').providerId)
-  ));
-  routes.post(
-    '/api/connections/:providerId/preference',
-    validateProviderPath,
-    validateProviderPreference,
-    (context) => setProviderPreference(
-      context,
-      context.req.valid('param').providerId,
-      context.req.valid('json'),
-    ),
-  );
-  routes.post(
-    '/api/tools/:toolName/preference',
-    validateToolPath,
-    validateToolPreference,
-    (context) => setToolPreference(
-      context,
-      context.req.valid('param').toolName,
-      context.req.valid('json'),
-    ),
-  );
-  return routes;
+  return routes
+    .get('/api/app-connections.json', async (context) => context.json(await appConnections(context)))
+    .get('/api/clients.json', async (context) => context.json(await clientList(context)))
+    .get('/api/me.json', async (context) => {
+      const user = await context.get('dependencies').database.getUser(context.get('browserIdentity').userId);
+      if (!user) return context.json({ error: 'Your account could not be found' }, 404);
+      return context.json(user);
+    })
+    .post('/api/clients/:kind/:id/:action', validateClientAction, (context) => (
+      handleClientAction(context, context.req.valid('param'))
+    ))
+    .post('/auth/logout', logout)
+    .get('/oauth/:providerId/start', validateProviderPath, (context) => (
+      startProviderAuthorization(context, context.req.valid('param').providerId)
+    ))
+    .get('/oauth/:providerId/callback', validateProviderPath, (context) => (
+      finishProviderAuthorization(context, context.req.valid('param').providerId)
+    ))
+    .post('/api/connections/:providerId/disconnect', validateProviderPath, (context) => (
+      disconnectProvider(context, context.req.valid('param').providerId)
+    ))
+    .post(
+      '/api/connections/:providerId/preference',
+      validateProviderPath,
+      validateProviderPreference,
+      (context) => setProviderPreference(
+        context,
+        context.req.valid('param').providerId,
+        context.req.valid('json'),
+      ),
+    )
+    .post(
+      '/api/tools/:toolName/preference',
+      validateToolPath,
+      validateToolPreference,
+      (context) => setToolPreference(
+        context,
+        context.req.valid('param').toolName,
+        context.req.valid('json'),
+      ),
+    );
 }
 
 function validateRequest<Schema extends z.ZodType, Target extends 'json' | 'param'>(
@@ -87,7 +87,8 @@ function validateRequest<Schema extends z.ZodType, Target extends 'json' | 'para
   schema: Schema,
   error: { status: 400 | 404; message: string },
 ) {
-  const reject: Hook<z.infer<Schema>, AppEnv, string, Target, object, Schema> = (result, context) => {
+  type RequestHook = Hook<z.infer<Schema>, AppEnv, string, Target, { error: string }, Schema>;
+  const reject = (result: Parameters<RequestHook>[0], context: Parameters<RequestHook>[1]) => {
     if (!result.success) return context.json({ error: error.message }, error.status);
   };
   return zValidator<Schema, Target, AppEnv, string, typeof reject>(target, schema, reject);
@@ -129,7 +130,7 @@ async function finishProviderAuthorization(context: AppContext, expectedProvider
   }
 }
 
-async function disconnectProvider(context: AppContext, providerId: ProviderId): Promise<Response> {
+async function disconnectProvider(context: AppContext, providerId: ProviderId) {
   const { database } = context.get('dependencies');
   await database.deleteCredential(context.get('browserIdentity').userId, providerId);
   return context.json({ connected: false });
@@ -139,7 +140,7 @@ async function setProviderPreference(
   context: AppContext,
   providerId: ProviderId,
   preference: z.infer<typeof providerPreferenceSchema>,
-): Promise<Response> {
+) {
   const { database } = context.get('dependencies');
   await database.setProviderHidden(context.get('browserIdentity').userId, providerId, preference.isHidden);
   return context.json(preference);
@@ -149,7 +150,7 @@ async function setToolPreference(
   context: AppContext,
   toolName: string,
   preference: z.infer<typeof toolPreferenceSchema>,
-): Promise<Response> {
+) {
   const { database } = context.get('dependencies');
   await database.setToolPreference(context.get('browserIdentity').userId, toolName, preference.isEnabled);
   return context.json(preference);
@@ -158,7 +159,7 @@ async function setToolPreference(
 async function handleClientAction(
   context: AppContext,
   request: z.infer<typeof clientActionSchema>,
-): Promise<Response> {
+) {
   const { database } = context.get('dependencies');
   const identity = context.get('browserIdentity');
 
@@ -184,7 +185,7 @@ async function handleClientAction(
   return context.json({ revoked: true, wasCurrentClient });
 }
 
-async function clientList(context: AppContext): Promise<{ clients: readonly object[] }> {
+async function clientList(context: AppContext) {
   const identity = context.get('browserIdentity');
   const { database } = context.get('dependencies');
   const [sessions, grants] = await Promise.all([
@@ -200,7 +201,9 @@ async function clientList(context: AppContext): Promise<{ clients: readonly obje
       firstConnectedAt: session.createdAt.toISOString(),
       lastUsedAt: session.lastUsedAt.toISOString(),
       expiresAt: session.expiresAt.toISOString(),
-      health: session.expiresAt.getTime() - Date.now() <= RENEWAL_WINDOW_MS ? 'needs-renewal' : 'healthy',
+      health: session.expiresAt.getTime() - Date.now() <= RENEWAL_WINDOW_MS
+        ? 'needs-renewal' as const
+        : 'healthy' as const,
     })),
     ...grants.map((grant) => ({
       id: grant.id,
@@ -215,7 +218,7 @@ async function clientList(context: AppContext): Promise<{ clients: readonly obje
   return { clients: clients.sort((left, right) => right.lastUsedAt.localeCompare(left.lastUsedAt)) };
 }
 
-async function appConnections(context: AppContext): Promise<{ apps: readonly object[] }> {
+async function appConnections(context: AppContext) {
   const identity = context.get('browserIdentity');
   const { config, database } = context.get('dependencies');
   const [connections, hidden, preferences] = await Promise.all([

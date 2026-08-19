@@ -1,5 +1,19 @@
-import { createHash, randomBytes } from 'node:crypto';
 import { createRemoteJWKSet, jwtVerify } from 'jose';
+import {
+  AuthorizationResponseError,
+  authorizationCodeGrant,
+  buildAuthorizationUrl,
+  calculatePKCECodeChallenge,
+  ClientError,
+  ClientSecretPost,
+  Configuration,
+  customFetch,
+  type CustomFetchOptions,
+  randomPKCECodeVerifier,
+  randomState,
+  refreshTokenGrant,
+  ResponseBodyError,
+} from 'openid-client';
 import { z } from 'zod';
 import { WEB_CLIENT_ID } from './clients/describe.js';
 import type { Config } from './config.js';
@@ -8,6 +22,7 @@ import { Database, type StoredCredential } from './db.js';
 import { AgentFacingError } from './errors.js';
 import { errorSummary, logger } from './logger.js';
 import { PROVIDER_REGISTRY, SUPPORTED_APPS } from './providers/registry.js';
+import { normalizeSlackTokenResponse } from './providers/slack-oauth.js';
 import type { ProviderDefinition, ProviderId } from './providers/types.js';
 import { emailDomain, isEmailAllowed } from './security/access.js';
 
@@ -77,15 +92,13 @@ export class OAuthService {
    */
   async startGoogleAuthorization(returnTo: string): Promise<string> {
     const clientId = this.requiredConfig('GOOGLE_CLIENT_ID');
-    const { state, verifier, challenge } = createPkce();
+    const { state, verifier, challenge } = await createPkce();
     await this.coordinator.setEphemeral(`oauth:state:${state}`, JSON.stringify({ verifier, returnTo }), OAUTH_STATE_TTL_SECONDS);
-    const query = new URLSearchParams({
-      client_id: clientId,
+    return buildAuthorizationUrl(googleConfiguration(clientId), {
       redirect_uri: `${this.config.PUBLIC_URL}/auth/google/callback`,
       response_type: 'code', scope: 'openid email profile', state,
       code_challenge: challenge, code_challenge_method: 'S256', prompt: 'select_account',
-    });
-    return `https://accounts.google.com/o/oauth2/v2/auth?${query.toString()}`;
+    }).href;
   }
 
   async finishGoogle(code: string, state: string): Promise<{ sessionToken: string; userId: string; returnTo: string }> {
@@ -118,24 +131,30 @@ export class OAuthService {
 
   async startProviderAuthorization(userId: string, providerId: ProviderId): Promise<string> {
     const provider = findProvider(providerId);
-    const { state, verifier, challenge } = createPkce();
+    const { state, verifier, challenge } = await createPkce();
     await this.coordinator.setEphemeral(`oauth:state:${state}`, JSON.stringify({ userId, providerId, verifier, returnTo: '/' }), OAUTH_STATE_TTL_SECONDS);
-    const query = new URLSearchParams({
-      client_id: this.providerClientId(providerId), redirect_uri: this.providerRedirectUri(providerId),
+    const parameters = new URLSearchParams({
+      redirect_uri: this.providerRedirectUri(providerId),
       response_type: 'code', state, code_challenge: challenge, code_challenge_method: 'S256',
     });
-    if (providerId === 'slack') query.set('user_scope', provider.scopes.join(','));
-    else query.set('scope', provider.scopes.join(' '));
-    return `${provider.authorizationUrl}?${query.toString()}`;
+    if (providerId === 'slack') parameters.set('user_scope', provider.scopes.join(','));
+    else parameters.set('scope', provider.scopes.join(' '));
+    return buildAuthorizationUrl(this.providerConfiguration(provider), parameters).href;
   }
 
   async finishProvider(code: string, state: string): Promise<{ userId: string; providerId: ProviderId }> {
     const storedState = await this.takeState(state);
     if (!storedState.userId || !storedState.providerId) throw new Error('OAuth state is not a provider connection state');
     const provider = findProvider(storedState.providerId);
-    const tokenResponse = await this.exchangeProviderToken(provider, new URLSearchParams({
-      grant_type: 'authorization_code', code, redirect_uri: this.providerRedirectUri(provider.id), code_verifier: storedState.verifier,
-    }));
+    const callbackUrl = new URL(this.providerRedirectUri(provider.id));
+    callbackUrl.searchParams.set('code', code);
+    callbackUrl.searchParams.set('state', state);
+    const tokenResponse = await this.exchangeProviderCode({
+      provider,
+      callbackUrl,
+      verifier: storedState.verifier,
+      state,
+    });
     const credential = normalizeCredential(tokenResponse);
     await this.database.saveCredential(storedState.userId, provider.id, credential);
     await this.recordAccountLabel(storedState.userId, provider, credential.accessToken);
@@ -168,9 +187,7 @@ export class OAuthService {
       const provider = findProvider(providerId);
       let exchanged: z.infer<typeof tokenResponseSchema>;
       try {
-        exchanged = await this.exchangeProviderToken(provider, new URLSearchParams({
-          grant_type: 'refresh_token', refresh_token: latest.refreshToken,
-        }));
+        exchanged = await this.refreshProviderToken(provider, latest.refreshToken);
       } catch (error) {
         // Only the provider saying no means the user has to reconnect. A
         // network fault or a timeout says nothing about the grant, and telling
@@ -184,16 +201,52 @@ export class OAuthService {
     });
   }
 
-  private async exchangeProviderToken(provider: ProviderDefinition, parameters: URLSearchParams): Promise<z.infer<typeof tokenResponseSchema>> {
-    parameters.set('client_id', this.providerClientId(provider.id));
-    parameters.set('client_secret', this.providerClientSecret(provider.id));
-    const response = await fetch(provider.tokenUrl, {
-      method: 'POST', headers: { Accept: 'application/json', 'Content-Type': 'application/x-www-form-urlencoded' }, body: parameters,
-      signal: AbortSignal.timeout(TOKEN_EXCHANGE_TIMEOUT_MS),
-    });
-    const parsed = tokenResponseSchema.safeParse(await response.json());
-    if (!response.ok || !parsed.success || parsed.data.error) throw new TokenExchangeRejectedError(provider.displayName);
-    return parsed.data;
+  private async exchangeProviderCode(
+    request: { provider: ProviderDefinition; callbackUrl: URL; verifier: string; state: string },
+  ): Promise<z.infer<typeof tokenResponseSchema>> {
+    try {
+      const tokens = await authorizationCodeGrant(
+        this.providerConfiguration(request.provider),
+        request.callbackUrl,
+        { pkceCodeVerifier: request.verifier, expectedState: request.state },
+      );
+      return tokenResponseSchema.parse(tokens);
+    } catch (error) {
+      if (isProviderRejection(error)) throw new TokenExchangeRejectedError(request.provider.displayName);
+      throw error;
+    }
+  }
+
+  private async refreshProviderToken(
+    provider: ProviderDefinition,
+    refreshToken: string,
+  ): Promise<z.infer<typeof tokenResponseSchema>> {
+    try {
+      const tokens = await refreshTokenGrant(this.providerConfiguration(provider), refreshToken);
+      return tokenResponseSchema.parse(tokens);
+    } catch (error) {
+      if (isProviderRejection(error)) throw new TokenExchangeRejectedError(provider.displayName);
+      throw error;
+    }
+  }
+
+  private providerConfiguration(provider: ProviderDefinition): Configuration {
+    const clientSecret = this.providerClientSecret(provider.id);
+    const configuration = new Configuration({
+      issuer: new URL(provider.authorizationUrl).origin,
+      authorization_endpoint: provider.authorizationUrl,
+      token_endpoint: provider.tokenUrl,
+    }, this.providerClientId(provider.id), {
+      client_secret: clientSecret,
+      token_endpoint_auth_method: 'client_secret_post',
+    }, ClientSecretPost(clientSecret));
+    configuration.timeout = TOKEN_EXCHANGE_TIMEOUT_MS / 1000;
+    if (provider.id === 'slack') {
+      configuration[customFetch] = async (url, options) => normalizeSlackTokenResponse(
+        await fetch(url, fetchOptions(options)),
+      );
+    }
+    return configuration;
   }
 
   private async takeState(state: string): Promise<z.infer<typeof oauthStateSchema>> {
@@ -221,11 +274,38 @@ export class OAuthService {
   }
 }
 
-function createPkce(): { state: string; verifier: string; challenge: string } {
-  const state = randomBytes(24).toString('base64url');
-  const verifier = randomBytes(48).toString('base64url');
-  const challenge = createHash('sha256').update(verifier).digest('base64url');
+async function createPkce(): Promise<{ state: string; verifier: string; challenge: string }> {
+  const state = randomState();
+  const verifier = randomPKCECodeVerifier();
+  const challenge = await calculatePKCECodeChallenge(verifier);
   return { state, verifier, challenge };
+}
+
+function googleConfiguration(clientId: string): Configuration {
+  return new Configuration({
+    issuer: 'https://accounts.google.com',
+    authorization_endpoint: 'https://accounts.google.com/o/oauth2/v2/auth',
+    token_endpoint: 'https://oauth2.googleapis.com/token',
+    jwks_uri: 'https://www.googleapis.com/oauth2/v3/certs',
+  }, clientId);
+}
+
+function isProviderRejection(error: unknown): boolean {
+  if (error instanceof ResponseBodyError || error instanceof AuthorizationResponseError) return true;
+  return error instanceof ClientError
+    && error.code !== 'OAUTH_TIMEOUT'
+    && error.code !== 'OAUTH_ABORT'
+    && error.message !== 'something went wrong';
+}
+
+function fetchOptions(options: CustomFetchOptions): RequestInit {
+  return {
+    method: options.method,
+    headers: options.headers,
+    redirect: options.redirect,
+    ...(options.body === undefined ? {} : { body: options.body as BodyInit }),
+    ...(options.signal === undefined ? {} : { signal: options.signal }),
+  };
 }
 
 function findProvider(providerId: ProviderId): ProviderDefinition {

@@ -1,11 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { type ConsentView, renderConsentPage, renderErrorPage } from '../src/server/oauth-server/consent-page.js';
+import { renderConsentPage } from '../src/server/oauth-server/consent-page.js';
+import { renderErrorPage } from '../src/server/oauth-server/error-page.js';
 
 // Everything on these pages comes from a client's own metadata document, so the
 // payload carries each character the escaper is responsible for.
 const XSS = `<script>alert(1)</script>"&'`;
 
-function baseView(): ConsentView {
+function baseView() {
   return {
     clientName: 'Example MCP Client',
     redirectUri: 'https://app.example.com/callback',

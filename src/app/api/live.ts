@@ -1,16 +1,14 @@
+import type { InferResponseType } from 'hono/client';
 import { APP_ROUTES } from '@features/utils/routes';
 import { isConnectableProvider, providerCatalog } from './catalog';
-import type { BifrostApi, ConnectedClient, ConnectionStatus, ConnectionsResponse, ProviderId, StatusResponse } from './types';
+import { bifrostClient } from './client';
+import { parseRpcResponse } from './parse-rpc-response';
+import type { BifrostApi, ConnectionStatus, ProviderId } from './types';
 
-export async function fetchJson<ResponseBody>(path: string, options?: RequestInit): Promise<ResponseBody> {
-  const response = await fetch(path, options);
-  if (response.status === 401) {
-    window.location.assign(APP_ROUTES.signIn);
-    throw new Error('Authentication required');
-  }
-  if (!response.ok) throw new Error(`Bifrost request failed with status ${response.status}`);
-  return response.json() as Promise<ResponseBody>;
-}
+const getStatus = bifrostClient.api['status.json'].$get;
+const getConnections = bifrostClient.api['app-connections.json'].$get;
+type StatusResponse = InferResponseType<typeof getStatus, 200>;
+type ConnectionsResponse = InferResponseType<typeof getConnections, 200>;
 
 /**
  * Server facts win in this order: an unmounted provider is unavailable no
@@ -28,17 +26,17 @@ function deriveConnectionStatus(
   return providerId === 'notion' ? 'unavailable' : 'not-connected';
 }
 
-/** The real thing: every operation is a request to the Bifrost server. */
+/** The real thing: every operation is a typed request to the Bifrost server. */
 export const liveApi: BifrostApi = {
   getProviders: async () => {
     const [status, connections] = await Promise.all([
-      fetchJson<StatusResponse>('/api/status.json'),
-      fetchJson<ConnectionsResponse>('/api/app-connections.json'),
+      parseRpcResponse(getStatus()),
+      parseRpcResponse(getConnections()),
     ]);
     const mountById = new Map(status.providers.map((provider) => [provider.id, provider]));
     const connectionById = new Map(connections.apps.map((connection) => [connection.providerId, connection]));
     return providerCatalog.map((provider) => {
-      const mount = mountById.get(provider.id);
+      const mount = isConnectableProvider(provider.id) ? mountById.get(provider.id) : undefined;
       const connection = isConnectableProvider(provider.id) ? connectionById.get(provider.id) : undefined;
       return {
         ...provider,
@@ -46,59 +44,67 @@ export const liveApi: BifrostApi = {
         isHidden: connection?.isHidden ?? false,
         ...(connection?.connectedAt ? { connectedAt: connection.connectedAt } : {}),
         ...(connection?.accountLabel ? { accountLabel: connection.accountLabel } : {}),
-        // Straight from the server. The enabled state is the server's answer too,
-        // never re-derived from the connection status: doing that is what used to
-        // wipe every choice on reload.
+        // The server owns enabled state. Re-deriving it from connection status
+        // would erase the user's choices after every reload.
         tools: (connection?.tools ?? []).map((tool) => ({
-          name: tool.name, title: tool.title, description: tool.description,
-          mutability: tool.mutability, isEnabled: tool.isEnabled, isBlockedByServer: tool.isBlockedByServer,
+          name: tool.name,
+          title: tool.title,
+          description: tool.description,
+          mutability: tool.mutability,
+          isEnabled: tool.isEnabled,
+          isBlockedByServer: tool.isBlockedByServer,
         })),
       };
     });
   },
   startProviderConnection: async (providerId) => {
-    window.location.assign(`/oauth/${providerId}/start`);
+    const location = bifrostClient.oauth[':providerId'].start.$url({ param: { providerId } });
+    window.location.assign(location);
   },
   disconnectProvider: async (providerId) => {
     if (!isConnectableProvider(providerId)) return;
-    await fetchJson(`/api/connections/${providerId}/disconnect`, { method: 'POST' });
+    await parseRpcResponse(bifrostClient.api.connections[':providerId'].disconnect.$post({
+      param: { providerId },
+    }));
   },
   setProviderHidden: async (providerId, isHidden) => {
     if (!isConnectableProvider(providerId)) return;
-    await fetchJson(`/api/connections/${providerId}/preference`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ isHidden }) });
+    await parseRpcResponse(bifrostClient.api.connections[':providerId'].preference.$post({
+      param: { providerId },
+      json: { isHidden },
+    }));
   },
-  // Keyed by the MCP tool name, which is the same string the agent calls and the
-  // server registers, so there is no mapping table between what you switched
-  // off and what actually stops working.
+  // The MCP tool name is also the route key and the registered server name, so
+  // there is no mapping that can drift between the switch and execution.
   setToolEnabled: async (toolName, isEnabled) => {
-    await fetchJson(`/api/tools/${toolName}/preference`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ isEnabled }),
-    });
+    await parseRpcResponse(bifrostClient.api.tools[':toolName'].preference.$post({
+      param: { toolName },
+      json: { isEnabled },
+    }));
   },
   getConnectedClients: async () => {
-    const { clients } = await fetchJson<{ clients: readonly ConnectedClient[] }>('/api/clients.json');
+    const { clients } = await parseRpcResponse(bifrostClient.api['clients.json'].$get());
     return clients;
   },
   renewClient: async (client) => {
-    await fetchJson(`/api/clients/${client.kind}/${client.id}/renew`, { method: 'POST' });
+    await parseRpcResponse(bifrostClient.api.clients[':kind'][':id'][':action'].$post({
+      param: { kind: client.kind, id: client.id, action: 'renew' },
+    }));
   },
   revokeClient: async (client) => {
-    const { wasCurrentClient } = await fetchJson<{ wasCurrentClient: boolean }>(`/api/clients/${client.kind}/${client.id}/revoke`, { method: 'POST' });
-    // Revoking the session you are browsing with is a sign-out; staying on the
-    // page would show a logged-in shell backed by a dead cookie.
-    if (wasCurrentClient) window.location.assign(APP_ROUTES.signIn);
+    const result = await parseRpcResponse(bifrostClient.api.clients[':kind'][':id'][':action'].$post({
+      param: { kind: client.kind, id: client.id, action: 'revoke' },
+    }));
+    // Revoking the current browser kills its backing cookie immediately.
+    if ('wasCurrentClient' in result && result.wasCurrentClient) {
+      window.location.assign(APP_ROUTES.signIn);
+    }
   },
-  /**
-   * The address to give a client, read from the very document that client will
-   * read to discover how to authenticate.
-   *
-   * Deliberately not `window.location.origin`: behind the dev proxy that is port
-   * 5173, while the OAuth issuer and the audience stamped into every token are
-   * the server's own `PUBLIC_URL`. Sourcing it here means the address on screen
-   * cannot drift from the one the flow actually works against.
-   */
+  /** Reads the canonical server address, not the Vite proxy's browser origin. */
   getMcpAddress: async () => {
-    const { resource } = await fetchJson<{ resource: string }>('/.well-known/oauth-protected-resource/mcp');
-    return resource;
+    const response = await fetch('/.well-known/oauth-protected-resource/mcp');
+    if (!response.ok) throw new Error(`Bifrost request failed with status ${response.status}`);
+    const document = await response.json() as { resource: string };
+    return document.resource;
   },
 };

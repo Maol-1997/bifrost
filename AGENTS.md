@@ -115,6 +115,12 @@ The agent-facing half is why agent access does not expire the way a static key w
 holds a short access token (1h) and a rotating refresh token (90d, slid forward on each use), and
 replaces its own credential without anyone being asked to log in again.
 
+The client side uses `openid-client` for authorization URLs, PKCE, provider code exchanges and
+refresh grants. Slack's user grant is normalized in `providers/slack-oauth.ts` because Slack nests
+it under `authed_user` instead of returning the standard top-level token fields. Google token
+verification deliberately remains on `jose`: Google documents two valid `iss` forms, while
+`openid-client` correctly enforces one exact configured issuer.
+
 Worth knowing before touching `src/server/oauth-server/`:
 
 - **Dynamic Client Registration is deprecated** in 2026-07-28, replaced by Client ID Metadata
@@ -139,7 +145,7 @@ src/
     main.tsx           browser bootstrap and app-wide providers
     <route>/<route>.tsx   route entry imported directly by React Router
     components/        app-wide chrome and design-system UI only
-    api/               bifrost.ts facade over live.ts / mock.ts, chosen once by VITE_USE_MOCK_API
+    api/               facade, TanStack Query options and the Hono RPC browser client
     lib/               app-wide formatting and presentation helpers
   server/              everything that runs only on Node
     main.ts            bootstrap, dependency assembly and @hono/node-server lifecycle
@@ -151,16 +157,19 @@ src/
     providers/         one file per provider + the registry and its invariant
     tools/             filter.ts (who sees what) and preferences.ts (why)
     security/          encrypted secrets and the sign-in allowlist
-  features/            code intentionally shared by the browser and Node server
+  features/            cross-runtime product contracts and code
+    bifrost-api/       reusable Hono RPC client inferred from the server routes
 migrations/            generated Drizzle SQL, applied on container boot
 test/                  vitest, pure units only; no database in tests
 ```
 
 **The frontend/backend boundary is enforced by configuration, not convention.** `tsconfig.json`
 excludes `src/app`; `tsconfig.app.json` includes `src/app` plus explicitly shared `src/features`;
-ESLint forbids imports across `app` and `server`, and forbids `features` from depending on either
-runtime. A shared type is therefore written out twice on purpose (`ProviderId`, `ClientLogoId`).
-Do not "fix" that by importing an app type into server code.
+ESLint forbids runtime imports across `app` and `server`, and forbids runtime dependencies from
+`features` into either side. The one deliberate exception is the type-only `AppType` import in
+`features/bifrost-api/client.ts`: Hono RPC infers its contract from the implemented routes, and the
+import is erased before bundling. Do not widen this exception or import an app type into server code.
+Other shared-looking types remain written twice on purpose (`ProviderId`, `ClientLogoId`).
 
 The three top-level source folders are deliberate: `app` is browser-only, `server` is Node-only,
 and `features` is the narrow shared boundary. Do not add loose source files or another technical
@@ -173,7 +182,7 @@ URLs explicitly in `src/app/app.tsx`; the folders organize ownership and do not 
 
 - **A file lives at the closest folder that is an ancestor of every consumer.** Route-only code
   stays under that route. Code used by multiple routes moves to `app/components`, `app/lib` or
-  `app/api`. Only code used by both the browser and Node belongs in `features`.
+  `app/api`. Cross-runtime product contracts and code used by both sides belong in `features`.
 - **The route tree mirrors the URL.** Each route owns a `<domain>.tsx` entry at its root and,
   when needed, `components/`, `hooks/` and `utils/`. Dynamic segments use bracket folders such as
   `integrations/[providerId]/` even though React Router, not Vite, interprets the parameter.
@@ -197,6 +206,9 @@ URLs explicitly in `src/app/app.tsx`; the folders organize ownership and do not 
   updates only when rollback is explicit.
 - **Dates use `date-fns`.** Keep ISO timestamps across the HTTP boundary and format them in the
   browser so local time stays honest. Do not add another hand-written date arithmetic helper.
+- **Browser APIs use Hono RPC.** Keep route registrations chained so `AppType` retains their input
+  and response schemas. Consume them through `features/bifrost-api/client.ts`; do not recreate URL,
+  body or response DTOs in the app. `parseRpcResponse` owns authenticated 401 behavior.
 
 ## HTTP architecture
 
@@ -204,6 +216,8 @@ URLs explicitly in `src/app/app.tsx`; the folders organize ownership and do not 
   in `public.ts`, `browser.ts`, `mcp.ts` or `oauth-server/http.ts`, not in `server/main.ts`.
 - Use Hono's `context.json`, `context.html`, `context.redirect`, cookie helpers and static
   middleware. Do not recreate a generic `respond.ts` wrapper.
+- Server-rendered HTML uses Hono JSX. Its values are escaped by the renderer; do not return to
+  interpolated HTML strings or add a second React server renderer.
 - Route parameters and browser JSON bodies use `@hono/zod-validator`; handlers receive validated
   values and do not parse request input themselves. Zod details never reach the caller.
 - The global Hono `requestId()` middleware owns `X-Request-Id`; use `context.get('requestId')`

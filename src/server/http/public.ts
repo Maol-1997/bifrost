@@ -10,26 +10,26 @@ import { setSessionCookie } from './auth.js';
 import type { AppContext, AppEnv } from './context.js';
 import { createStaticRoutes } from './static.js';
 
-export function createPublicRoutes(): Hono<AppEnv> {
+export function createPublicRoutes() {
   const routes = new Hono<AppEnv>();
 
-  routes.get('/healthz', (context) => context.json({ status: 'ok' }));
-  routes.get('/api/status.json', (context) => context.json(providerStatus(context.get('dependencies').mounts)));
-  routes.get('/api/provider-health.json', async (context) => context.json(await readAppHealth()));
-  routes.get('/api/sign-in-policy.json', (context) => {
-    const { accessPolicy } = context.get('dependencies').config;
-    return context.json({
-      allowedDomains: [...accessPolicy.allowedEmailDomains],
-      isRestricted: isAccessRestricted(accessPolicy),
-    });
-  });
-  routes.get('/auth/google/start', async (context) => {
-    const location = await context.get('dependencies').oauth.startGoogleAuthorization('/');
-    return context.redirect(location);
-  });
-  routes.get('/auth/google/callback', finishGoogle);
-  routes.route('/', createStaticRoutes());
-  return routes;
+  return routes
+    .get('/healthz', (context) => context.json({ status: 'ok' }))
+    .get('/api/status.json', (context) => context.json(providerStatus(context.get('dependencies').mounts)))
+    .get('/api/provider-health.json', async (context) => context.json(await readAppHealth()))
+    .get('/api/sign-in-policy.json', (context) => {
+      const { accessPolicy } = context.get('dependencies').config;
+      return context.json({
+        allowedDomains: [...accessPolicy.allowedEmailDomains],
+        isRestricted: isAccessRestricted(accessPolicy),
+      });
+    })
+    .get('/auth/google/start', async (context) => {
+      const location = await context.get('dependencies').oauth.startGoogleAuthorization('/');
+      return context.redirect(location);
+    })
+    .get('/auth/google/callback', finishGoogle)
+    .route('/', createStaticRoutes());
 }
 
 async function finishGoogle(context: AppContext): Promise<Response> {
@@ -55,7 +55,7 @@ export function callbackParameters(url: URL): { code: string; state: string } {
   });
 }
 
-function providerStatus(mounts: readonly ProviderMount[]): { providers: readonly object[] } {
+function providerStatus(mounts: readonly ProviderMount[]) {
   return {
     providers: PROVIDER_REGISTRY.map((provider) => {
       const mount = mounts.find((entry) => entry.providerId === provider.id);

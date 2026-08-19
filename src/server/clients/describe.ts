@@ -18,7 +18,7 @@ export const WEB_CLIENT_ID = 'bifrost-web';
  */
 export type ClientLogoId = 'claude-code' | 'codex' | 'cursor' | 'opencode';
 
-export type ClientDescription = { name: string; monogram: string; logo: ClientLogoId | undefined };
+export type ClientDescription = { name: string; monogram: string; logo?: ClientLogoId };
 
 const KNOWN_CLIENTS: readonly { pattern: RegExp; name: string; monogram: string; logo?: ClientLogoId }[] = [
   { pattern: /claude[-_ ]?code|claude[-_ ]?cli/i, name: 'Claude Code', monogram: '>_', logo: 'claude-code' },
@@ -36,12 +36,16 @@ const KNOWN_CLIENTS: readonly { pattern: RegExp; name: string; monogram: string;
 ];
 
 export function describeClient(clientId: string, userAgent: string | undefined): ClientDescription {
-  if (clientId === WEB_CLIENT_ID) return { name: 'Bifrost web', monogram: 'BW', logo: undefined };
+  if (clientId === WEB_CLIENT_ID) return { name: 'Bifrost web', monogram: 'BW' };
   const haystack = `${clientId} ${userAgent ?? ''}`;
   const known = KNOWN_CLIENTS.find((candidate) => candidate.pattern.test(haystack));
-  if (known) return { name: known.name, monogram: known.monogram, logo: known.logo };
+  if (known) return {
+    name: known.name,
+    monogram: known.monogram,
+    ...(known.logo ? { logo: known.logo } : {}),
+  };
   const fallback = productToken(userAgent) ?? clientId;
-  return { name: fallback, monogram: monogramFor(fallback), logo: undefined };
+  return { name: fallback, monogram: monogramFor(fallback) };
 }
 
 /** `foo/1.2.3 (bar)` -> `foo`. Version numbers make the list noisy without helping anyone. */

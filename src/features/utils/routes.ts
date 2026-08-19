@@ -8,7 +8,3 @@ export const APP_ROUTES = {
   serviceStatus: '/service-status',
   accountSecurity: '/account-security',
 } as const;
-
-export function integrationDetailPath(providerId: string): string {
-  return `${APP_ROUTES.integrations}/${providerId}`;
-}

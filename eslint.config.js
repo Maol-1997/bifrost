@@ -39,10 +39,12 @@ export default tseslint.config(
   {
     files: ['src/features/**/*.ts'],
     rules: {
-      'no-restricted-imports': ['error', {
+      'no-restricted-imports': 'off',
+      '@typescript-eslint/no-restricted-imports': ['error', {
         patterns: [{
           group: ['**/app/**', '**/server/**', '@app/*'],
-          message: 'Shared features cannot depend on either runtime.',
+          allowTypeImports: true,
+          message: 'Shared features may reference runtime modules only through type-only imports.',
         }],
       }],
     },

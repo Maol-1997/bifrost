@@ -5,6 +5,8 @@ import { Button } from '@app/components/ui/button';
 import { Google } from '@app/components/ui/svgs/google';
 import { getSignInPolicy, type SignInPolicy } from '@app/api/bifrost';
 
+const domainList = new Intl.ListFormat('en', { style: 'long', type: 'conjunction' });
+
 // Every line below is derived from the server's actual policy. The screen used
 // to claim "For Northlight accounts only" while the server accepted any Google
 // account, which is the one thing a sign-in screen must never do.
@@ -12,12 +14,7 @@ function describeAudience(policy: SignInPolicy | undefined): string | null {
   if (!policy) return null;
   if (!policy.isRestricted) return 'Any Google account can sign in.';
   if (policy.allowedDomains.length === 0) return 'Only invited accounts can sign in.';
-  return `For ${formatList(policy.allowedDomains)} accounts only.`;
-}
-
-function formatList(items: readonly string[]): string {
-  if (items.length <= 1) return items[0] ?? '';
-  return `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`;
+  return `For ${domainList.format(policy.allowedDomains)} accounts only.`;
 }
 
 export default function SignIn(): React.JSX.Element {
@@ -36,7 +33,7 @@ export default function SignIn(): React.JSX.Element {
           <>
             <p className="mt-2.5 text-[13.5px] leading-[1.55] text-app-text-tertiary text-pretty">
               {domains.length > 0
-                ? `That account can't use Bifrost. Sign in with your ${formatList(domains)} account instead.`
+                ? `That account can't use Bifrost. Sign in with your ${domainList.format(domains)} account instead.`
                 : "That account isn't on the list of people allowed to use Bifrost."}
             </p>
             <div className="mt-4 w-full rounded-[9px] border border-warning/30 bg-warning/7 px-3.5 py-3 text-left text-[12.5px] leading-5 text-app-text-secondary">

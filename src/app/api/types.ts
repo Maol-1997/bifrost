@@ -59,13 +59,13 @@ export type ConnectedClient = {
   name: string;
   monogram: string;
   /** Absent for a client with no mark of its own, which then shows its monogram. */
-  logo?: ClientLogoId;
+  logo?: ClientLogoId | undefined;
   /** True for the session making this request, so the UI can say "this browser". */
   isCurrent: boolean;
   firstConnectedAt: string;
   lastUsedAt: string;
   /** Browser sessions only. An agent renews itself, so it has no expiry to show. */
-  expiresAt?: string;
+  expiresAt?: string | undefined;
   health: ClientHealth;
 };
 
@@ -74,11 +74,11 @@ export type AppHealth = {
   health: SystemHealth;
   /** The vendor's public status page, so a worried user can read the source. */
   statusUrl: string;
-  incidentTitle?: string;
+  incidentTitle?: string | undefined;
   /** ISO start of the open incident; absent while the app is operational. */
-  since?: string;
+  since?: string | undefined;
   /** ISO resolution of the vendor's last incident; absent when their feed has no history. */
-  quietSince?: string;
+  quietSince?: string | undefined;
 };
 
 export type HealthSnapshot = { checkedAt: string; apps: readonly AppHealth[] };
@@ -86,22 +86,6 @@ export type HealthSnapshot = { checkedAt: string; apps: readonly AppHealth[] };
 export type CurrentUser = { name: string; email: string };
 
 export type SignInPolicy = { allowedDomains: readonly string[]; isRestricted: boolean };
-
-export type StatusResponse = {
-  providers: readonly { id: string; name: string; isMounted: boolean; toolCount: number; error?: string }[];
-};
-
-export type ConnectionsResponse = {
-  apps: readonly {
-    providerId: 'github' | 'linear' | 'slack';
-    isConnected: boolean;
-    isHidden: boolean;
-    needsReconnect: boolean;
-    tools: readonly { name: string; title: string; description: string; mutability: ToolMutability; isEnabled: boolean; isBlockedByServer: boolean }[];
-    connectedAt?: string;
-    accountLabel?: string;
-  }[];
-};
 
 /**
  * The operations that behave differently in the design preview than against

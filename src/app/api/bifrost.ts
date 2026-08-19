@@ -1,5 +1,7 @@
-import { fetchJson, liveApi } from './live';
+import { bifrostClient } from './client';
+import { liveApi } from './live';
 import { mockApi } from './mock';
+import { parseRpcResponse } from './parse-rpc-response';
 import type { BifrostApi, CurrentUser, HealthSnapshot, SignInPolicy } from './types';
 
 export type * from './types';
@@ -21,21 +23,21 @@ export const getMcpAddress = api.getMcpAddress;
 
 /** Public and pre-auth: the sign-in screen must state the real rule, not a slogan. */
 export async function getSignInPolicy(): Promise<SignInPolicy> {
-  return fetchJson<SignInPolicy>('/api/sign-in-policy.json');
+  return parseRpcResponse(bifrostClient.api['sign-in-policy.json'].$get());
 }
 
 /**
  * Who is signed in, or `undefined` when nobody is.
  *
- * Deliberately does not go through `fetchJson`: a 401 here must not bounce the
+ * Deliberately does not go through `parseRpcResponse`: a 401 here must not bounce the
  * visitor to sign-in, because Service status is public and has to stay readable
  * when you cannot log in — which is exactly when you need it.
  */
 export async function getCurrentUser(): Promise<CurrentUser | undefined> {
-  const response = await fetch('/api/me.json');
+  const response = await bifrostClient.api['me.json'].$get();
   if (response.status === 401) return undefined;
-  if (!response.ok) throw new Error(`Bifrost request failed with status ${response.status}`);
-  return response.json() as Promise<CurrentUser>;
+  if (response.status !== 200) throw new Error(`Bifrost request failed with status ${response.status}`);
+  return response.json();
 }
 
 /**
@@ -44,5 +46,5 @@ export async function getCurrentUser(): Promise<CurrentUser | undefined> {
  * entire job is telling the truth about whether GitHub is down.
  */
 export async function getAppHealth(): Promise<HealthSnapshot> {
-  return fetchJson<HealthSnapshot>('/api/provider-health.json');
+  return parseRpcResponse(bifrostClient.api['provider-health.json'].$get());
 }

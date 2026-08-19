@@ -21,7 +21,7 @@ const contentSecurityPolicy = {
   frameAncestors: ["'none'"],
 };
 
-export function createApp(dependencies: AppDependencies): Hono<AppEnv> {
+export function createApp(dependencies: AppDependencies) {
   const app = new Hono<AppEnv>();
 
   app.use('*', securityHeaders());
@@ -32,19 +32,22 @@ export function createApp(dependencies: AppDependencies): Hono<AppEnv> {
     await next();
   });
 
-  app.route('/', createPublicRoutes());
-  app.route('/', createOAuthRoutes());
-  app.route('/', createMcpRoutes());
-  app.route('/', createBrowserRoutes());
+  const routes = app
+    .route('/', createPublicRoutes())
+    .route('/', createOAuthRoutes())
+    .route('/', createMcpRoutes())
+    .route('/', createBrowserRoutes());
 
-  app.notFound((context) => context.json({ error: 'Not found' }, 404));
-  app.onError((error, context) => {
+  routes.notFound((context) => context.json({ error: 'Not found' }, 404));
+  routes.onError((error, context) => {
     if (error instanceof HTTPException) return error.getResponse();
     logger.error(errorSummary(error), 'HTTP request failed');
     return context.json({ error: 'Internal server error' }, 500);
   });
-  return app;
+  return routes;
 }
+
+export type AppType = ReturnType<typeof createApp>;
 
 export function allowedHostnames(publicUrl: string): string[] {
   return [...new Set([new URL(publicUrl).hostname, 'localhost', '127.0.0.1'])];

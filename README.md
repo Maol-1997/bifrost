@@ -110,7 +110,7 @@ Tests are pure units, no database, focused on the places where being wrong is ex
 src/
   app/               React SPA, route-colocated UI and browser entrypoint
   server/            Hono, MCP, OAuth, providers, persistence and Node entrypoint
-  features/          the narrow boundary intentionally shared by app and server
+  features/          cross-runtime product contracts, including the Hono RPC client
 migrations/          generated Drizzle SQL, applied on container boot
 test/                vitest, pure units
 ```

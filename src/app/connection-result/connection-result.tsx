@@ -1,9 +1,9 @@
-import { Link, Navigate, useSearchParams } from 'react-router-dom';
+import { generatePath, Link, Navigate, useSearchParams } from 'react-router-dom';
 import { Button } from '@app/components/ui/button';
 import { EmptyState } from '@app/components/ui/empty-state';
 import { SectionCard } from '@app/components/ui/section-card';
 import { getProviderCatalog } from '@app/api/bifrost';
-import { APP_ROUTES, integrationDetailPath } from '@features/utils/routes';
+import { APP_ROUTES } from '@features/utils/routes';
 
 type ResultVariant = 'success' | 'cancelled' | 'error';
 
@@ -31,7 +31,7 @@ export default function ConnectionResult(): React.JSX.Element {
         {variant === 'success' ? <SectionCard className="mt-[18px] py-1.5 text-left">{provider.successCapabilities.map((capability) => <div key={capability} className="flex items-baseline gap-2 px-3.5 py-1.5 text-[12.5px] leading-5 text-app-text-secondary"><span className="text-success">✓</span>{capability}</div>)}</SectionCard> : null}
         <div className="mt-[22px] flex justify-center gap-2">
           <Button asChild>{variant === 'error' ? <a href={content.primaryTo}>{content.primary}</a> : <Link to={content.primaryTo}>{content.primary}</Link>}</Button>
-          {variant !== 'cancelled' ? <Button asChild variant="outline"><Link to={variant === 'success' ? integrationDetailPath(provider.id) : APP_ROUTES.integrations}>{variant === 'success' ? 'See its tools' : 'Back to integrations'}</Link></Button> : null}
+          {variant !== 'cancelled' ? <Button asChild variant="outline"><Link to={variant === 'success' ? generatePath(APP_ROUTES.integrationDetail, { providerId: provider.id }) : APP_ROUTES.integrations}>{variant === 'success' ? 'See its tools' : 'Back to integrations'}</Link></Button> : null}
         </div>
         {variant === 'error' ? <p className="mt-4 text-xs leading-5 text-app-text-quaternary">If it keeps failing, tell #bifrost-help what time it happened — that’s all they need.</p> : null}
       </div>
