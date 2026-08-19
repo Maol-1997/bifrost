@@ -16,6 +16,10 @@
     "jsx": "react-jsx",
     "outDir": "dist",
     "rootDir": ".",
+    "baseUrl": ".",
+    "paths": {
+      "@app/*": ["./src/app/*"]
+    },
     "types": ["node", "vitest/globals"]
   },
   "include": ["src/**/*.ts", "test/**/*.ts", "drizzle.config.ts", "eslint.config.js", "vitest.config.ts"],

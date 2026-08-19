@@ -26,8 +26,8 @@ export default function AccountSecurity(): React.JSX.Element {
   const providerNames = connectedProviders.map((provider) => provider.name).join(', ');
 
   const summaryRows = [
-    // "apps", not "tools": this row counts GitHub, Linear and Slack, and the row
-    // below it counts tools for real now, so the two cannot share a word.
+    // "apps", not "tools": this row counts providers, and the row below it
+    // counts tools for real now, so the two cannot share a word.
     { big: `${connectedProviders.length} ${connectedProviders.length === 1 ? 'app connected' : 'apps connected'}`, detail: providerNames || 'Nothing connected right now', to: APP_ROUTES.integrations },
     { big: `${enabledTools} of ${totalTools} tools enabled`, detail: 'What your agents are allowed to do', to: APP_ROUTES.integrations },
     { big: `${clients.length} active ${clients.length === 1 ? 'session' : 'sessions'}`, detail: clients.length > 0 ? clients.map((client) => client.name).join(', ') : 'No agents or browsers are using your account', to: APP_ROUTES.agents },

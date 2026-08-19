@@ -26,6 +26,7 @@ export const linearProvider: ProviderDefinition = {
   oauth: {
     kind: 'dynamic',
     issuer: 'https://mcp.linear.app',
+    discoveryAlgorithm: 'oidc',
     authorizationUrl: 'https://mcp.linear.app/authorize',
     tokenUrl: 'https://mcp.linear.app/token',
     resource: 'https://mcp.linear.app/mcp',

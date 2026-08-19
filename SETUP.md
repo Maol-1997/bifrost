@@ -29,7 +29,13 @@ encrypted credential so refreshes continue to use the same registration.
 Connections created with the old Linear application flow keep working until their token expires.
 Reconnect Linear once to move them to the MCP-native flow.
 
-## 4. Slack
+## 4. Sentry
+
+No Sentry application or environment variables are required. Bifrost dynamically registers a
+public OAuth client with `https://mcp.sentry.dev`, uses PKCE, and stores the generated client ID
+inside the encrypted credential. Sentry's hosted MCP server owns the upstream Sentry application.
+
+## 5. Slack
 
 1. Go to <https://api.slack.com/apps>, select **Create New App → From scratch**, and choose the workspace used for testing.
 2. Open **OAuth & Permissions**. Add `http://localhost:3000/oauth/slack/callback` under **Redirect URLs**.
@@ -37,7 +43,7 @@ Reconnect Linear once to move them to the MCP-native flow.
 4. Open **Basic Information → App Credentials**. Put **Client ID** in `SLACK_CLIENT_ID` and **Client Secret** in `SLACK_CLIENT_SECRET`.
 5. If token rotation is enabled, Bifrost uses the returned user refresh token and serializes refresh through Redis.
 
-## 5. Encryption and tool administration
+## 6. Encryption and tool administration
 
 Generate the encryption key outside the repository:
 

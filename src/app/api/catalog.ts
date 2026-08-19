@@ -27,6 +27,13 @@ export const providerCatalog: readonly Omit<Provider, 'tools'>[] = [
     successCapabilities: ['Use the Linear tools available to your account'],
   },
   {
+    id: 'sentry', name: 'Sentry', monogram: 'Se', description: 'Where application errors and traces are investigated.', status: 'not-connected', isHidden: false,
+    toolDiscoveryFailed: false,
+    permissions: ['Use the Sentry tools your Bifrost administrator has approved'],
+    neverPermission: 'Tools your administrator has not approved are never exposed to your agents.',
+    successCapabilities: ['Use the Sentry tools available to your account'],
+  },
+  {
     id: 'slack', name: 'Slack', monogram: 'S', description: 'Where the team talks.', status: 'not-connected', isHidden: false,
     toolDiscoveryFailed: false,
     permissions: ['Use the Slack tools your Bifrost administrator has approved'],
@@ -51,5 +58,5 @@ export function getProviderCatalog(): readonly Provider[] {
 }
 
 export function isConnectableProvider(providerId: string): providerId is ConnectableProviderId {
-  return providerId === 'github' || providerId === 'linear' || providerId === 'slack';
+  return providerId === 'github' || providerId === 'linear' || providerId === 'sentry' || providerId === 'slack';
 }

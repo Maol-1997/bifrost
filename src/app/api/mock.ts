@@ -29,6 +29,13 @@ const mockTools: Readonly<Record<string, readonly [string, string, ToolMutabilit
     ['linear_create_issue', 'Create issue', 'write'],
     ['linear_add_comment', 'Add comment', 'write'],
   ],
+  sentry: [
+    ['sentry_search_issues', 'Search issues', 'read'],
+    ['sentry_get_issue_details', 'Get issue details', 'read'],
+    ['sentry_get_trace_details', 'Get trace details', 'read'],
+    ['sentry_find_projects', 'Find projects', 'read'],
+    ['sentry_update_issue', 'Update issue', 'write'],
+  ],
   slack: [
     ['slack_search_messages', 'Search messages', 'read'],
     ['slack_read_channel_history', 'Read channel history', 'read'],

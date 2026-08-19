@@ -11,7 +11,7 @@ import { APP_ROUTES } from '@features/utils/routes';
 import { ToolRow } from './components/tool-row';
 
 function isProviderId(value: string | undefined): value is ProviderId {
-  return value === 'github' || value === 'linear' || value === 'slack' || value === 'notion';
+  return value === 'github' || value === 'linear' || value === 'sentry' || value === 'slack' || value === 'notion';
 }
 
 export default function IntegrationDetail(): React.JSX.Element {

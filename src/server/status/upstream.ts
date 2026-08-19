@@ -13,7 +13,7 @@ import { errorSummary, logger } from '../logger.js';
 const FETCH_TIMEOUT_MS = 5_000;
 const CACHE_TTL_MS = 60_000;
 
-export const STATUS_APP_IDS = ['github', 'linear', 'slack', 'notion'] as const;
+export const STATUS_APP_IDS = ['github', 'linear', 'sentry', 'slack', 'notion'] as const;
 export type StatusAppId = (typeof STATUS_APP_IDS)[number];
 
 /** `unknown` means we could not reach or parse the vendor's feed — never that they are fine. */
@@ -37,6 +37,7 @@ export type HealthSnapshot = { checkedAt: string; apps: readonly AppHealth[] };
 const STATUSPAGE_HOSTS = {
   github: 'https://www.githubstatus.com',
   linear: 'https://linearstatus.com',
+  sentry: 'https://status.sentry.io',
   notion: 'https://www.notion-status.com',
 } as const satisfies Partial<Record<StatusAppId, string>>;
 

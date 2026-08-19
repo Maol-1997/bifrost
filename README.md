@@ -1,8 +1,8 @@
 # Bifrost
 
-**One MCP endpoint that lets your coding agent use GitHub, Linear and Slack as *you*, without ever holding your tokens.**
+**One MCP endpoint that lets your coding agent use GitHub, Linear, Sentry and Slack as *you*, without ever holding your tokens.**
 
-You sign in once with Google, connect your own GitHub, Linear and Slack accounts, and point Claude Code (or any MCP client) at `POST /mcp`. From then on the agent reads pull requests, searches issues and posts messages under your identity and permissions, and you decide, tool by tool, what it is allowed to do.
+You sign in once with Google, connect your own GitHub, Linear, Sentry and Slack accounts, and point Claude Code (or any MCP client) at `POST /mcp`. From then on the agent reads pull requests, searches issues and posts messages under your identity and permissions, and you decide, tool by tool, what it is allowed to do.
 
 ---
 
@@ -24,7 +24,8 @@ Giving an AI agent access to your team's tools usually means one of two bad opti
                  │                                                          │
   Claude Code ──bearer──▶  POST /mcp  ──▶  per-request MCP server          │──▶ GitHub
   Cursor, etc.   │        (OAuth 2.1)       built from *your* connections   │──▶ Linear
-                 │                          and *your* tool preferences     │──▶ Slack
+                 │                          and *your* tool preferences     │──▶ Sentry
+                 │                                                          │──▶ Slack
                  └──────────────────────────────────────────────────────────┘
 ```
 
@@ -36,7 +37,7 @@ Three ideas explain most of the design:
 
 ## What agents get
 
-Tools are discovered from GitHub, Linear and Slack's official MCP servers using each user's OAuth token. Bifrost prefixes their names (`github_`, `linear_`, `slack_`), preserves their schemas and annotations, and proxies approved calls without exposing provider credentials.
+Tools are discovered from GitHub, Linear, Sentry and Slack's official MCP servers using each user's OAuth token. Bifrost prefixes their names (`github_`, `linear_`, `sentry_`, `slack_`), preserves their schemas and annotations, and proxies approved calls without exposing provider credentials.
 
 Discovery never grants access by itself. A new tool, or any change to a tool's contract, produces a new fingerprint and stays blocked until an administrator approves that exact version. Missing `readOnlyHint: true` metadata is treated as write-capable.
 
@@ -44,7 +45,7 @@ Discovered catalogs use a one-hour server-side stale-while-revalidate cache. Bro
 
 ## Quick start
 
-Requirements: Docker with Compose v2, OAuth apps for Google and any GitHub or Slack providers you want, and no application setup for Linear (see [SETUP.md](SETUP.md)).
+Requirements: Docker with Compose v2, OAuth apps for Google and any GitHub or Slack providers you want, and no application setup for Linear or Sentry (see [SETUP.md](SETUP.md)).
 
 ```bash
 cp .env.example .env
@@ -75,7 +76,7 @@ All settings are environment variables, validated at startup by `src/server/conf
 | `DATABASE_URL` | yes | Postgres. Outside Docker, point it at `localhost:5432`, not `postgres`. |
 | `REDIS_URL` | no | Shares locks, rate limits and concurrency leases across workers. Empty degrades to in-process state with a startup warning. |
 | `GOOGLE_CLIENT_ID` / `_SECRET` | yes | Sign-in. |
-| `GITHUB_*`, `SLACK_*` | per provider | Provider OAuth apps. A provider without credentials still mounts; connecting it fails until they are set. Linear uses its MCP server's dynamic client registration instead. |
+| `GITHUB_*`, `SLACK_*` | per provider | Provider OAuth apps. A provider without credentials still mounts; connecting it fails until they are set. Linear and Sentry use their MCP servers' dynamic client registration instead. |
 | `ALLOWED_EMAIL_DOMAINS`, `ALLOWED_EMAILS` | recommended | Who may sign in. The two lists OR together. **Both empty lets any verified Google account in**; the server warns and the sign-in screen says so. |
 | `ADMIN_EMAILS` | recommended | Comma-separated exact emails allowed to review and approve discovered tools. **Empty means every tool remains blocked.** |
 | `OAUTH_ACCESS_TOKEN_TTL_SECONDS` | no | Default 3600. |
@@ -111,7 +112,7 @@ migrations/          generated Drizzle SQL, applied on container boot
 test/                vitest, pure units
 ```
 
-[AGENTS.md](AGENTS.md) is the deeper guide for anyone changing the code: request shape, the visibility axes, OAuth details, conventions and the gotchas that cost real time. [docs/adding-a-provider.md](docs/adding-a-provider.md) walks through adding a fourth provider.
+[AGENTS.md](AGENTS.md) is the deeper guide for anyone changing the code: request shape, the visibility axes, OAuth details, conventions and the gotchas that cost real time. [docs/adding-a-provider.md](docs/adding-a-provider.md) documents every provider touchpoint.
 
 ## Security notes
 
@@ -122,4 +123,4 @@ test/                vitest, pure units
 
 ## Status
 
-Working and in use for GitHub, Linear and Slack. One thing is deliberately unbuilt and documented as such in AGENTS.md: OAuth issues a single `mcp` scope rather than per-provider scopes. Notion appears in the UI catalog as a placeholder and has no server-side provider.
+Working and in use for GitHub, Linear, Sentry and Slack. One thing is deliberately unbuilt and documented as such in AGENTS.md: OAuth issues a single `mcp` scope rather than per-provider scopes. Notion appears in the UI catalog as a placeholder and has no server-side provider.

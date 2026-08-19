@@ -187,6 +187,7 @@ export class OAuthService {
    * a handle. Failing the callback over it would be a far worse trade.
    */
   private async recordAccountLabel(userId: string, provider: ProviderDefinition, accessToken: string): Promise<void> {
+    if (!provider.readAccountLabel) return;
     try {
       const label = await provider.readAccountLabel(accessToken, AbortSignal.timeout(ACCOUNT_LABEL_TIMEOUT_MS));
       await this.database.setAccountLabel(userId, provider.id, label);
@@ -275,7 +276,10 @@ export class OAuthService {
       response_types: ['code'],
       token_endpoint_auth_method: 'none',
       scope: provider.oauth.scopes.join(' '),
-    }, None(), { timeout: TOKEN_EXCHANGE_TIMEOUT_MS / 1000 });
+    }, None(), {
+      algorithm: provider.oauth.discoveryAlgorithm,
+      timeout: TOKEN_EXCHANGE_TIMEOUT_MS / 1000,
+    });
     const oauthClientId = configuration.clientMetadata().client_id;
     if (!oauthClientId) throw new Error(`${provider.displayName} dynamic registration did not return a client ID`);
     return { configuration, oauthClientId };

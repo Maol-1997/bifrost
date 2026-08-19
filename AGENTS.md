@@ -7,7 +7,7 @@ provider, [docs/adding-a-provider.md](docs/adding-a-provider.md).
 ## What this is
 
 Bifrost is one internal MCP endpoint that gives an AI agent user-attributed access to GitHub,
-Linear and Slack. A person signs into Bifrost with Google, connects their own provider accounts
+Linear, Sentry and Slack. A person signs into Bifrost with Google, connects their own provider accounts
 once, and points their coding agent at `POST /mcp`. The agent then acts **as that person**,
 using their permissions, without ever holding a provider token.
 
@@ -74,12 +74,13 @@ approval and user choice as separate authorities and makes absence meaningful.
 
 ## Providers
 
-Three real providers proxy their official Streamable HTTP MCP servers:
+Four real providers proxy their official Streamable HTTP MCP servers:
 
 | Provider | MCP endpoint |
 | --- | --- |
 | `github_` | `https://api.githubcopilot.com/mcp/` |
 | `linear_` | `https://mcp.linear.app/mcp` |
+| `sentry_` | `https://mcp.sentry.dev/mcp` |
 | `slack_` | `https://mcp.slack.com/mcp` |
 
 Tool names, descriptions, schemas and annotations are discovered per user. Bifrost prefixes names,
@@ -99,13 +100,13 @@ one-character drift, because prefix drift silently breaks credential lookup rath
 
 Notion appears in the frontend catalog (`src/app/api/catalog.ts`) but has **no server-side provider**.
 `/api/app-connections.json` only ever returns `SUPPORTED_APPS`, so Notion renders as a
-decorative, permanently unavailable card. Do not treat it as a fourth provider.
+decorative, permanently unavailable card. Do not treat it as a fifth provider.
 
 ## OAuth: Bifrost is on both sides
 
 This trips people up. Bifrost is simultaneously:
 
-- **An OAuth client**, to Google (sign-in) and to GitHub/Linear/Slack (provider connections).
+- **An OAuth client**, to Google (sign-in) and to GitHub/Linear/Sentry/Slack (provider connections).
   That is `src/server/oauth.ts`.
 - **An OAuth 2.1 authorization server plus resource server**, to MCP clients like Claude Code.
   That is all of `src/server/oauth-server/` and it implements the MCP `2026-07-28` authorization spec.
@@ -115,9 +116,11 @@ holds a short access token (1h) and a rotating refresh token (90d, slid forward 
 replaces its own credential without anyone being asked to log in again.
 
 The client side uses `openid-client` for authorization URLs, PKCE, provider code exchanges and
-refresh grants. Linear dynamically registers a public client against its official MCP authorization
-server; its generated client ID is stored inside the encrypted provider credential. GitHub and Slack
-still use configured applications. Slack's user grant is normalized in `providers/slack-oauth.ts` because Slack nests
+refresh grants. Linear and Sentry dynamically register public clients against their official MCP
+authorization servers; their generated client IDs are stored inside the encrypted provider credential.
+Sentry exposes only OAuth Authorization Server metadata, so its discovery must use the `oauth2`
+algorithm. GitHub and Slack still use configured applications. Slack's user grant is normalized in
+`providers/slack-oauth.ts` because Slack nests
 it under `authed_user` instead of returning the standard top-level token fields. Google token
 verification deliberately remains on `jose`: Google documents two valid `iss` forms, while
 `openid-client` correctly enforces one exact configured issuer.
@@ -255,7 +258,9 @@ Beyond what eslint enforces (`strictTypeChecked` + `stylisticTypeChecked`, plus
   do not draw it.
 - American spelling in user-facing text.
 - Brand logos come from svgl through the shadcn CLI, never hand-converted:
-  `npx shadcn@latest add @svgl/<slug>`. The `@svgl` registry is already in `components.json`.
+  `npx shadcn@latest add @svgl/<slug> --path src/app/components/ui/svgs --yes`.
+  The `@svgl` registry is already in `components.json` and the root TypeScript alias exists so
+  shadcn can resolve its configured output paths.
 
 ## Verification
 
