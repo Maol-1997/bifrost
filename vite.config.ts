@@ -1,10 +1,16 @@
 import path from 'node:path';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
-import { defineConfig } from 'vite';
+import { codeInspectorPlugin } from 'code-inspector-plugin';
+import { defineConfig, type PluginOption } from 'vite';
+
+const inspectorPlugin = codeInspectorPlugin({
+  bundler: 'vite',
+  hotKeys: ['metaKey', 'shiftKey'],
+}) as unknown as PluginOption;
 
 export default defineConfig({
-  plugins: [react({ jsxImportSource: 'react' }), tailwindcss()],
+  plugins: [inspectorPlugin, react({ jsxImportSource: 'react' }), tailwindcss()],
   resolve: {
     alias: {
       '@app': path.resolve(import.meta.dirname, 'src/app'),

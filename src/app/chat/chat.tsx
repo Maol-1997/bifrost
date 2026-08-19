@@ -213,7 +213,7 @@ function ChatHistory({ active, owner }: { active: boolean; owner: string }): Rea
   }
 
   return (
-    <div className="relative h-full min-h-0">
+    <div className={`relative min-h-0 ${active ? "h-full" : "h-0"}`}>
       <ChatConversation
         active={active}
         key={`page:${activeConversation.id}`}
