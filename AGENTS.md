@@ -50,9 +50,9 @@ That makes filtering *the* enforcement mechanism, not a display concern. A tool 
 `visibleTools` is absent from `tools/list` **and** uncallable by name, because it was never
 registered on the object handling this request. There is no second check to keep in sync.
 
-The one deliberate exception is the write-ceiling assert inside `registerTool`
-(`src/server/mcp.ts:100`). It is redundant with the filter on purpose: hiding a tool should never be
-the only thing standing between an agent and a write.
+Each registered tool is a proxy to the provider's official MCP server. Execution reloads the
+upstream definition and verifies its fingerprint before forwarding the call. A contract that changes
+between discovery and execution is denied even if the request-local server already registered it.
 
 ## Tool visibility: the axes that can hide a tool
 
@@ -61,38 +61,37 @@ the only thing standing between an agent and a write.
 1. The provider mounted at startup.
 2. The user has a `provider_credentials` row for it.
 3. The user has not hidden the provider in Integrations.
-4. The tool is not in `disabledTools`.
+4. The exact discovered fingerprint has an approved deployment policy.
+5. The policy default or the user's own preference enables the tool.
 
-Axis 4 is computed by `src/server/tools/preferences.ts` from **two authorities that must both agree**,
-and keeping them apart is the whole point:
+Deployment policy has three states: `blocked`, `allowed_default_off`, and `allowed_default_on`.
+No row, a missing tool, or a fingerprint mismatch is always `blocked`. Administrators listed in
+`ADMIN_EMAILS` review these policies under `/admin/tools/:providerId`; batch changes are committed
+atomically and rejected when any submitted fingerprint is stale.
 
-- **The deployment ceiling**, `WRITE_TOOL_ALLOWLIST`. Applies to write tools only. **Empty means
-  no ceiling**, not "deny everything" — that reversal is intentional and the server logs a
-  warning at startup when it is unset. Naming tools forbids every other write outright, and the
-  UI marks those as blocked instead of offering a switch that cannot work.
-- **The user's own preference**, per tool, set on `/integrations/:providerId`.
-
-The default when no preference row exists depends on what the tool does:
-
-```ts
-preferences.get(tool.name) ?? tool.mutability === 'read'
-```
-
-Reads start on, writes start off. Encoding the default here rather than seeding rows means a
-brand-new user and a user who never opened the screen behave identically.
+User preferences store only deviations from the approved deployment default. This keeps deployment
+approval and user choice as separate authorities and makes absence meaningful.
 
 ## Providers
 
-Three real providers, 17 tools, 4 of them writes:
+Three real providers proxy their official Streamable HTTP MCP servers:
 
-| Provider | Tools | Writes |
-| --- | --- | --- |
-| `github_` | 6 | `github_create_issue_comment` |
-| `linear_` | 6 | `linear_create_issue`, `linear_add_comment` |
-| `slack_` | 5 | `slack_post_message` |
+| Provider | MCP endpoint |
+| --- | --- |
+| `github_` | `https://api.githubcopilot.com/mcp/` |
+| `linear_` | `https://mcp.linear.app/mcp` |
+| `slack_` | `https://mcp.slack.com/mcp` |
 
-Every tool is an explicit hand-written wrapper with a Zod input schema, never a dynamic
-pass-through to the upstream API.
+Tool names, descriptions, schemas and annotations are discovered per user. Bifrost prefixes names,
+fingerprints normalized definitions, and treats only `readOnlyHint === true` as read-only. Missing
+or false mutability metadata is write-capable, by design.
+
+Discovery is cached by `(userId, providerId)` for one hour using stale-while-revalidate. Expired
+entries return immediately while one deduplicated refresh runs; failures retain stale data and back
+off from 5 seconds to 5 minutes. Connect, reconnect and disconnect invalidate the entry. Browser
+responses carry relative `freshForMs` and `nextCheckInMs` hints; TanStack uses the remaining server
+freshness, capped at one hour, plus 0–5 seconds of deterministic refetch jitter. Never use this cache
+for the execution-time fingerprint check or policy approval: both must read upstream fresh.
 
 **Each provider owns exactly one prefix**, and that prefix has to be identical in four places
 in `src/server/providers/registry.ts`. `assertPrefixInvariant` runs at startup and refuses to boot on a
@@ -155,8 +154,8 @@ src/
     oauth.ts           Bifrost as an OAuth client (Google + providers)
     oauth-server/      OAuth 2.1 authorization server, including its HTTP entry
     providers/         one file per provider + the registry and its invariant
-    tools/             filter.ts (who sees what) and preferences.ts (why)
-    security/          encrypted secrets and the sign-in allowlist
+    tools/             discovery, normalized fingerprints, policy resolution and filtering
+    security/          encrypted secrets and sign-in/admin allowlists
   features/            cross-runtime product contracts and code
     bifrost-api/       reusable Hono RPC client inferred from the server routes
 migrations/            generated Drizzle SQL, applied on container boot
@@ -232,7 +231,7 @@ URLs explicitly in `src/app/app.tsx`; the folders organize ownership and do not 
 ## Data model
 
 `users`, `sessions`, `provider_credentials` (encrypted), `user_provider_preferences`,
-`user_tool_preferences`, and the OAuth server's `oauth_clients`, `oauth_grants`,
+`user_tool_preferences`, `deployment_tool_policies`, and the OAuth server's `oauth_clients`, `oauth_grants`,
 `oauth_access_tokens`, `oauth_refresh_tokens`.
 
 Preference tables store **only deviations from the default**, keyed `(user_id, thing)`. Absence
@@ -247,7 +246,7 @@ Beyond what eslint enforces (`strictTypeChecked` + `stylisticTypeChecked`, plus
   almost no narration. Match that: if a line only restates the code, delete it.
 - **Fail closed and raise.** Do not swallow exceptions or auto-recover with a default. User-facing
   error messages carry no technical detail.
-- **Do not make a parameter optional if every caller passes it.** `disabledTools` is required in
+- **Do not make a parameter optional if every caller passes it.** `enabledTools` is required in
   `UserToolVisibility` specifically so a new caller has to decide.
 - **The UI must not claim anything the server does not do.** Several rounds of work here were
   spent removing screens that promised capabilities that did not exist. If you cannot wire it,
@@ -263,8 +262,8 @@ npm run lint && npm run typecheck && npm test && npm run build
 ```
 
 Tests are pure units on the parts where being wrong is expensive: the prefix invariant, the
-visibility filter, tool-preference defaults, PKCE, redirect-URI matching, SSRF ranges, metadata
-documents, encryption, sign-in access rules. There is no database in the test suite; anything
+visibility filter, tool fingerprints and policy defaults, PKCE, redirect-URI matching, SSRF ranges,
+metadata documents, encryption, sign-in/admin access rules. There is no database in the test suite; anything
 needing one is verified by running it.
 
 ## Gotchas that cost real time

@@ -1,6 +1,7 @@
 import { sql } from 'drizzle-orm';
 import {
   boolean,
+  check,
   index,
   jsonb,
   pgTable,
@@ -12,6 +13,7 @@ import {
 } from 'drizzle-orm/pg-core';
 import type { ProviderId } from '../providers/types.js';
 import type { EncryptedSecret } from '../security/secrets.js';
+import type { ToolPolicyState } from '../tools/catalog.js';
 
 const timestampWithTimezone = (name: string) => timestamp(name, { withTimezone: true, mode: 'date' });
 
@@ -55,6 +57,18 @@ export const userToolPreferences = pgTable('user_tool_preferences', {
   toolName: text('tool_name').notNull(),
   isEnabled: boolean('is_enabled').notNull(),
 }, (table) => [primaryKey({ name: 'user_tool_preferences_pk', columns: [table.userId, table.toolName] })]);
+
+export const deploymentToolPolicies = pgTable('deployment_tool_policies', {
+  providerId: text('provider_id').$type<ProviderId>().notNull(),
+  toolName: text('tool_name').notNull(),
+  fingerprint: text().notNull(),
+  state: text().$type<ToolPolicyState>().notNull(),
+  updatedByUserId: uuid('updated_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+  updatedAt: timestampWithTimezone('updated_at').defaultNow().notNull(),
+}, (table) => [
+  primaryKey({ name: 'deployment_tool_policies_pk', columns: [table.providerId, table.toolName] }),
+  check('deployment_tool_policies_state_check', sql`${table.state} in ('blocked', 'allowed_default_off', 'allowed_default_on')`),
+]);
 
 export const oauthClients = pgTable('oauth_clients', {
   clientId: text('client_id').primaryKey(),

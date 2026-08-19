@@ -5,7 +5,7 @@ import { ProviderIcon } from '@app/components/ui/provider-icon';
 import { SectionCard } from '@app/components/ui/section-card';
 import { StatusBadge } from '@app/components/ui/status-badge';
 import { shortDate } from '@app/lib/format/short-date';
-import { startProviderConnection, disconnectProvider, getProviderCatalog, isConnectableProvider, setToolEnabled, type Provider, type ProviderId } from '@app/api/bifrost';
+import { startProviderConnection, disconnectProvider, getProviderCatalog, isConnectableProvider, setToolEnabled, type CachedResult, type Provider, type ProviderId } from '@app/api/bifrost';
 import { providersQueryOptions } from '@app/api/query-options';
 import { APP_ROUTES } from '@features/utils/routes';
 import { ToolRow } from './components/tool-row';
@@ -19,7 +19,7 @@ export default function IntegrationDetail(): React.JSX.Element {
   const providerId: ProviderId = isProviderId(routeProviderId) ? routeProviderId : 'github';
   const queryClient = useQueryClient();
   const providersQuery = useQuery(providersQueryOptions);
-  const provider = providersQuery.data?.find((entry) => entry.id === providerId)
+  const provider = providersQuery.data?.data.find((entry) => entry.id === providerId)
     ?? getProviderCatalog().find((entry) => entry.id === providerId)
     ?? getProviderCatalog()[0]!;
   const connectMutation = useMutation({
@@ -29,9 +29,12 @@ export default function IntegrationDetail(): React.JSX.Element {
   const disconnectMutation = useMutation({
     mutationFn: disconnectProvider,
     onSuccess: async () => {
-      queryClient.setQueryData<readonly Provider[]>(providersQueryOptions.queryKey, (providers) => providers?.map((entry) => entry.id === provider.id
-        ? { ...entry, status: 'not-connected', tools: entry.tools.map((tool) => ({ ...tool, isEnabled: false })) }
-        : entry));
+      queryClient.setQueryData<CachedResult<readonly Provider[]>>(providersQueryOptions.queryKey, (result) => result && ({
+        ...result,
+        data: result.data.map((entry) => entry.id === provider.id
+          ? { ...entry, status: 'not-connected', tools: entry.tools.map((tool) => ({ ...tool, isEnabled: false })) }
+          : entry),
+      }));
       await queryClient.invalidateQueries({ queryKey: providersQueryOptions.queryKey });
     },
   });
@@ -39,21 +42,27 @@ export default function IntegrationDetail(): React.JSX.Element {
     mutationFn: ({ toolName, isEnabled }: { toolName: string; isEnabled: boolean }) => setToolEnabled(toolName, isEnabled),
     onMutate: async ({ toolName, isEnabled }) => {
       await queryClient.cancelQueries({ queryKey: providersQueryOptions.queryKey });
-      const providers = queryClient.getQueryData<readonly Provider[]>(providersQueryOptions.queryKey);
-      const previousEnabled = providers?.flatMap((entry) => entry.tools).find((tool) => tool.name === toolName)?.isEnabled;
-      queryClient.setQueryData<readonly Provider[]>(providersQueryOptions.queryKey, (current) => current?.map((entry) => ({
-        ...entry,
-        tools: entry.tools.map((tool) => tool.name === toolName ? { ...tool, isEnabled } : tool),
-      })));
+      const result = queryClient.getQueryData<CachedResult<readonly Provider[]>>(providersQueryOptions.queryKey);
+      const previousEnabled = result?.data.flatMap((entry) => entry.tools).find((tool) => tool.name === toolName)?.isEnabled;
+      queryClient.setQueryData<CachedResult<readonly Provider[]>>(providersQueryOptions.queryKey, (current) => current && ({
+        ...current,
+        data: current.data.map((entry) => ({
+          ...entry,
+          tools: entry.tools.map((tool) => tool.name === toolName ? { ...tool, isEnabled } : tool),
+        })),
+      }));
       return { previousEnabled };
     },
     onError: (_error, { toolName }, context) => {
       if (context?.previousEnabled === undefined) return;
       const previousEnabled = context.previousEnabled;
-      queryClient.setQueryData<readonly Provider[]>(providersQueryOptions.queryKey, (providers) => providers?.map((entry) => ({
-        ...entry,
-        tools: entry.tools.map((tool) => tool.name === toolName ? { ...tool, isEnabled: previousEnabled } : tool),
-      })));
+      queryClient.setQueryData<CachedResult<readonly Provider[]>>(providersQueryOptions.queryKey, (result) => result && ({
+        ...result,
+        data: result.data.map((entry) => ({
+          ...entry,
+          tools: entry.tools.map((tool) => tool.name === toolName ? { ...tool, isEnabled: previousEnabled } : tool),
+        })),
+      }));
     },
   });
 
@@ -94,14 +103,14 @@ export default function IntegrationDetail(): React.JSX.Element {
         <div className="flex items-baseline gap-2 px-3.5 py-1.5 text-[12.5px] leading-5 text-app-text-tertiary"><span className="text-app-text-quaternary">✕</span>{provider.neverPermission}</div>
       </SectionCard>
 
-      <div className="mt-7 flex items-baseline justify-between"><h2 className="text-[13.5px] font-semibold">Tools</h2><div className="text-xs text-app-text-quaternary">{isConnected ? `${enabledCount} of ${provider.tools.length} enabled` : `${provider.tools.length} tools`}</div></div>
-      <p className="mt-1.5 text-[12.5px] leading-5 text-app-text-tertiary text-pretty">{isConnected ? `Turn off anything you don’t want your agents to do. This only affects your agents — nothing changes on ${provider.name}.` : `This is everything ${provider.name} offers. Connect first, then you can turn tools on and off one by one.`}</p>
-      <SectionCard className="mt-3 overflow-hidden">
-        <div className="bg-white/2.5 px-3.5 py-2 text-[11px] font-semibold uppercase tracking-[.07em] text-app-text-quaternary">Read — looks things up, changes nothing</div>
-        {readTools.map((tool) => <ToolRow key={tool.name} tool={tool} isAvailable={isConnected} onToggle={(isEnabled) => { toolMutation.mutate({ toolName: tool.name, isEnabled }); }} />)}
-        <div className="border-t-[0.5px] border-app-border-pane bg-warning/5 px-3.5 py-2 text-[11px] font-semibold uppercase tracking-[.07em] text-warning">Write — acts in your name, and starts off</div>
-        {writeTools.map((tool) => <ToolRow key={tool.name} tool={tool} isAvailable={isConnected} onToggle={(isEnabled) => { toolMutation.mutate({ toolName: tool.name, isEnabled }); }} />)}
-      </SectionCard>
+      <div className="mt-7 flex items-baseline justify-between"><h2 className="text-[13.5px] font-semibold">Tools</h2><div className="text-xs text-app-text-quaternary">{isConnected && provider.tools.length > 0 ? `${enabledCount} of ${provider.tools.length} enabled` : null}</div></div>
+      <p className="mt-1.5 text-[12.5px] leading-5 text-app-text-tertiary text-pretty">{isConnected ? 'These are the tools available to your account. Turn off anything you don’t want your agents to use.' : 'Connect first to load the tools available to your account.'}</p>
+      {provider.toolDiscoveryFailed ? <p role="alert" className="mt-3 rounded-[9px] border-[0.5px] border-warning/35 bg-warning/7 px-3.5 py-3 text-[12.5px] text-app-text-secondary">Tools are temporarily unavailable. Reconnect if this continues.</p> : null}
+      {!provider.toolDiscoveryFailed && provider.tools.length === 0 ? <p className="mt-3 rounded-[9px] border-[0.5px] border-app-border-pane px-3.5 py-3 text-[12.5px] text-app-text-tertiary">{isConnected ? 'No tools are available for your account.' : 'Tools will appear here after you connect.'}</p> : null}
+      {provider.tools.length > 0 ? <SectionCard className="mt-3 overflow-hidden">
+        {readTools.length > 0 ? <><div className="bg-white/2.5 px-3.5 py-2 text-[11px] font-semibold uppercase tracking-[.07em] text-app-text-quaternary">Read, looks things up</div>{readTools.map((tool) => <ToolRow key={tool.name} tool={tool} isAvailable={isConnected} onToggle={(isEnabled) => { toolMutation.mutate({ toolName: tool.name, isEnabled }); }} />)}</> : null}
+        {writeTools.length > 0 ? <><div className="border-t-[0.5px] border-app-border-pane bg-warning/5 px-3.5 py-2 text-[11px] font-semibold uppercase tracking-[.07em] text-warning">Write, acts in your name</div>{writeTools.map((tool) => <ToolRow key={tool.name} tool={tool} isAvailable={isConnected} onToggle={(isEnabled) => { toolMutation.mutate({ toolName: tool.name, isEnabled }); }} />)}</> : null}
+      </SectionCard> : null}
       {toolMutation.isError ? <p role="alert" className="mt-2 text-[12.5px] leading-5 text-danger">That change to {toolMutation.variables.toolName} was not saved. Try again.</p> : null}
       {canDisconnect ? <div className="mt-6 flex flex-col items-start justify-between gap-3 rounded-[10px] border-[0.5px] border-app-border-pane p-3.5 sm:flex-row sm:items-center"><div className="text-[12.5px] leading-5 text-app-text-tertiary">Disconnecting cuts your agents' access immediately. Nothing gets deleted on {provider.name}.</div><Button variant="outline" className="shrink-0 border-danger/35 text-danger hover:bg-danger/10 hover:text-danger" onClick={() => { disconnectMutation.mutate(provider.id); }}>Disconnect {provider.name}</Button></div> : null}
     </section>

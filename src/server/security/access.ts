@@ -29,6 +29,10 @@ export function isEmailAllowed(email: string, policy: AccessPolicy): boolean {
   return domain !== undefined && policy.allowedEmailDomains.has(domain);
 }
 
+export function isAdministrator(email: string, adminEmails: ReadonlySet<string>): boolean {
+  return adminEmails.has(email.trim().toLowerCase());
+}
+
 /**
  * Split on the LAST `@`: the local part of an address may legally contain one,
  * and taking the first would let `attacker@evil.com@` style input pass.

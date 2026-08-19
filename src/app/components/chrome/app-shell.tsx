@@ -5,10 +5,11 @@ import { cn } from '@app/lib/cn';
 import { initialsOf } from '@app/lib/initials';
 import { getCurrentUser, type CurrentUser, type HealthSnapshot } from '@app/api/bifrost';
 import { APP_ROUTES } from '@features/utils/routes';
+import { AdminToolNavigation } from './admin-tool-navigation';
 import { useAppHealth, type AppHealthState } from './use-app-health';
 
 /** What the shell loads once and shares with every page under it. */
-export type AppShellContext = { health: AppHealthState; user: CurrentUser | undefined };
+export type AppShellContext = { health: AppHealthState; user: CurrentUser | null | undefined };
 
 const navItems: readonly { to: string; label: string }[] = [
   { to: APP_ROUTES.integrations, label: 'Integrations' },
@@ -47,6 +48,7 @@ export function AppShell(): React.JSX.Element {
               <span>{item.label}</span>{item.to === APP_ROUTES.serviceStatus && badge ? <span className={cn('rounded-full px-1.5 py-0.5 text-[10.5px] font-semibold', badge.className)}>{badge.text}</span> : null}
             </NavLink>
           ))}
+          {user?.isAdmin ? <AdminToolNavigation /> : null}
           {user ? <NavLink to={APP_ROUTES.accountSecurity} className={({ isActive }) => cn('flex min-h-9 shrink-0 items-center rounded-md px-2 py-1.5 text-[13px] text-app-text-tertiary hover:bg-white/5 hover:text-app-text-secondary lg:hidden', isActive && 'bg-white/7 font-semibold text-app-text-primary')}>Account & security</NavLink> : null}
         </nav>
         {user ? (

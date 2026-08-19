@@ -31,11 +31,11 @@ Use `http://localhost:3000` below for local development. Replace it with the exa
 
 1. Go to <https://api.slack.com/apps>, select **Create New App → From scratch**, and choose the workspace used for testing.
 2. Open **OAuth & Permissions**. Add `http://localhost:3000/oauth/slack/callback` under **Redirect URLs**.
-3. Under **User Token Scopes**, add `channels:read`, `groups:read`, `channels:history`, `groups:history`, `search:read`, and `chat:write`.
+3. Under **User Token Scopes**, add the scopes required by Slack's official MCP server: `canvases:read`, `canvases:write`, `channels:history`, `channels:read`, `channels:write`, `chat:write`, `emoji:read`, `files:read`, `groups:history`, `groups:read`, `groups:write`, `im:history`, `im:write`, `mpim:history`, `mpim:read`, `mpim:write`, `reactions:write`, `search:read.files`, `search:read.im`, `search:read.mpim`, `search:read.private`, `search:read.public`, `search:read.users`, `users:read`, and `users:read.email`.
 4. Open **Basic Information → App Credentials**. Put **Client ID** in `SLACK_CLIENT_ID` and **Client Secret** in `SLACK_CLIENT_SECRET`.
 5. If token rotation is enabled, Bifrost uses the returned user refresh token and serializes refresh through Redis.
 
-## 5. Encryption and write policy
+## 5. Encryption and tool administration
 
 Generate the encryption key outside the repository:
 
@@ -45,10 +45,10 @@ openssl rand -base64 32
 
 Put it in `ENCRYPTION_KEY`. There is intentionally no repository default or Compose fallback. Losing this key makes stored provider credentials unrecoverable; rotating it requires decrypting and re-encrypting every row under controlled operations.
 
-Write tools are blocked by default. Configure exact allowed names in the deployment environment, outside agent control, for example:
+Configure the exact Google email addresses allowed to review provider tools, separated by commas:
 
 ```text
-WRITE_TOOL_ALLOWLIST=github_create_issue_comment,linear_add_comment
+ADMIN_EMAILS=admin@example.com,security@example.com
 ```
 
-Available write names are `github_create_issue_comment`, `linear_create_issue`, `linear_add_comment`, and `slack_post_message`.
+Sign in with one of those accounts, connect each provider under **Integrations**, then open **Tool administration**. Every newly discovered tool and every changed contract starts blocked until an administrator approves its current fingerprint. Leaving `ADMIN_EMAILS` empty grants no administrator access and therefore keeps all tools blocked.

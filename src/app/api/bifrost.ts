@@ -16,6 +16,9 @@ export const startProviderConnection = api.startProviderConnection;
 export const disconnectProvider = api.disconnectProvider;
 export const setProviderHidden = api.setProviderHidden;
 export const setToolEnabled = api.setToolEnabled;
+export const getAdminProviderTools = api.getAdminProviderTools;
+export const refreshAdminProviderTools = api.refreshAdminProviderTools;
+export const setToolPolicies = api.setToolPolicies;
 export const getConnectedClients = api.getConnectedClients;
 export const renewClient = api.renewClient;
 export const revokeClient = api.revokeClient;
@@ -33,9 +36,12 @@ export async function getSignInPolicy(): Promise<SignInPolicy> {
  * visitor to sign-in, because Service status is public and has to stay readable
  * when you cannot log in — which is exactly when you need it.
  */
-export async function getCurrentUser(): Promise<CurrentUser | undefined> {
+export async function getCurrentUser(): Promise<CurrentUser | null> {
+  if (import.meta.env.VITE_USE_MOCK_API === 'true') {
+    return { name: 'Bifrost Admin', email: 'admin@example.com', isAdmin: true };
+  }
   const response = await bifrostClient.api['me.json'].$get();
-  if (response.status === 401) return undefined;
+  if (response.status === 401) return null;
   if (response.status !== 200) throw new Error(`Bifrost request failed with status ${response.status}`);
   return response.json();
 }

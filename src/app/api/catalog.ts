@@ -1,4 +1,4 @@
-import type { ConnectableProviderId, Provider, ProviderId } from './types';
+import type { ConnectableProviderId, Provider } from './types';
 
 /**
  * The curated prose the screens need: what an app is, and what connecting it
@@ -14,24 +14,28 @@ import type { ConnectableProviderId, Provider, ProviderId } from './types';
 export const providerCatalog: readonly Omit<Provider, 'tools'>[] = [
   {
     id: 'github', name: 'GitHub', monogram: 'G', description: "Where your team's code and code reviews live.", status: 'connected', isHidden: false,
-    permissions: ['Read pull requests, their diffs and their review comments', 'See whether CI checks passed', 'Comment on an issue or pull request as you'],
-    neverPermission: 'Your agents can never push code, merge, create branches or pull requests, or change settings — Bifrost has no tool that does.',
-    successCapabilities: ['Read pull requests, diffs and review comments', 'Check whether CI passed', 'Comment on issues and pull requests — in your name'],
+    toolDiscoveryFailed: false,
+    permissions: ['Use the GitHub tools your Bifrost administrator has approved'],
+    neverPermission: 'Tools your administrator has not approved are never exposed to your agents.',
+    successCapabilities: ['Use the GitHub tools available to your account'],
   },
   {
     id: 'linear', name: 'Linear', monogram: 'L', description: 'Where projects and tasks are tracked.', status: 'needs-reconnect', isHidden: false,
-    permissions: ['Search and read issues, and list your teams and projects', 'Create issues and post comments as you'],
-    neverPermission: 'Your agents can never edit or delete an existing issue, or change workspace settings — Bifrost has no tool that does.',
-    successCapabilities: ['Search and read issues, teams and projects', 'Create issues and comments — in your name'],
+    toolDiscoveryFailed: false,
+    permissions: ['Use the Linear tools your Bifrost administrator has approved'],
+    neverPermission: 'Tools your administrator has not approved are never exposed to your agents.',
+    successCapabilities: ['Use the Linear tools available to your account'],
   },
   {
     id: 'slack', name: 'Slack', monogram: 'S', description: 'Where the team talks.', status: 'not-connected', isHidden: false,
-    permissions: ['List channels and read their history, threads included', 'Search messages you can already see', 'Post a message as you'],
-    neverPermission: 'Your agents can never read your direct messages, join channels, or delete anything — Bifrost has no tool that does.',
-    successCapabilities: ['List channels and read history and threads', 'Search messages you can already see', 'Post messages — in your name'],
+    toolDiscoveryFailed: false,
+    permissions: ['Use the Slack tools your Bifrost administrator has approved'],
+    neverPermission: 'Tools your administrator has not approved are never exposed to your agents.',
+    successCapabilities: ['Use the Slack tools available to your account'],
   },
   {
     id: 'notion', name: 'Notion', monogram: 'N', description: 'Where docs and notes live.', status: 'unavailable', isHidden: false,
+    toolDiscoveryFailed: false,
     permissions: ['Nothing yet — Bifrost has no Notion tools'],
     neverPermission: 'Connecting it is not possible yet, so it grants nothing.',
     successCapabilities: [],
@@ -46,6 +50,6 @@ export function getProviderCatalog(): readonly Provider[] {
   return providerCatalog.map((provider) => ({ ...structuredClone(provider), tools: [] }));
 }
 
-export function isConnectableProvider(providerId: ProviderId): providerId is ConnectableProviderId {
-  return providerId !== 'notion';
+export function isConnectableProvider(providerId: string): providerId is ConnectableProviderId {
+  return providerId === 'github' || providerId === 'linear' || providerId === 'slack';
 }

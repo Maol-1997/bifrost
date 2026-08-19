@@ -4,6 +4,7 @@ import { z } from 'zod';
 import type { Config } from './config.js';
 import { createDatabaseConnection, type AppDatabase, type AppTransaction } from './database/client.js';
 import {
+  deploymentToolPolicies,
   oauthAccessTokens,
   oauthClients,
   oauthGrants,
@@ -16,6 +17,7 @@ import {
 } from './database/schema.js';
 import type { ProviderId } from './providers/types.js';
 import { decryptSecret, encryptSecret } from './security/secrets.js';
+import type { StoredToolPolicy, ToolPolicyState } from './tools/catalog.js';
 
 const SESSION_BYTES = 32;
 const SESSION_TTL_DAYS = 30;
@@ -67,6 +69,14 @@ export type OAuthIdentity = {
   resource: string;
   scopes: readonly string[];
   expiresAt: Date;
+};
+
+type ToolPolicyWrite = {
+  providerId: ProviderId;
+  toolName: string;
+  fingerprint: string;
+  state: ToolPolicyState;
+  updatedByUserId: string;
 };
 
 /**
@@ -498,13 +508,14 @@ export class Database {
    * `needsReconnect` is derived here rather than in the UI so the rule lives
    * next to the column that decides it.
    */
-  async listConnections(userId: string): Promise<readonly { providerId: ProviderId; connectedAt: Date; accountLabel: string | undefined; needsReconnect: boolean }[]> {
+  async listConnections(userId: string): Promise<readonly { providerId: ProviderId; connectedAt: Date; accountLabel: string | undefined; needsReconnect: boolean; scopes: readonly string[] }[]> {
     const rows = await this.database
       .select({
         providerId: providerCredentials.providerId,
         connectedAt: providerCredentials.createdAt,
         accountLabel: providerCredentials.accountLabel,
         needsReconnect: sql<boolean>`${providerCredentials.expiresAt} is not null and ${providerCredentials.expiresAt} <= now()`,
+        scopes: providerCredentials.scopes,
       })
       .from(providerCredentials)
       .where(eq(providerCredentials.userId, userId));
@@ -538,9 +549,8 @@ export class Database {
   }
 
   /**
-   * The tools this user has an opinion about. A tool missing from the map is not
-   * missing information: it means the default for its kind, which
-   * `isToolPreferred` decides.
+   * The tools this user has overridden. Absence means the administrator's
+   * current default applies.
    */
   async toolPreferences(userId: string): Promise<ReadonlyMap<string, boolean>> {
     const rows = await this.database
@@ -558,6 +568,42 @@ export class Database {
         target: [userToolPreferences.userId, userToolPreferences.toolName],
         set: { isEnabled },
       });
+  }
+
+  async clearToolPreference(userId: string, toolName: string): Promise<void> {
+    await this.database
+      .delete(userToolPreferences)
+      .where(and(eq(userToolPreferences.userId, userId), eq(userToolPreferences.toolName, toolName)));
+  }
+
+  async toolPolicies(): Promise<ReadonlyMap<string, StoredToolPolicy>> {
+    const rows = await this.database
+      .select({
+        toolName: deploymentToolPolicies.toolName,
+        fingerprint: deploymentToolPolicies.fingerprint,
+        state: deploymentToolPolicies.state,
+      })
+      .from(deploymentToolPolicies);
+    return new Map(rows.map((row) => [row.toolName, row]));
+  }
+
+  async setToolPolicies(requests: readonly ToolPolicyWrite[]): Promise<void> {
+    await this.database.transaction(async (transaction) => {
+      for (const request of requests) {
+        await transaction
+          .insert(deploymentToolPolicies)
+          .values(request)
+          .onConflictDoUpdate({
+            target: [deploymentToolPolicies.providerId, deploymentToolPolicies.toolName],
+            set: {
+              fingerprint: request.fingerprint,
+              state: request.state,
+              updatedByUserId: request.updatedByUserId,
+              updatedAt: new Date(),
+            },
+          });
+      }
+    });
   }
 }
 

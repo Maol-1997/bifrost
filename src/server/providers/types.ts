@@ -1,59 +1,19 @@
-import { z } from 'zod';
-import { AgentFacingError } from '../errors.js';
-
 export type ProviderId = 'github' | 'linear' | 'slack';
 export type ToolMutability = 'read' | 'write';
 
-/**
- * What a tool may return: anything JSON can carry, and nothing else. `undefined`
- * in particular is excluded, because `JSON.stringify(undefined)` is not a string
- * and would produce an invalid tool response.
- */
-export const jsonValueSchema = z.json();
-export type JsonValue = z.infer<typeof jsonValueSchema>;
-
-export type ToolDefinition = {
-  name: string;
-  title: string;
-  description: string;
-  mutability: ToolMutability;
-  inputSchema: z.ZodType;
-  execute: (input: unknown, context: ToolExecutionContext) => Promise<JsonValue>;
-};
-
-export function defineTool<InputSchema extends z.ZodType>(definition: Omit<ToolDefinition, 'inputSchema' | 'execute'> & {
-  inputSchema: InputSchema;
-  execute: (input: z.infer<InputSchema>, context: ToolExecutionContext) => Promise<JsonValue>;
-}): ToolDefinition {
-  return {
-    ...definition,
-    execute: async (input, context) => {
-      const parsed = definition.inputSchema.safeParse(input);
-      // The agent chose these arguments, so the validation message is its to see.
-      if (!parsed.success) throw new AgentFacingError(`Invalid input for ${definition.name}: ${parsed.error.issues.map((issue) => `${issue.path.join('.') || 'input'}: ${issue.message}`).join('; ')}`);
-      return definition.execute(parsed.data as z.infer<InputSchema>, context);
-    },
-  };
-}
-
-export type ToolExecutionContext = {
-  userId: string;
+export type ProviderRequestContext = {
   accessToken: string;
-  requestId: string;
   signal: AbortSignal;
 };
-
-/** What an outbound provider call needs; a tool's execution context satisfies it, and so does an identity lookup. */
-export type ProviderRequestContext = Pick<ToolExecutionContext, 'accessToken' | 'signal'>;
 
 export type ProviderDefinition = {
   id: ProviderId;
   prefix: `${ProviderId}_`;
   displayName: string;
+  mcpUrl: string;
   authorizationUrl: string;
   tokenUrl: string;
   scopes: readonly string[];
-  tools: readonly ToolDefinition[];
   /**
    * Reads back the handle the user just authorized as, so Integrations can name
    * the real account instead of guessing. Called once, right after the token

@@ -18,8 +18,6 @@ export type ProviderTool = {
   description: string;
   mutability: ToolMutability;
   isEnabled: boolean;
-  /** Off because the deployment forbids it, so the switch cannot help. */
-  isBlockedByServer: boolean;
 };
 
 export type Provider = {
@@ -37,6 +35,54 @@ export type Provider = {
   neverPermission: string;
   tools: readonly ProviderTool[];
   successCapabilities: readonly string[];
+  /** Discovery failed for a connected provider, so an empty tool list is not authoritative. */
+  toolDiscoveryFailed: boolean;
+};
+
+export type ToolPolicyState = 'blocked' | 'allowed_default_off' | 'allowed_default_on';
+export type ToolCacheState = 'fresh' | 'revalidating' | 'refresh_failed';
+
+export type QueryCacheHint = {
+  state: ToolCacheState;
+  freshForMs: number;
+  nextCheckInMs: number;
+};
+
+export type CachedResult<Value> = {
+  data: Value;
+  cache: QueryCacheHint;
+};
+
+export type AdminTool = {
+  name: string;
+  upstreamName: string;
+  title: string;
+  description: string;
+  mutability: ToolMutability;
+  fingerprint: string;
+  state: ToolPolicyState;
+  needsReview: boolean;
+  annotations: Readonly<Record<string, unknown>>;
+  inputSchema: Readonly<Record<string, unknown>>;
+  outputSchema?: Readonly<Record<string, unknown>> | undefined;
+};
+
+export type AdminToolProvider = {
+  providerId: ConnectableProviderId;
+  status: 'ready' | 'not-connected' | 'error';
+  tools: readonly AdminTool[];
+};
+
+export type ToolPolicyChange = {
+  providerId: ConnectableProviderId;
+  toolName: string;
+  fingerprint: string;
+  state: ToolPolicyState;
+};
+
+export type ToolPolicyBatchChange = {
+  providerId: ConnectableProviderId;
+  tools: readonly Omit<ToolPolicyChange, 'providerId'>[];
 };
 
 /**
@@ -83,7 +129,7 @@ export type AppHealth = {
 
 export type HealthSnapshot = { checkedAt: string; apps: readonly AppHealth[] };
 
-export type CurrentUser = { name: string; email: string };
+export type CurrentUser = { name: string; email: string; isAdmin: boolean };
 
 export type SignInPolicy = { allowedDomains: readonly string[]; isRestricted: boolean };
 
@@ -92,11 +138,14 @@ export type SignInPolicy = { allowedDomains: readonly string[]; isRestricted: bo
  * the server. Chosen once, in `bifrost.ts`; nothing else branches on the mode.
  */
 export type BifrostApi = {
-  getProviders: () => Promise<readonly Provider[]>;
+  getProviders: () => Promise<CachedResult<readonly Provider[]>>;
   startProviderConnection: (providerId: ConnectableProviderId) => Promise<void>;
   disconnectProvider: (providerId: ProviderId) => Promise<void>;
   setProviderHidden: (providerId: ProviderId, isHidden: boolean) => Promise<void>;
   setToolEnabled: (toolName: string, isEnabled: boolean) => Promise<void>;
+  getAdminProviderTools: (providerId: ConnectableProviderId) => Promise<CachedResult<AdminToolProvider>>;
+  refreshAdminProviderTools: (providerId: ConnectableProviderId) => Promise<CachedResult<AdminToolProvider>>;
+  setToolPolicies: (change: ToolPolicyBatchChange) => Promise<QueryCacheHint>;
   getConnectedClients: () => Promise<readonly ConnectedClient[]>;
   renewClient: (client: ConnectedClient) => Promise<void>;
   revokeClient: (client: ConnectedClient) => Promise<void>;

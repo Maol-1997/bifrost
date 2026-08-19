@@ -12,7 +12,7 @@ Giving an AI agent access to your team's tools usually means one of two bad opti
 
 - **Credentials stay on the server.** Provider tokens are encrypted with AES-256-GCM at rest and only ever decrypted to make an outbound call. The agent never sees them.
 - **Every action is attributed to a person.** The agent authenticates to Bifrost with a short-lived OAuth token issued *to that user*, so a comment on GitHub or a message in Slack is posted by them, with their permissions.
-- **Users control the blast radius.** Read tools are on by default; write tools are off until the user switches them on in the UI. The deployment can put a hard ceiling on top of that.
+- **Administrators approve the surface.** Provider tools are discovered from official MCP servers and start blocked. An administrator reviews the current contract and chooses whether each approved tool starts on or off for users.
 
 ## How it works
 
@@ -32,19 +32,15 @@ Three ideas explain most of the design:
 
 1. **The MCP server is rebuilt on every request.** Bifrost loads the caller's connected providers and tool preferences and registers only those tools. A tool that is hidden is not merely absent from `tools/list`, it is uncallable, because it was never registered for that request.
 2. **Bifrost is on both sides of OAuth.** It is an OAuth *client* to Google and to each provider (that is how it obtains your tokens), and it is an OAuth 2.1 *authorization server* to MCP clients (that is how Claude Code gets its own credential). Agent access does not silently expire: clients hold a 1-hour access token and a rotating 90-day refresh token.
-3. **Two authorities decide what a tool may do.** The deployment ceiling (`WRITE_TOOL_ALLOWLIST`) and the user's own per-tool switch must both agree before a write tool is registered.
+3. **Two authorities decide what a tool may do.** An administrator must approve the exact fingerprint discovered from the provider, then each user can narrow that approved surface with their own switches.
 
 ## What agents get
 
-17 hand-written tools, each with a strict input schema. Nothing is a pass-through to the upstream API.
+Tools are discovered from GitHub, Linear and Slack's official MCP servers using each user's OAuth token. Bifrost prefixes their names (`github_`, `linear_`, `slack_`), preserves their schemas and annotations, and proxies approved calls without exposing provider credentials.
 
-| Provider | Read tools | Write tools |
-| --- | --- | --- |
-| GitHub | list pull requests, get pull request, get PR diff, list review comments, list check runs | create issue comment |
-| Linear | search issues, get issue, list my issues, list teams and projects | create issue, add comment |
-| Slack | search messages, read channel history, get thread, list channels | post message |
+Discovery never grants access by itself. A new tool, or any change to a tool's contract, produces a new fingerprint and stays blocked until an administrator approves that exact version. Missing `readOnlyHint: true` metadata is treated as write-capable.
 
-Every tool name carries its provider prefix (`github_`, `linear_`, `slack_`), and that prefix is what routes the call to the right credential.
+Discovered catalogs use a one-hour server-side stale-while-revalidate cache. Browser queries receive the remaining server freshness and use it as their own TanStack Query lifetime, so the two caches never add two independent hours. Calls and policy approvals still validate against a fresh upstream definition.
 
 ## Quick start
 
@@ -81,7 +77,7 @@ All settings are environment variables, validated at startup by `src/server/conf
 | `GOOGLE_CLIENT_ID` / `_SECRET` | yes | Sign-in. |
 | `GITHUB_*`, `LINEAR_*`, `SLACK_*` | per provider | Provider OAuth apps. A provider without credentials still mounts; connecting it fails until they are set. |
 | `ALLOWED_EMAIL_DOMAINS`, `ALLOWED_EMAILS` | recommended | Who may sign in. The two lists OR together. **Both empty lets any verified Google account in**; the server warns and the sign-in screen says so. |
-| `WRITE_TOOL_ALLOWLIST` | no | Deployment ceiling on write tools. **Empty means no ceiling** (each user decides per tool). Naming tools forbids every other write outright. |
+| `ADMIN_EMAILS` | recommended | Comma-separated exact emails allowed to review and approve discovered tools. **Empty means every tool remains blocked.** |
 | `OAUTH_ACCESS_TOKEN_TTL_SECONDS` | no | Default 3600. |
 | `OAUTH_REFRESH_TOKEN_TTL_DAYS` | no | Default 90, slid forward on every use. |
 | `OAUTH_ENABLE_CLIENT_ID_METADATA_DOCUMENTS` | no | Default `true`. Advertise CIMD support (the 2026-07-28 replacement for dynamic registration). |
@@ -102,7 +98,7 @@ Work against <http://localhost:5173>; Vite proxies `/api`, `/auth`, `/oauth` and
 
 The Docker image bundles its own `dist`, so after changing code, `docker compose up -d --build app`; rebuilding on the host does nothing to a running container.
 
-Tests are pure units, no database, focused on the places where being wrong is expensive: the prefix invariant, the visibility filter, tool defaults, PKCE, redirect-URI matching, SSRF address ranges, metadata documents, encryption, log redaction and sign-in rules.
+Tests are pure units, no database, focused on the places where being wrong is expensive: the prefix invariant, visibility filter, tool fingerprints and policy defaults, PKCE, redirect-URI matching, SSRF address ranges, metadata documents, encryption, log redaction and access rules.
 
 ## Layout
 

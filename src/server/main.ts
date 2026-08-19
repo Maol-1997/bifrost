@@ -51,8 +51,8 @@ function logDeploymentWarnings(config: ReturnType<typeof loadConfig>): void {
   if (!isAccessRestricted(config.accessPolicy)) {
     logger.warn({}, 'Sign-in is open to any verified Google account. Set ALLOWED_EMAIL_DOMAINS or ALLOWED_EMAILS to restrict it');
   }
-  if (config.writeToolAllowlist.size === 0) {
-    logger.warn({}, 'No deployment ceiling on write tools. Each user decides per tool in Integrations, starting off. Set WRITE_TOOL_ALLOWLIST to restrict which ones they may enable');
+  if (config.adminEmails.size === 0) {
+    logger.warn({}, 'No administrators configured. Every discovered provider tool remains blocked until ADMIN_EMAILS is set');
   }
 }
 

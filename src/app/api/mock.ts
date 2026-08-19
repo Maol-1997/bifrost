@@ -1,7 +1,9 @@
-import { providerCatalog } from './catalog';
-import type { BifrostApi, ConnectedClient, Provider, ToolMutability } from './types';
+import { isConnectableProvider, providerCatalog } from './catalog';
+import type { AdminToolProvider, BifrostApi, ConnectableProviderId, ConnectedClient, Provider, QueryCacheHint, ToolMutability, ToolPolicyState } from './types';
 
 const DAY_MS = 86_400_000;
+const HOUR_MS = 3_600_000;
+const mockCacheHint: QueryCacheHint = { state: 'fresh', freshForMs: HOUR_MS, nextCheckInMs: HOUR_MS };
 function daysAgo(days: number): string {
   return new Date(Date.now() - days * DAY_MS).toISOString();
 }
@@ -39,9 +41,24 @@ const mockTools: Readonly<Record<string, readonly [string, string, ToolMutabilit
 let mockProviders: Provider[] = providerCatalog.map((provider) => ({
   ...structuredClone(provider),
   tools: (mockTools[provider.id] ?? []).map(([name, title, mutability]) => ({
-    name, title, description: `${title}.`, mutability, isEnabled: mutability === 'read', isBlockedByServer: false,
+    name, title, description: `${title}.`, mutability, isEnabled: mutability === 'read',
   })),
 }));
+const mockAdminProviders = new Map<ConnectableProviderId, AdminToolProvider>(mockProviders
+  .filter((provider): provider is Provider & { id: ConnectableProviderId } => isConnectableProvider(provider.id))
+  .map((provider) => [provider.id, {
+    providerId: provider.id,
+    status: 'ready' as const,
+    tools: provider.tools.map((tool) => ({
+      ...tool,
+      upstreamName: tool.name.replace(`${provider.id}_`, ''),
+      fingerprint: tool.name.padEnd(64, '0').slice(0, 64),
+      state: (tool.isEnabled ? 'allowed_default_on' : 'blocked') as ToolPolicyState,
+      needsReview: !tool.isEnabled,
+      annotations: tool.mutability === 'read' ? { readOnlyHint: true } : {},
+      inputSchema: { type: 'object', properties: {} },
+    })),
+  } satisfies AdminToolProvider]));
 let mockClients: ConnectedClient[] = [
   { id: 'web', kind: 'browser', name: 'Bifrost web', monogram: 'BW', isCurrent: true, firstConnectedAt: daysAgo(65), lastUsedAt: daysAgo(0), expiresAt: daysAgo(-29), health: 'healthy' },
   { id: 'cc', kind: 'agent', name: 'Claude Code', monogram: '>_', logo: 'claude-code', isCurrent: false, firstConnectedAt: daysAgo(65), lastUsedAt: daysAgo(0.0014), health: 'healthy' },
@@ -50,7 +67,7 @@ let mockClients: ConnectedClient[] = [
 
 /** The design preview: same screens, in-memory state, no server. */
 export const mockApi: BifrostApi = {
-  getProviders: async () => structuredClone(mockProviders),
+  getProviders: async () => ({ data: structuredClone(mockProviders), cache: mockCacheHint }),
   startProviderConnection: async (providerId) => {
     mockProviders = mockProviders.map((provider) => provider.id === providerId ? { ...provider, status: 'connected', tools: provider.tools.map((tool) => ({ ...tool, isEnabled: true })) } : provider);
   },
@@ -62,6 +79,19 @@ export const mockApi: BifrostApi = {
   },
   setToolEnabled: async (toolName, isEnabled) => {
     mockProviders = mockProviders.map((provider) => ({ ...provider, tools: provider.tools.map((tool) => tool.name === toolName ? { ...tool, isEnabled } : tool) }));
+  },
+  getAdminProviderTools: async (providerId) => ({ data: structuredClone(mockAdminProviders.get(providerId)!), cache: mockCacheHint }),
+  refreshAdminProviderTools: async (providerId) => ({ data: structuredClone(mockAdminProviders.get(providerId)!), cache: mockCacheHint }),
+  setToolPolicies: async ({ providerId, tools }) => {
+    const provider = mockAdminProviders.get(providerId)!;
+    const stateByName = new Map(tools.map((tool) => [tool.toolName, tool.state]));
+    mockAdminProviders.set(providerId, {
+      ...provider,
+      tools: provider.tools.map((tool) => stateByName.has(tool.name)
+        ? { ...tool, state: stateByName.get(tool.name)!, needsReview: false }
+        : tool),
+    });
+    return mockCacheHint;
   },
   getConnectedClients: async () => structuredClone(mockClients),
   renewClient: async (client) => {

@@ -35,7 +35,7 @@ export const liveApi: BifrostApi = {
     ]);
     const mountById = new Map(status.providers.map((provider) => [provider.id, provider]));
     const connectionById = new Map(connections.apps.map((connection) => [connection.providerId, connection]));
-    return providerCatalog.map((provider) => {
+    const providers = providerCatalog.map((provider) => {
       const mount = isConnectableProvider(provider.id) ? mountById.get(provider.id) : undefined;
       const connection = isConnectableProvider(provider.id) ? connectionById.get(provider.id) : undefined;
       return {
@@ -44,6 +44,7 @@ export const liveApi: BifrostApi = {
         isHidden: connection?.isHidden ?? false,
         ...(connection?.connectedAt ? { connectedAt: connection.connectedAt } : {}),
         ...(connection?.accountLabel ? { accountLabel: connection.accountLabel } : {}),
+        toolDiscoveryFailed: connection?.toolDiscoveryFailed ?? false,
         // The server owns enabled state. Re-deriving it from connection status
         // would erase the user's choices after every reload.
         tools: (connection?.tools ?? []).map((tool) => ({
@@ -52,10 +53,10 @@ export const liveApi: BifrostApi = {
           description: tool.description,
           mutability: tool.mutability,
           isEnabled: tool.isEnabled,
-          isBlockedByServer: tool.isBlockedByServer,
         })),
       };
     });
+    return { data: providers, cache: connections.cache };
   },
   startProviderConnection: async (providerId) => {
     const location = bifrostClient.oauth[':providerId'].start.$url({ param: { providerId } });
@@ -81,6 +82,25 @@ export const liveApi: BifrostApi = {
       param: { toolName },
       json: { isEnabled },
     }));
+  },
+  getAdminProviderTools: async (providerId) => {
+    const { provider, cache } = await parseRpcResponse(
+      bifrostClient.api.admin.providers[':providerId']['tools.json'].$get({ param: { providerId } }),
+    );
+    return { data: { ...provider, providerId }, cache };
+  },
+  refreshAdminProviderTools: async (providerId) => {
+    const { provider, cache } = await parseRpcResponse(
+      bifrostClient.api.admin.providers[':providerId'].tools.refresh.$post({ param: { providerId } }),
+    );
+    return { data: { ...provider, providerId }, cache };
+  },
+  setToolPolicies: async ({ providerId, tools }) => {
+    const result = await parseRpcResponse(bifrostClient.api.admin.tools[':providerId'].policies.$post({
+      param: { providerId },
+      json: { tools: [...tools] },
+    }));
+    return result.cache;
   },
   getConnectedClients: async () => {
     const { clients } = await parseRpcResponse(bifrostClient.api['clients.json'].$get());

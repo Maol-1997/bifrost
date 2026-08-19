@@ -1,22 +1,22 @@
-import { z } from 'zod';
 import { describe, expect, it } from 'vitest';
-import type { ProviderDefinition, ProviderMount } from '../src/server/providers/types.js';
+import type { ProviderMount } from '../src/server/providers/types.js';
+import type { DiscoveredTool } from '../src/server/tools/catalog.js';
 import { visibleTools } from '../src/server/tools/filter.js';
 
-const readAccountLabel = async (): Promise<string> => '@tester';
-const providers: readonly ProviderDefinition[] = [
-  { id: 'github', prefix: 'github_', displayName: 'GitHub', authorizationUrl: '', tokenUrl: '', scopes: [], readAccountLabel, tools: [{ name: 'github_read', title: 'Read', description: 'Read', mutability: 'read', inputSchema: z.object({}), execute: async () => ({}) }] },
-  { id: 'slack', prefix: 'slack_', displayName: 'Slack', authorizationUrl: '', tokenUrl: '', scopes: [], readAccountLabel, tools: [{ name: 'slack_read', title: 'Read', description: 'Read', mutability: 'read', inputSchema: z.object({}), execute: async () => ({}) }] },
+const tools: readonly DiscoveredTool[] = [
+  { providerId: 'github', upstreamName: 'read', name: 'github_read', title: 'Read', description: 'Read', mutability: 'read', fingerprint: 'a'.repeat(64), inputSchema: { type: 'object' } },
+  { providerId: 'slack', upstreamName: 'read', name: 'slack_read', title: 'Read', description: 'Read', mutability: 'read', fingerprint: 'b'.repeat(64), inputSchema: { type: 'object' } },
 ];
 const mounted: readonly ProviderMount[] = [
   { providerId: 'github', isMounted: true }, { providerId: 'slack', isMounted: true },
 ];
 const connectedToBoth = new Set(['github', 'slack'] as const);
+const enabledTools = new Set(tools.map((tool) => tool.name));
 
 describe('tool visibility filtering', () => {
   it('shows Slack to connected user A but not unconnected user B', () => {
-    const userATools = visibleTools(providers, mounted, { connectedProviders: new Set(['github', 'slack']), hiddenProviders: new Set(), disabledTools: new Set() });
-    const userBTools = visibleTools(providers, mounted, { connectedProviders: new Set(['github']), hiddenProviders: new Set(), disabledTools: new Set() });
+    const userATools = visibleTools(tools, mounted, { connectedProviders: connectedToBoth, hiddenProviders: new Set(), enabledTools });
+    const userBTools = visibleTools(tools, mounted, { connectedProviders: new Set(['github']), hiddenProviders: new Set(), enabledTools });
 
     expect(userATools.map((tool) => tool.name)).toEqual(['github_read', 'slack_read']);
     expect(userBTools.map((tool) => tool.name)).toEqual(['github_read']);
@@ -25,20 +25,18 @@ describe('tool visibility filtering', () => {
   it('fails closed for a provider the deployment never mounted', () => {
     const unmountedSlack = mounted.map((mount) => mount.providerId === 'slack' ? { ...mount, isMounted: false } : mount);
 
-    expect(visibleTools(providers, unmountedSlack, { connectedProviders: connectedToBoth, hiddenProviders: new Set(), disabledTools: new Set() }).map((tool) => tool.name)).toEqual(['github_read']);
+    expect(visibleTools(tools, unmountedSlack, { connectedProviders: connectedToBoth, hiddenProviders: new Set(), enabledTools }).map((tool) => tool.name)).toEqual(['github_read']);
   });
 
   it('fails closed for a provider the user hid in Integrations', () => {
-    expect(visibleTools(providers, mounted, { connectedProviders: connectedToBoth, hiddenProviders: new Set(['slack']), disabledTools: new Set() }).map((tool) => tool.name)).toEqual(['github_read']);
+    expect(visibleTools(tools, mounted, { connectedProviders: connectedToBoth, hiddenProviders: new Set(['slack']), enabledTools }).map((tool) => tool.name)).toEqual(['github_read']);
   });
 
-  it('drops a tool the user switched off, and only that one', () => {
-    const tools = visibleTools(providers, mounted, {
-      connectedProviders: connectedToBoth, hiddenProviders: new Set(), disabledTools: new Set(['github_read']),
+  it('drops a tool that is not enabled, and only that one', () => {
+    const visible = visibleTools(tools, mounted, {
+      connectedProviders: connectedToBoth, hiddenProviders: new Set(), enabledTools: new Set(['slack_read']),
     });
 
-    // Not registered means not callable either: the MCP server is rebuilt per
-    // request, so a tool missing here cannot be reached by name.
-    expect(tools.map((tool) => tool.name)).toEqual(['slack_read']);
+    expect(visible.map((tool) => tool.name)).toEqual(['slack_read']);
   });
 });

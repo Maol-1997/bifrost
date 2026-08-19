@@ -15,7 +15,7 @@ export default function AccountSecurity(): React.JSX.Element {
   const { user } = useOutletContext<AppShellContext>();
   const providersQuery = useQuery(providersQueryOptions);
   const clientsQuery = useQuery(connectedClientsQueryOptions);
-  const providers = providersQuery.data ?? getProviderCatalog();
+  const providers = providersQuery.data?.data ?? getProviderCatalog();
   const clients = clientsQuery.data ?? [];
   const hasLoadError = providersQuery.isError || clientsQuery.isError;
   // No fallback to the catalog on failure: this screen summarizes what is

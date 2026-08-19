@@ -16,6 +16,7 @@ const FRONTEND_ROUTES = [
   APP_ROUTES.addAgent,
   APP_ROUTES.serviceStatus,
   APP_ROUTES.accountSecurity,
+  APP_ROUTES.adminTools,
 ] as const;
 
 export function createStaticRoutes(): Hono<AppEnv> {
@@ -41,5 +42,6 @@ export function createStaticRoutes(): Hono<AppEnv> {
 
   for (const route of FRONTEND_ROUTES) routes.get(route, serveIndex, frontendUnavailable);
   routes.get(`${APP_ROUTES.integrations}/*`, serveIndex, frontendUnavailable);
+  routes.get(`${APP_ROUTES.adminTools}/*`, serveIndex, frontendUnavailable);
   return routes;
 }

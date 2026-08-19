@@ -1,9 +1,23 @@
 import { describe, expect, it } from 'vitest';
-import { emailDomain, isEmailAllowed, parseAccessList, type AccessPolicy } from '../src/server/security/access.js';
+import { emailDomain, isAdministrator, isEmailAllowed, parseAccessList, type AccessPolicy } from '../src/server/security/access.js';
 
 const policy = (domains: string, emails: string): AccessPolicy => ({
   allowedEmailDomains: parseAccessList(domains),
   allowedEmails: parseAccessList(emails),
+});
+
+describe('administrator access', () => {
+  it('requires an exact configured email address and ignores case and spacing', () => {
+    const administrators = parseAccessList(' Admin@Example.com, owner@example.com ');
+
+    expect(isAdministrator('admin@example.com', administrators)).toBe(true);
+    expect(isAdministrator(' ADMIN@EXAMPLE.COM ', administrators)).toBe(true);
+    expect(isAdministrator('other@example.com', administrators)).toBe(false);
+  });
+
+  it('grants nobody administrator access when the list is empty', () => {
+    expect(isAdministrator('admin@example.com', parseAccessList(''))).toBe(false);
+  });
 });
 
 describe('sign-in access policy', () => {

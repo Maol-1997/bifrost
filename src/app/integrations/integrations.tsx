@@ -41,7 +41,7 @@ export default function Integrations(): React.JSX.Element {
     mutationFn: disconnectProvider,
     onSuccess: () => queryClient.invalidateQueries({ queryKey: providersQueryOptions.queryKey }),
   });
-  const providers = requestedState === 'empty' ? emptyDemoProviders : providersQuery.data ?? [];
+  const providers = requestedState === 'empty' ? emptyDemoProviders : providersQuery.data?.data ?? [];
   const isLoading = requestedState === 'loading' || (usesLiveData && providersQuery.isPending);
   const hasLoadError = requestedState === 'error' || (usesLiveData && providersQuery.isError);
   const connectingId = connectMutation.isPending ? connectMutation.variables : null;

@@ -28,15 +28,11 @@ const environmentSchema = z.object({
   // spec. Switchable because advertising support decides which path a client
   // takes, and a client with a broken CIMD implementation does not fall back.
   OAUTH_ENABLE_CLIENT_ID_METADATA_DOCUMENTS: z.enum(['true', 'false']).default('true').transform((value) => value === 'true'),
-  // A deployment ceiling on write tools, not a switch. Empty means no ceiling:
-  // what an agent may write is then decided per user, per tool, from Integrations
-  // — which is where that decision belongs and where it is visible. Naming tools
-  // here forbids everything else outright, and the UI says so instead of
-  // offering a switch that cannot work.
-  WRITE_TOOL_ALLOWLIST: z.string().default(''),
   // Comma-separated. Both empty means any verified Google account may sign in.
   ALLOWED_EMAIL_DOMAINS: z.string().default(''),
   ALLOWED_EMAILS: z.string().default(''),
+  // Exact addresses only. Domain-wide administration is deliberately unsupported.
+  ADMIN_EMAILS: z.string().default(''),
   BIFROST_DEV_USER_ID: z.preprocess((value) => value === '' ? undefined : value, z.uuid().optional()),
   SLOW_REQUEST_MS: z.coerce.number().int().positive().default(1000),
   SLOW_TOOL_MS: z.coerce.number().int().positive().default(2000),
@@ -44,8 +40,8 @@ const environmentSchema = z.object({
 
 export type Config = z.infer<typeof environmentSchema> & {
   encryptionKey: Buffer;
-  writeToolAllowlist: ReadonlySet<string>;
   accessPolicy: AccessPolicy;
+  adminEmails: ReadonlySet<string>;
 };
 
 export function loadConfig(environment: NodeJS.ProcessEnv = process.env): Config {
@@ -75,11 +71,11 @@ export function loadConfig(environment: NodeJS.ProcessEnv = process.env): Config
   return {
     ...parsed.data,
     encryptionKey,
-    writeToolAllowlist: new Set(parsed.data.WRITE_TOOL_ALLOWLIST.split(',').map((name) => name.trim()).filter(Boolean)),
     accessPolicy: {
       allowedEmailDomains: parseAccessList(parsed.data.ALLOWED_EMAIL_DOMAINS),
       allowedEmails: parseAccessList(parsed.data.ALLOWED_EMAILS),
     },
+    adminEmails: parseAccessList(parsed.data.ADMIN_EMAILS),
   };
 }
 

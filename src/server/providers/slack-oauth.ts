@@ -8,13 +8,18 @@ const slackUserTokens = z.object({
   token_type: z.string().optional(),
 });
 
-const slackTokenResponse = z.object({ authed_user: slackUserTokens.optional() }).loose();
+const slackTokenResponse = z.object({ authed_user: z.unknown().optional() }).loose();
 
-/** Presents Slack's nested user grant as the standard token response OAuth clients expect. */
+/** Presents Slack's user grant and nonstandard `user` token type as a standard bearer response. */
 export async function normalizeSlackTokenResponse(response: Response): Promise<Response> {
   if (!response.ok) return response;
   const parsed = slackTokenResponse.safeParse(await response.clone().json());
-  const userTokens = parsed.success ? parsed.data.authed_user : undefined;
+  if (!parsed.success) return response;
+  const nestedUserTokens = slackUserTokens.safeParse(parsed.data.authed_user);
+  const topLevelUserTokens = slackUserTokens.safeParse(parsed.data);
+  const userTokens = nestedUserTokens.success
+    ? nestedUserTokens.data
+    : topLevelUserTokens.success ? topLevelUserTokens.data : undefined;
   if (!userTokens) return response;
 
   const headers = new Headers(response.headers);
@@ -23,7 +28,7 @@ export async function normalizeSlackTokenResponse(response: Response): Promise<R
   return Response.json({
     ...parsed.data,
     access_token: userTokens.access_token,
-    token_type: userTokens.token_type ?? 'bearer',
+    token_type: 'bearer',
     ...(userTokens.refresh_token ? { refresh_token: userTokens.refresh_token } : {}),
     ...(userTokens.expires_in ? { expires_in: userTokens.expires_in } : {}),
     ...(userTokens.scope ? { scope: userTokens.scope } : {}),

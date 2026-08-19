@@ -1,7 +1,8 @@
 import { z } from 'zod';
-import { fetchJson } from './http.js';
-import { defineTool, jsonValueSchema, type JsonValue, type ProviderDefinition, type ProviderRequestContext } from './types.js';
+import { fetchJson, type JsonValue } from './http.js';
+import type { ProviderDefinition, ProviderRequestContext } from './types.js';
 
+const jsonValueSchema = z.json();
 const graphQlEnvelopeSchema = z.object({
   data: jsonValueSchema.optional(),
   errors: z.array(z.object({ message: z.string() })).optional(),
@@ -17,45 +18,13 @@ async function linearGraphQl(query: string, variables: Record<string, unknown>, 
   return result.data ?? null;
 }
 
-const tools = [
-  defineTool({
-    name: 'linear_search_issues', title: 'Search issues', description: 'Search Linear issues by text.', mutability: 'read',
-    inputSchema: z.object({ query: z.string().min(1).max(300), first: z.number().int().min(1).max(50).default(20) }),
-    execute: ({ query, first }, context) => linearGraphQl('query Search($term:String!,$first:Int!){issueSearch(query:$term,first:$first){nodes{id identifier title url state{name} assignee{name}}}}', { term: query, first }, context),
-  }),
-  defineTool({
-    name: 'linear_get_issue', title: 'Get issue', description: 'Get a Linear issue by identifier or ID.', mutability: 'read',
-    inputSchema: z.object({ id: z.string().min(1).max(100) }),
-    execute: ({ id }, context) => linearGraphQl('query Issue($id:String!){issue(id:$id){id identifier title description url state{name} assignee{name} team{id name key} project{id name}}}', { id }, context),
-  }),
-  defineTool({
-    name: 'linear_list_my_issues', title: 'List my issues', description: 'List issues assigned to the authenticated Linear user.', mutability: 'read',
-    inputSchema: z.object({ first: z.number().int().min(1).max(50).default(20) }),
-    execute: ({ first }, context) => linearGraphQl('query Mine($first:Int!){viewer{assignedIssues(first:$first){nodes{id identifier title url state{name}}}}}', { first }, context),
-  }),
-  defineTool({
-    name: 'linear_create_issue', title: 'Create issue', description: 'Create a Linear issue.', mutability: 'write',
-    inputSchema: z.object({ teamId: z.uuid(), title: z.string().min(1).max(500), description: z.string().max(100_000).optional() }),
-    execute: ({ teamId, title, description }, context) => linearGraphQl('mutation Create($input:IssueCreateInput!){issueCreate(input:$input){success issue{id identifier title url}}}', { input: { teamId, title, description } }, context),
-  }),
-  defineTool({
-    name: 'linear_add_comment', title: 'Add comment', description: 'Add a comment to a Linear issue.', mutability: 'write',
-    inputSchema: z.object({ issueId: z.string().min(1).max(100), body: z.string().min(1).max(100_000) }),
-    execute: ({ issueId, body }, context) => linearGraphQl('mutation Comment($input:CommentCreateInput!){commentCreate(input:$input){success comment{id body}}}', { input: { issueId, body } }, context),
-  }),
-  defineTool({
-    name: 'linear_list_teams_projects', title: 'List teams and projects', description: 'List the current workspace teams and projects.', mutability: 'read',
-    inputSchema: z.object({}),
-    execute: (_input, context) => linearGraphQl('query TeamsProjects{teams{nodes{id key name projects{nodes{id name state}}}}}', {}, context),
-  }),
-];
-
 const viewerSchema = z.object({ viewer: z.object({ email: z.string().min(1) }) });
 
 export const linearProvider: ProviderDefinition = {
   id: 'linear', prefix: 'linear_', displayName: 'Linear',
+  mcpUrl: 'https://mcp.linear.app/mcp',
   authorizationUrl: 'https://linear.app/oauth/authorize', tokenUrl: 'https://api.linear.app/oauth/token',
-  scopes: ['read', 'write', 'issues:create', 'comments:create'], tools,
+  scopes: ['read', 'write', 'issues:create', 'comments:create'],
   readAccountLabel: async (accessToken, signal) => {
     const data = await linearGraphQl('query Viewer{viewer{email}}', {}, { accessToken, signal });
     return viewerSchema.parse(data).viewer.email;

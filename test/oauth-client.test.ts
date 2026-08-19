@@ -50,12 +50,11 @@ describe('OAuth authorization requests', () => {
     });
   });
 
-  it('uses Slack user scopes instead of bot scopes', async () => {
+  it('uses Slack official MCP user scopes', async () => {
     const url = new URL(await oauth.startProviderAuthorization('00000000-0000-4000-8000-000000000000', 'slack'));
-    expect({ userScope: url.searchParams.get('user_scope'), scope: url.searchParams.get('scope') }).toEqual({
-      userScope: 'channels:read,groups:read,channels:history,groups:history,search:read,chat:write',
-      scope: null,
-    });
+    expect(url.origin + url.pathname).toBe('https://slack.com/oauth/v2_user/authorize');
+    expect(url.searchParams.get('user_scope')).toBeNull();
+    expect(url.searchParams.get('scope')).toBe('canvases:read,canvases:write,channels:history,channels:read,channels:write,chat:write,emoji:read,files:read,groups:history,groups:read,groups:write,im:history,im:write,mpim:history,mpim:read,mpim:write,reactions:write,search:read.files,search:read.im,search:read.mpim,search:read.private,search:read.public,search:read.users,users:read,users:read.email');
   });
 });
 
@@ -92,5 +91,25 @@ describe('Slack OAuth token responses', () => {
   it('leaves rejected HTTP responses untouched', async () => {
     const response = Response.json({ error: 'invalid_code' }, { status: 400 });
     expect(await normalizeSlackTokenResponse(response)).toBe(response);
+  });
+
+  it('normalizes Slack user tokens returned at the top level', async () => {
+    const response = Response.json({
+      ok: true,
+      access_token: 'user-token',
+      token_type: 'user',
+      refresh_token: 'user-refresh',
+      expires_in: 3600,
+      scope: 'channels:read',
+    });
+    const normalized = await normalizeSlackTokenResponse(response);
+    expect(await normalized.json()).toEqual({
+      ok: true,
+      access_token: 'user-token',
+      token_type: 'bearer',
+      refresh_token: 'user-refresh',
+      expires_in: 3600,
+      scope: 'channels:read',
+    });
   });
 });

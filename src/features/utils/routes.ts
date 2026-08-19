@@ -7,4 +7,6 @@ export const APP_ROUTES = {
   addAgent: '/agents/add',
   serviceStatus: '/service-status',
   accountSecurity: '/account-security',
+  adminTools: '/admin/tools',
+  adminToolDetail: '/admin/tools/:providerId',
 } as const;

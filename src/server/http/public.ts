@@ -63,7 +63,6 @@ function providerStatus(mounts: readonly ProviderMount[]) {
         id: provider.id,
         name: provider.displayName,
         isMounted: mount?.isMounted ?? false,
-        toolCount: provider.tools.length,
         ...(mount?.error ? { error: mount.error } : {}),
       };
     }),

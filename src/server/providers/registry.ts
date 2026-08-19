@@ -1,4 +1,3 @@
-import { z } from 'zod';
 import type { ProviderDefinition, ProviderId, ProviderMount } from './types.js';
 import { githubProvider } from './github.js';
 import { linearProvider } from './linear.js';
@@ -39,24 +38,16 @@ export function assertPrefixInvariant({
     if (namespaces[provider.id] !== provider.prefix) problems.push(`${provider.id}: namespace differs from registry prefix`);
     if (!apps.includes(provider.id)) problems.push(`${provider.id}: missing from supported apps`);
     if (credentialMapping[provider.prefix] !== provider.id) problems.push(`${provider.id}: credential mapping differs from prefix`);
-    for (const tool of provider.tools) {
-      if (!tool.name.startsWith(provider.prefix)) problems.push(`${provider.id}: tool ${tool.name} has wrong prefix`);
-    }
   }
   if (new Set(registry.map((provider) => provider.prefix)).size !== registry.length) problems.push('provider prefixes are not unique');
   if (problems.length > 0) throw new Error(`Provider prefix invariant failed: ${problems.join('; ')}`);
 }
 
-/**
- * A provider mounts only if every tool carries a real Zod schema: the MCP
- * server hands that schema to clients and validates input against it, so a
- * tool without one would advertise arguments it cannot check.
- */
 export function mountProviders(): readonly ProviderMount[] {
   return PROVIDER_REGISTRY.map((provider) => {
-    const unschematizedTool = provider.tools.find((tool) => !(tool.inputSchema instanceof z.ZodType));
-    return unschematizedTool
-      ? { providerId: provider.id, isMounted: false, error: `${unschematizedTool.name} has no input schema` }
-      : { providerId: provider.id, isMounted: true };
+    const url = new URL(provider.mcpUrl);
+    return url.protocol === 'https:'
+      ? { providerId: provider.id, isMounted: true }
+      : { providerId: provider.id, isMounted: false, error: 'Official MCP endpoint must use HTTPS' };
   });
 }

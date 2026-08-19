@@ -137,8 +137,7 @@ export class OAuthService {
       redirect_uri: this.providerRedirectUri(providerId),
       response_type: 'code', state, code_challenge: challenge, code_challenge_method: 'S256',
     });
-    if (providerId === 'slack') parameters.set('user_scope', provider.scopes.join(','));
-    else parameters.set('scope', provider.scopes.join(' '));
+    parameters.set('scope', provider.scopes.join(providerId === 'slack' ? ',' : ' '));
     return buildAuthorizationUrl(this.providerConfiguration(provider), parameters).href;
   }
 
@@ -315,15 +314,16 @@ function findProvider(providerId: ProviderId): ProviderDefinition {
 }
 
 function normalizeCredential(tokens: z.infer<typeof tokenResponseSchema>, fallbackRefreshToken?: string): StoredCredential {
-  const userTokens = tokens.authed_user ?? tokens;
+  const userTokens = tokens.authed_user?.access_token ? tokens.authed_user : tokens;
   const accessToken = userTokens.access_token;
   if (!accessToken) throw new Error('Provider token response did not include a user access token');
   const refreshToken = userTokens.refresh_token ?? fallbackRefreshToken;
   const expiresIn = userTokens.expires_in;
+  const scopes = userTokens.scope ?? tokens.authed_user?.scope ?? '';
   return {
     accessToken,
     ...(refreshToken === undefined ? {} : { refreshToken }),
     ...(expiresIn === undefined ? {} : { expiresAt: new Date(Date.now() + expiresIn * 1000) }),
-    scopes: (userTokens.scope ?? '').split(/[ ,]/).filter(Boolean),
+    scopes: scopes.split(/[ ,]/).filter(Boolean),
   };
 }

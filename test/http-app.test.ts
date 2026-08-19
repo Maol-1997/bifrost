@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { McpHandlerRequestOptions } from '@modelcontextprotocol/server';
-import { afterAll, describe, expect, it } from 'vitest';
+import { afterAll, describe, expect, it, vi } from 'vitest';
 import { loadConfig } from '../src/server/config.js';
 import { Coordinator } from '../src/server/coordination.js';
 import { Database } from '../src/server/db.js';
@@ -137,6 +137,28 @@ describe('request handling', () => {
     });
     expect(response.status).toBe(400);
     await expect(response.json()).resolves.toEqual({ error: 'Invalid request body' });
+  });
+
+  it('returns relative tool-cache freshness for frontend query scheduling', async () => {
+    const spies = [
+      vi.spyOn(database, 'listConnections').mockResolvedValue([]),
+      vi.spyOn(database, 'hiddenProviders').mockResolvedValue(new Set()),
+      vi.spyOn(database, 'toolPreferences').mockResolvedValue(new Map()),
+      vi.spyOn(database, 'toolPolicies').mockResolvedValue(new Map()),
+      vi.spyOn(database, 'connectedProviders').mockResolvedValue(new Set()),
+    ];
+    try {
+      const response = await request('/api/app-connections.json', {
+        headers: { 'X-Bifrost-Dev-User': DEVELOPMENT_USER_ID },
+      });
+
+      expect(response.status).toBe(200);
+      await expect(response.json()).resolves.toMatchObject({
+        cache: { state: 'fresh', freshForMs: 3_600_000, nextCheckInMs: 3_600_000 },
+      });
+    } finally {
+      for (const spy of spies) spy.mockRestore();
+    }
   });
 
   it('passes the web-standard request, parsed body, and agent identity directly to the MCP handler', async () => {
