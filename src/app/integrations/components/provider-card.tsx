@@ -72,7 +72,7 @@ export function ProviderCard({ provider, isConnecting, onConnect, onHide, onDisc
 
   return (
     <div className={cn("group relative after:absolute after:bottom-0 after:left-4 after:right-4 after:z-[1] after:h-[0.5px] after:bg-linear-settings-divider after:content-[''] last:after:hidden", provider.isHidden && 'opacity-75')}>
-      <SettingsLinkRow asChild className={cn('h-auto min-h-[65px] rounded-none after:hidden group-first:rounded-t-[10px] group-last:rounded-b-[10px] group-hover:bg-linear-settings-row-hover', isConnected ? 'pr-14' : needsReconnect ? 'pr-28 sm:pr-56' : 'pr-24')}>
+      <SettingsLinkRow asChild className={cn('h-auto min-h-[65px] rounded-none first:rounded-none last:rounded-none after:hidden group-first:rounded-t-[10px] group-last:rounded-b-[10px] group-hover:bg-linear-settings-row-hover', isConnected ? 'pr-14' : needsReconnect ? 'pr-28 sm:pr-56' : 'pr-24')}>
         <Link to={detailPath} aria-label={`View ${provider.name} tools`}>
           <ProviderSummary provider={provider} />
         </Link>
