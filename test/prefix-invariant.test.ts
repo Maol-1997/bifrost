@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { describe, expect, it } from 'vitest';
-import { assertPrefixInvariant, type PrefixInvariantInputs } from '../src/providers/registry.js';
-import type { ProviderDefinition } from '../src/providers/types.js';
+import { assertPrefixInvariant, type PrefixInvariantInputs } from '../src/server/providers/registry.js';
+import type { ProviderDefinition } from '../src/server/providers/types.js';
 
 const registry: readonly ProviderDefinition[] = [{
   id: 'github', prefix: 'github_', displayName: 'GitHub', authorizationUrl: '', tokenUrl: '', scopes: [],

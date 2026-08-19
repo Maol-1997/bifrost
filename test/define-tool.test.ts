@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { describe, expect, it, vi } from 'vitest';
-import { AgentFacingError } from '../src/errors.js';
-import { defineTool, type ToolExecutionContext } from '../src/providers/types.js';
+import { AgentFacingError } from '../src/server/errors.js';
+import { defineTool, type ToolExecutionContext } from '../src/server/providers/types.js';
 
 const context: ToolExecutionContext = {
   userId: 'u',

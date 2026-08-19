@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
-import { APP_ROUTES } from '../features/utils/routes.js';
+import { APP_ROUTES } from '../../features/utils/routes.js';
 import { EmailNotAllowedError } from '../oauth.js';
 import { PROVIDER_REGISTRY } from '../providers/registry.js';
 import type { ProviderMount } from '../providers/types.js';

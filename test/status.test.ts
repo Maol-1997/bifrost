@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { describeClient } from '../src/clients/describe.js';
-import { statuspageHealth, type AppHealth, type HealthSnapshot, type StatusAppId, type StatuspageIndicator } from '../src/status/upstream.js';
+import { describeClient } from '../src/server/clients/describe.js';
+import { statuspageHealth, type AppHealth, type HealthSnapshot, type StatusAppId, type StatuspageIndicator } from '../src/server/status/upstream.js';
 
-vi.mock('../src/logger.js', () => ({
+vi.mock('../src/server/logger.js', () => ({
   logger: { warn: vi.fn(), info: vi.fn(), error: vi.fn(), debug: vi.fn() },
   errorSummary: (error: unknown) => ({ errorType: 'Error', message: String(error) }),
 }));
@@ -102,7 +102,7 @@ let fetchedUrls: string[] = [];
  * A fresh copy of the module per test: its cache and single-flight promise live
  * at module scope, so one test's snapshot would otherwise answer the next one.
  */
-async function loadStatusReader(feeds: FeedTable): Promise<typeof import('../src/status/upstream.js')> {
+async function loadStatusReader(feeds: FeedTable): Promise<typeof import('../src/server/status/upstream.js')> {
   vi.resetModules();
   fetchedUrls = [];
   vi.stubGlobal('fetch', (input: string | URL): Promise<Response> => {
@@ -111,7 +111,7 @@ async function loadStatusReader(feeds: FeedTable): Promise<typeof import('../src
     const feed = feeds[url];
     return feed ? Promise.resolve(feed()) : Promise.reject(new Error(`unstubbed status feed: ${url}`));
   });
-  return import('../src/status/upstream.js');
+  return import('../src/server/status/upstream.js');
 }
 
 function appHealth(snapshot: HealthSnapshot, appId: StatusAppId): AppHealth {

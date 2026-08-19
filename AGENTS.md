@@ -19,7 +19,7 @@ Two things follow from that and explain most of the design:
 
 ## The shape of a request
 
-Bifrost is a single Hono application served on Node by `@hono/node-server` (`src/server.ts`).
+Bifrost is a single Hono application served on Node by `@hono/node-server` (`src/server/main.ts`).
 It serves three different kinds of traffic on one port:
 
 | Traffic | Authenticated by | Resolves against |
@@ -28,7 +28,7 @@ It serves three different kinds of traffic on one port:
 | Agent calls to `/mcp` | OAuth 2.1 bearer token | `oauth_access_tokens` table |
 | OAuth endpoints, discovery, `/healthz` | nothing | — |
 
-`authenticateBrowser` and `authenticateAgent` (`src/http/auth.ts`) are deliberately separate
+`authenticateBrowser` and `authenticateAgent` (`src/server/http/auth.ts`) are deliberately separate
 functions over separate tables. They used to share one, which meant a leaked session cookie worked as an API token.
 Do not merge them back.
 
@@ -39,10 +39,10 @@ so there is one deployment, not two.
 
 **The MCP server object is rebuilt from scratch on every single HTTP request.** The SDK's
 `createMcpHandler` factory runs per request (its own docs: *"one serving unit: one HTTP
-request"*), and `createHumanMcpHandler` in `src/mcp.ts` uses that to load the caller's
+request"*), and `createHumanMcpHandler` in `src/server/mcp.ts` uses that to load the caller's
 connections and preferences and register only their tools.
 
-`src/http/mcp.ts` calls the SDK's web-standard handler directly with Hono's `Request`. Do not
+`src/server/http/mcp.ts` calls the SDK's web-standard handler directly with Hono's `Request`. Do not
 reintroduce a Node request adapter: Hono, the MCP SDK and the provider clients all speak the
 Fetch API already.
 
@@ -51,19 +51,19 @@ That makes filtering *the* enforcement mechanism, not a display concern. A tool 
 registered on the object handling this request. There is no second check to keep in sync.
 
 The one deliberate exception is the write-ceiling assert inside `registerTool`
-(`src/mcp.ts:100`). It is redundant with the filter on purpose: hiding a tool should never be
+(`src/server/mcp.ts:100`). It is redundant with the filter on purpose: hiding a tool should never be
 the only thing standing between an agent and a write.
 
 ## Tool visibility: the axes that can hide a tool
 
-`visibleTools` (`src/tools/filter.ts`) fails closed on each axis independently:
+`visibleTools` (`src/server/tools/filter.ts`) fails closed on each axis independently:
 
 1. The provider mounted at startup.
 2. The user has a `provider_credentials` row for it.
 3. The user has not hidden the provider in Integrations.
 4. The tool is not in `disabledTools`.
 
-Axis 4 is computed by `src/tools/preferences.ts` from **two authorities that must both agree**,
+Axis 4 is computed by `src/server/tools/preferences.ts` from **two authorities that must both agree**,
 and keeping them apart is the whole point:
 
 - **The deployment ceiling**, `WRITE_TOOL_ALLOWLIST`. Applies to write tools only. **Empty means
@@ -95,7 +95,7 @@ Every tool is an explicit hand-written wrapper with a Zod input schema, never a 
 pass-through to the upstream API.
 
 **Each provider owns exactly one prefix**, and that prefix has to be identical in four places
-in `src/providers/registry.ts`. `assertPrefixInvariant` runs at startup and refuses to boot on a
+in `src/server/providers/registry.ts`. `assertPrefixInvariant` runs at startup and refuses to boot on a
 one-character drift, because prefix drift silently breaks credential lookup rather than erroring.
 
 Notion appears in the frontend catalog (`src/app/api/catalog.ts`) but has **no server-side provider**.
@@ -107,15 +107,15 @@ decorative, permanently unavailable card. Do not treat it as a fourth provider.
 This trips people up. Bifrost is simultaneously:
 
 - **An OAuth client**, to Google (sign-in) and to GitHub/Linear/Slack (provider connections).
-  That is `src/oauth.ts`.
+  That is `src/server/oauth.ts`.
 - **An OAuth 2.1 authorization server plus resource server**, to MCP clients like Claude Code.
-  That is all of `src/oauth-server/` and it implements the MCP `2026-07-28` authorization spec.
+  That is all of `src/server/oauth-server/` and it implements the MCP `2026-07-28` authorization spec.
 
 The agent-facing half is why agent access does not expire the way a static key would: the client
 holds a short access token (1h) and a rotating refresh token (90d, slid forward on each use), and
 replaces its own credential without anyone being asked to log in again.
 
-Worth knowing before touching `src/oauth-server/`:
+Worth knowing before touching `src/server/oauth-server/`:
 
 - **Dynamic Client Registration is deprecated** in 2026-07-28, replaced by Client ID Metadata
   Documents. Both paths are implemented; `OAUTH_ENABLE_CLIENT_ID_METADATA_DOCUMENTS` decides
@@ -135,35 +135,36 @@ Worth knowing before touching `src/oauth-server/`:
 
 ```
 src/
-  server.ts            bootstrap, dependency assembly and @hono/node-server lifecycle
-  http/                Hono app plus public/browser/MCP routers, auth, body limits and static files
-  mcp.ts               per-request MCP server assembly, tool execution, rate/concurrency limits
-  errors.ts            AgentFacingError: the only error messages that reach the calling agent
-  database/            Drizzle schema, connection and migration runner
-  db.ts                persistence operations through Drizzle
-  oauth.ts             Bifrost as an OAuth client (Google + providers)
-  config.ts            Zod-validated env; refuses to start on bad config
-  coordination.ts      Redis locks, rate limits, concurrency leases (degrades to in-process)
-  oauth-server/        OAuth 2.1 authorization server, including its HTTP entry
-  providers/           one file per provider + the registry and its invariant
-  tools/               filter.ts (who sees what) and preferences.ts (why)
-  security/            secrets.ts (AES-256-GCM), access.ts (sign-in allowlist)
-  status/upstream.ts   vendors' public uptime feeds
-  clients/describe.ts  user agent -> recognizable client name, monogram and logo
   app/                 React SPA; route folders, shared chrome/UI, client API and frontend helpers
+    main.tsx           browser bootstrap and app-wide providers
     <route>/<route>.tsx   route entry imported directly by React Router
     components/        app-wide chrome and design-system UI only
     api/               bifrost.ts facade over live.ts / mock.ts, chosen once by VITE_USE_MOCK_API
     lib/               app-wide formatting and presentation helpers
+  server/              everything that runs only on Node
+    main.ts            bootstrap, dependency assembly and @hono/node-server lifecycle
+    http/              Hono app plus public/browser/MCP routers, auth, body limits and static files
+    mcp.ts             per-request MCP server assembly, tool execution, rate/concurrency limits
+    database/          Drizzle schema, connection and migration runner
+    oauth.ts           Bifrost as an OAuth client (Google + providers)
+    oauth-server/      OAuth 2.1 authorization server, including its HTTP entry
+    providers/         one file per provider + the registry and its invariant
+    tools/             filter.ts (who sees what) and preferences.ts (why)
+    security/          encrypted secrets and the sign-in allowlist
   features/            code intentionally shared by the browser and Node server
 migrations/            generated Drizzle SQL, applied on container boot
 test/                  vitest, pure units only; no database in tests
 ```
 
-**The frontend/backend boundary is enforced by TypeScript config, not convention.**
-`tsconfig.json` excludes `src/app`; `tsconfig.app.json` includes `src/app` plus explicitly shared
-`src/features`. A shared type is therefore written out twice on purpose (`ProviderId`,
-`ClientLogoId`). Do not "fix" that by importing an app type into server code.
+**The frontend/backend boundary is enforced by configuration, not convention.** `tsconfig.json`
+excludes `src/app`; `tsconfig.app.json` includes `src/app` plus explicitly shared `src/features`;
+ESLint forbids imports across `app` and `server`, and forbids `features` from depending on either
+runtime. A shared type is therefore written out twice on purpose (`ProviderId`, `ClientLogoId`).
+Do not "fix" that by importing an app type into server code.
+
+The three top-level source folders are deliberate: `app` is browser-only, `server` is Node-only,
+and `features` is the narrow shared boundary. Do not add loose source files or another technical
+bucket directly under `src`.
 
 ## Frontend architecture
 
@@ -199,8 +200,8 @@ URLs explicitly in `src/app/app.tsx`; the folders organize ownership and do not 
 
 ## HTTP architecture
 
-- `src/http/app.ts` owns global Hono middleware and mounts domain routers. Keep route behavior
-  in `public.ts`, `browser.ts`, `mcp.ts` or `oauth-server/http.ts`, not in `server.ts`.
+- `src/server/http/app.ts` owns global Hono middleware and mounts domain routers. Keep route behavior
+  in `public.ts`, `browser.ts`, `mcp.ts` or `oauth-server/http.ts`, not in `server/main.ts`.
 - Use Hono's `context.json`, `context.html`, `context.redirect`, cookie helpers and static
   middleware. Do not recreate a generic `respond.ts` wrapper.
 - Route parameters and browser JSON bodies use `@hono/zod-validator`; handlers receive validated
@@ -255,7 +256,7 @@ needing one is verified by running it.
 ## Gotchas that cost real time
 
 - **Vite does not discover route files.** Every new route entry must be registered in
-  `src/app/app.tsx` and, when the server must serve the SPA there, in `src/http/static.ts`.
+  `src/app/app.tsx` and, when the server must serve the SPA there, in `src/server/http/static.ts`.
 - **The Docker image contains its own copy of `dist`.** Rebuilding on the host does nothing to a
   running container. Deploying a change means `docker compose up -d --build app`. Forgetting this
   looks exactly like a change that did not work.

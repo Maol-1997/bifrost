@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   authorizationServerMetadata, bearerChallenge, canonicalResource, issuerUrl,
   protectedResourceMetadata, protectedResourceMetadataUrl,
-} from '../src/oauth-server/metadata.js';
+} from '../src/server/oauth-server/metadata.js';
 
 describe('issuer identification', () => {
   it('strips trailing slashes, which a client compares byte for byte', () => {

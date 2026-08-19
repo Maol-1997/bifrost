@@ -1,15 +1,15 @@
 import { randomUUID } from 'node:crypto';
 import type { McpHandlerRequestOptions } from '@modelcontextprotocol/server';
 import { afterAll, describe, expect, it } from 'vitest';
-import { loadConfig } from '../src/config.js';
-import { Coordinator } from '../src/coordination.js';
-import { Database } from '../src/db.js';
-import { createApp } from '../src/http/app.js';
-import type { AppDependencies } from '../src/http/context.js';
-import { MAX_REQUEST_BODY_BYTES } from '../src/http/request-body.js';
-import { createHumanMcpHandler } from '../src/mcp.js';
-import { OAuthService } from '../src/oauth.js';
-import type { ProviderMount } from '../src/providers/types.js';
+import { loadConfig } from '../src/server/config.js';
+import { Coordinator } from '../src/server/coordination.js';
+import { Database } from '../src/server/db.js';
+import { createApp } from '../src/server/http/app.js';
+import type { AppDependencies } from '../src/server/http/context.js';
+import { MAX_REQUEST_BODY_BYTES } from '../src/server/http/request-body.js';
+import { createHumanMcpHandler } from '../src/server/mcp.js';
+import { OAuthService } from '../src/server/oauth.js';
+import type { ProviderMount } from '../src/server/providers/types.js';
 
 const PUBLIC_HOST = 'bifrost.example.test';
 const DEVELOPMENT_USER_ID = randomUUID();

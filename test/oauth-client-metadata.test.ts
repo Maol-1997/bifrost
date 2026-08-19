@@ -2,8 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   fetchClientMetadataDocument, isClientIdMetadataDocumentUrl, parseClientMetadataDocument, parseRegistrationRequest,
   registrationResponse,
-} from '../src/oauth-server/clients.js';
-import { OAuthError } from '../src/oauth-server/errors.js';
+} from '../src/server/oauth-server/clients.js';
+import { OAuthError } from '../src/server/oauth-server/errors.js';
 
 const documentUrl = 'https://app.example.com/oauth/client.json';
 

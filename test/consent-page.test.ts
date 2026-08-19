@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { type ConsentView, renderConsentPage, renderErrorPage } from '../src/oauth-server/consent-page.js';
+import { type ConsentView, renderConsentPage, renderErrorPage } from '../src/server/oauth-server/consent-page.js';
 
 // Everything on these pages comes from a client's own metadata document, so the
 // payload carries each character the escaper is responsible for.

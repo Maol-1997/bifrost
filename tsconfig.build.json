@@ -1,19 +1,6 @@
 {
   "extends": "./tsconfig.json",
   "compilerOptions": { "rootDir": "src", "types": ["node"] },
-  "include": [
-    "src/config.ts",
-    "src/coordination.ts",
-    "src/database/**/*.ts",
-    "src/db.ts",
-    "src/logger.ts",
-    "src/mcp.ts",
-    "src/oauth.ts",
-    "src/server.ts",
-    "src/features/**/*.ts",
-    "src/providers/**/*.ts",
-    "src/security/**/*.ts",
-    "src/tools/**/*.ts"
-  ],
+  "include": ["src/server/**/*.ts", "src/features/**/*.ts"],
   "exclude": ["src/app", "test", "dist", "node_modules"]
 }

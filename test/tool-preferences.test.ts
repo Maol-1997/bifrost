@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { describe, expect, it } from 'vitest';
-import type { ProviderDefinition, ToolDefinition, ToolMutability } from '../src/providers/types.js';
-import { disabledToolNames, isToolPreferred, isWithinDeploymentCeiling, knownToolNames, toolAvailability } from '../src/tools/preferences.js';
+import type { ProviderDefinition, ToolDefinition, ToolMutability } from '../src/server/providers/types.js';
+import { disabledToolNames, isToolPreferred, isWithinDeploymentCeiling, knownToolNames, toolAvailability } from '../src/server/tools/preferences.js';
 
 const tool = (name: string, mutability: ToolMutability): ToolDefinition => ({
   name, title: name, description: name, mutability, inputSchema: z.object({}), execute: async () => ({}),

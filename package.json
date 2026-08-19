@@ -13,15 +13,15 @@
     "build:client": "vite build",
     "dev": "npm run dev:infra && npm run migrate && concurrently --names server,client --prefix-colors cyan,magenta --kill-others npm:dev:server npm:dev:client",
     "dev:infra": "docker compose up -d --wait postgres redis && docker compose stop app",
-    "dev:server": "tsx watch --env-file-if-exists=.env src/server.ts",
+    "dev:server": "tsx watch --env-file-if-exists=.env src/server/main.ts",
     "dev:client": "vite",
-    "start": "node dist/server.js",
+    "start": "node dist/server/main.js",
     "typecheck": "tsc --noEmit && tsc -p tsconfig.app.json --noEmit",
     "lint": "eslint .",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "db:generate": "drizzle-kit generate",
-    "migrate": "tsx --env-file-if-exists=.env src/database/migrate.ts"
+    "migrate": "tsx --env-file-if-exists=.env src/server/database/migrate.ts"
   },
   "dependencies": {
     "@hono/node-server": "^2.1.1",

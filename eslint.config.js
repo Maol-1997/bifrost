@@ -20,4 +20,31 @@ export default tseslint.config(
       '@typescript-eslint/no-non-null-assertion': 'off',
     },
   },
+  {
+    files: ['src/app/**/*.{ts,tsx}'],
+    rules: {
+      'no-restricted-imports': ['error', {
+        patterns: [{ group: ['**/server/**'], message: 'Browser code cannot import the Node server.' }],
+      }],
+    },
+  },
+  {
+    files: ['src/server/**/*.ts'],
+    rules: {
+      'no-restricted-imports': ['error', {
+        patterns: [{ group: ['**/app/**', '@app/*'], message: 'Server code cannot import the React app.' }],
+      }],
+    },
+  },
+  {
+    files: ['src/features/**/*.ts'],
+    rules: {
+      'no-restricted-imports': ['error', {
+        patterns: [{
+          group: ['**/app/**', '**/server/**', '@app/*'],
+          message: 'Shared features cannot depend on either runtime.',
+        }],
+      }],
+    },
+  },
 );

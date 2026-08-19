@@ -70,7 +70,7 @@ The client discovers the authorization server, opens the browser for consent, an
 
 ## Configuration
 
-All settings are environment variables, validated at startup by `src/config.ts`.
+All settings are environment variables, validated at startup by `src/server/config.ts`.
 
 | Variable | Required | What it does |
 | --- | --- | --- |
@@ -93,9 +93,9 @@ All settings are environment variables, validated at startup by `src/config.ts`.
 ```bash
 npm ci
 npm run dev        # Postgres + Redis containers, migrations, watched API on :3000, Vite on :5173
-npm run db:generate # Generate a Drizzle migration after changing src/database/schema.ts
+npm run db:generate # Generate a Drizzle migration after changing src/server/database/schema.ts
 npm run lint && npm run typecheck && npm test
-npm run build      # Node server to dist/, React bundle to dist/client
+npm run build      # Node server to dist/server, React bundle to dist/client
 ```
 
 Work against <http://localhost:5173>; Vite proxies `/api`, `/auth`, `/oauth` and `/mcp` to the API. `npm run dev` stops the `app` container because both want port 3000. For UI work with no backend at all, `VITE_USE_MOCK_API=true npm run dev` swaps in an in-memory API (Service status is never mocked; it reads the vendors' real feeds).
@@ -108,18 +108,9 @@ Tests are pure units, no database, focused on the places where being wrong is ex
 
 ```
 src/
-  server.ts          bootstrap and the top-level dispatcher
-  http/              request context, response helpers, static files, the two authenticators
-  routes/            public, OAuth-server, /mcp and signed-in API route families
-  mcp.ts             per-request MCP server assembly and tool execution
-  oauth.ts           Bifrost as an OAuth client (Google + providers)
-  oauth-server/      Bifrost as an OAuth 2.1 authorization server for MCP clients
-  providers/         one file per provider, plus the registry and its prefix invariant
-  tools/             who sees which tool, and why
-  security/          AES-256-GCM secrets, sign-in allowlist
-  database/          Drizzle schema, connection and migration runner
-  db.ts              persistence operations through Drizzle
-  api/, pages/, components/, lib/   the React SPA (served by the same Node process)
+  app/               React SPA, route-colocated UI and browser entrypoint
+  server/            Hono, MCP, OAuth, providers, persistence and Node entrypoint
+  features/          the narrow boundary intentionally shared by app and server
 migrations/          generated Drizzle SQL, applied on container boot
 test/                vitest, pure units
 ```

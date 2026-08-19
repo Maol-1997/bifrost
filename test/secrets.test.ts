@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
-import { decryptSecret, encryptSecret, type EncryptedSecret } from '../src/security/secrets.js';
+import { decryptSecret, encryptSecret, type EncryptedSecret } from '../src/server/security/secrets.js';
 
 /** Flips a bit in one base64-encoded byte, so the value stays decodable but is no longer authentic. */
 function corruptBase64Byte(value: string, index: number): string {

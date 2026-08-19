@@ -21,11 +21,10 @@
     "noUnusedParameters": true,
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./src/*"],
       "@app/*": ["./src/app/*"],
       "@features/*": ["./src/features/*"]
     },
     "types": ["vite/client"]
   },
-  "include": ["src/main.tsx", "src/app/**/*.ts", "src/app/**/*.tsx", "src/features/**/*.ts", "vite.config.ts"]
+  "include": ["src/app/**/*.ts", "src/app/**/*.tsx", "src/features/**/*.ts", "vite.config.ts"]
 }

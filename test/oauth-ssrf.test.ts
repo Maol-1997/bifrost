@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isPubliclyRoutableAddress } from '../src/oauth-server/ssrf.js';
+import { isPubliclyRoutableAddress } from '../src/server/oauth-server/ssrf.js';
 
 describe('outbound address filtering', () => {
   it('allows ordinary public addresses', () => {

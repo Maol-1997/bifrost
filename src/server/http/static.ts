@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { serveStatic } from '@hono/node-server/serve-static';
 import { Hono } from 'hono';
-import { APP_ROUTES } from '../features/utils/routes.js';
+import { APP_ROUTES } from '../../features/utils/routes.js';
 import type { AppEnv } from './context.js';
 
 const CLIENT_DIRECTORY = path.resolve(process.cwd(), 'dist/client');

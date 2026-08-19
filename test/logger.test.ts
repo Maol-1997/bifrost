@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { errorSummary, sanitizeForLogs } from '../src/logger.js';
+import { errorSummary, sanitizeForLogs } from '../src/server/logger.js';
 
 describe('logger redaction', () => {
   it('redacts credentials while retaining required status fields', () => {

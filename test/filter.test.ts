@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { describe, expect, it } from 'vitest';
-import type { ProviderDefinition, ProviderMount } from '../src/providers/types.js';
-import { visibleTools } from '../src/tools/filter.js';
+import type { ProviderDefinition, ProviderMount } from '../src/server/providers/types.js';
+import { visibleTools } from '../src/server/tools/filter.js';
 
 const readAccountLabel = async (): Promise<string> => '@tester';
 const providers: readonly ProviderDefinition[] = [

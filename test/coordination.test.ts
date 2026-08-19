@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { Coordinator } from '../src/coordination.js';
-import { AgentFacingError } from '../src/errors.js';
+import { Coordinator } from '../src/server/coordination.js';
+import { AgentFacingError } from '../src/server/errors.js';
 
 function deferred(): { promise: Promise<void>; resolve: () => void } {
   let resolve = (): void => undefined;

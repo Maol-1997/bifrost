@@ -48,7 +48,7 @@ export type ClientKind = 'browser' | 'agent';
 
 /**
  * Clients we ship a brand mark for. Mirrors `ClientLogoId` in
- * `src/clients/describe.ts`, which is where a client gets matched to one; the
+ * `src/server/clients/describe.ts`, which is where a client gets matched to one; the
  * two halves of the app do not share a module, so the union is written twice.
  */
 export type ClientLogoId = 'claude-code' | 'codex' | 'cursor' | 'opencode';
