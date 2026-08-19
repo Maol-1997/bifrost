@@ -6,7 +6,9 @@ import { defineConfig, type PluginOption } from 'vite';
 
 const inspectorPlugin = codeInspectorPlugin({
   bundler: 'vite',
+  editor: 'cursor',
   hotKeys: ['metaKey', 'shiftKey'],
+  launchType: 'open',
 }) as unknown as PluginOption;
 
 export default defineConfig({
