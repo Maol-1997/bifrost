@@ -1,4 +1,4 @@
-export type ProviderId = 'github' | 'linear' | 'sentry' | 'slack' | 'notion';
+export type ProviderId = 'github' | 'linear' | 'sentry' | 'slack' | 'notion' | 'granola';
 export type ToolMutability = 'read' | 'write';
 
 export type ProviderRequestContext = {

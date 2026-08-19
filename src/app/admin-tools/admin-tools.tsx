@@ -1,4 +1,4 @@
-import { useEffect, useId, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ChevronDown } from 'lucide-react';
 import { Link, Navigate, useParams } from 'react-router-dom';
@@ -8,6 +8,7 @@ import { Button } from '@app/components/ui/button';
 import { Checkbox, type CheckboxState } from '@app/components/ui/checkbox';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger } from '@app/components/ui/dropdown-menu';
 import { ErrorState } from '@app/components/ui/error-state';
+import { ExpandableText } from '@app/components/ui/expandable-text';
 import { SearchInput } from '@app/components/ui/input';
 import { LoadingState } from '@app/components/ui/loading-state';
 import { PageHead } from '@app/components/ui/page-head';
@@ -17,7 +18,6 @@ import { Surface } from '@app/components/ui/surface';
 import { cn } from '@app/lib/cn';
 import { APP_ROUTES } from '@features/utils/routes';
 
-const DESCRIPTION_PREVIEW_CHARACTERS = 160;
 const POLICY_OPTIONS: readonly { value: ToolPolicyState; label: string }[] = [
   { value: 'blocked', label: 'Blocked' },
   { value: 'allowed_default_off', label: 'Allowed, off by default' },
@@ -72,22 +72,6 @@ function selectionState(tools: readonly AdminTool[], selected: ReadonlySet<strin
   return selectedCount === 0 ? false : selectedCount === tools.length ? true : 'indeterminate';
 }
 
-function ToolDescription({ description, title }: { description: string; title: string }): React.JSX.Element {
-  const [isExpanded, setIsExpanded] = useState(false);
-  const descriptionId = useId();
-  const isTruncated = description.length > DESCRIPTION_PREVIEW_CHARACTERS;
-  return (
-    <div>
-      <p id={descriptionId} className={cn('mt-1 text-[12.5px] leading-5 text-app-text-tertiary', isTruncated && !isExpanded && 'line-clamp-3')}>{description}</p>
-      {isTruncated ? (
-        <button type="button" aria-controls={descriptionId} aria-expanded={isExpanded} className="-my-1 inline-flex min-h-11 items-center text-[11.5px] font-medium text-app-text-secondary hover:text-app-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60" onClick={() => { setIsExpanded((current) => !current); }}>
-          {isExpanded ? 'View less' : 'View more'} <span className="sr-only">about {title}</span>
-        </button>
-      ) : null}
-    </div>
-  );
-}
-
 function PolicyMenu({ ariaLabel, disabled, triggerLabel, value, className, onChange }: { ariaLabel: string; disabled: boolean; triggerLabel: string; value?: ToolPolicyState; className?: string; onChange: (state: ToolPolicyState) => void }): React.JSX.Element {
   return (
     <DropdownMenu>
@@ -124,7 +108,7 @@ function ToolRow({ tool, providerId, selected, disabled, onSelect, onDeselect, o
         </label>
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2"><span className="text-[13px] font-medium text-linear-bright">{tool.title}</span>{tool.needsReview ? <span className="rounded-full bg-danger/10 px-2 py-0.5 text-[10.5px] font-semibold text-danger">Review required</span> : null}</div>
-          <ToolDescription description={tool.description} title={tool.title} />
+          <ExpandableText label={tool.title} text={tool.description} />
           <code className="mt-1 block truncate font-mono text-[11px] text-app-text-quaternary" title={tool.name}>{tool.name}</code>
         </div>
         <div className="col-start-2 mt-3 min-w-0 text-[11px] font-medium text-app-text-tertiary sm:col-start-3 sm:row-start-1 sm:mt-0">

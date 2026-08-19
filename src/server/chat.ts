@@ -24,6 +24,7 @@ const MAX_AGENT_STEPS = 20;
 const MAX_CHAT_TITLE_LENGTH = 64;
 const MAX_CHAT_TITLE_OUTPUT_TOKENS = 256;
 const TOOL_NAMESPACES = {
+  granola: { name: 'granola', description: 'Granola tools for meeting notes, transcripts, attendees, decisions, and action items.' },
   github: { name: 'github', description: 'GitHub tools for repositories, code, issues, pull requests, and users.' },
   linear: { name: 'linear', description: 'Linear tools for projects, issues, teams, initiatives, and documents.' },
   notion: { name: 'notion', description: 'Notion tools for pages, databases, comments, users, and workspace search.' },

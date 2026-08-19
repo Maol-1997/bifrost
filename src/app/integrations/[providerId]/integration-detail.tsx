@@ -10,13 +10,9 @@ import { providersQueryOptions } from '@app/api/query-options';
 import { APP_ROUTES } from '@features/utils/routes';
 import { ToolRow } from './components/tool-row';
 
-function isProviderId(value: string | undefined): value is ProviderId {
-  return value === 'github' || value === 'linear' || value === 'sentry' || value === 'slack' || value === 'notion';
-}
-
 export default function IntegrationDetail(): React.JSX.Element {
   const { providerId: routeProviderId } = useParams();
-  const providerId: ProviderId = isProviderId(routeProviderId) ? routeProviderId : 'github';
+  const providerId: ProviderId = routeProviderId !== undefined && isConnectableProvider(routeProviderId) ? routeProviderId : 'github';
   const queryClient = useQueryClient();
   const providersQuery = useQuery(providersQueryOptions);
   const provider = providersQuery.data?.data.find((entry) => entry.id === providerId)

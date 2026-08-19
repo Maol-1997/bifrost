@@ -1,4 +1,5 @@
 import type { ProviderDefinition, ProviderId, ProviderMount } from './types.js';
+import { granolaProvider } from './granola.js';
 import { githubProvider } from './github.js';
 import { linearProvider } from './linear.js';
 import { notionProvider } from './notion.js';
@@ -6,6 +7,7 @@ import { sentryProvider } from './sentry.js';
 import { slackProvider } from './slack.js';
 
 export const PROVIDER_NAMESPACES = {
+  granola: 'granola_',
   github: 'github_',
   linear: 'linear_',
   notion: 'notion_',
@@ -13,9 +15,10 @@ export const PROVIDER_NAMESPACES = {
   slack: 'slack_',
 } as const satisfies Record<ProviderId, `${ProviderId}_`>;
 
-export const SUPPORTED_APPS = ['github', 'linear', 'sentry', 'slack', 'notion'] as const satisfies readonly ProviderId[];
+export const SUPPORTED_APPS = ['github', 'linear', 'sentry', 'slack', 'notion', 'granola'] as const satisfies readonly ProviderId[];
 
 export const CREDENTIAL_PROVIDER_BY_PREFIX = {
+  granola_: 'granola',
   github_: 'github',
   linear_: 'linear',
   notion_: 'notion',
@@ -23,7 +26,7 @@ export const CREDENTIAL_PROVIDER_BY_PREFIX = {
   slack_: 'slack',
 } as const satisfies Record<(typeof PROVIDER_NAMESPACES)[ProviderId], ProviderId>;
 
-export const PROVIDER_REGISTRY: readonly ProviderDefinition[] = [githubProvider, linearProvider, sentryProvider, slackProvider, notionProvider];
+export const PROVIDER_REGISTRY: readonly ProviderDefinition[] = [githubProvider, linearProvider, sentryProvider, slackProvider, notionProvider, granolaProvider];
 
 /** The four places a prefix is spelled. Each defaults to the real one; tests substitute a drifted copy. */
 export type PrefixInvariantInputs = {

@@ -2,7 +2,7 @@
  * Everything the screens can see. Server responses are typed here too, so
  * the live and mock implementations describe the same shapes.
  */
-export type ProviderId = 'github' | 'linear' | 'sentry' | 'slack' | 'notion';
+export type ProviderId = 'github' | 'linear' | 'sentry' | 'slack' | 'notion' | 'granola';
 export type ConnectableProviderId = ProviderId;
 export type ConnectionStatus = 'connected' | 'needs-reconnect' | 'not-connected' | 'unavailable';
 export type ToolMutability = 'read' | 'write';

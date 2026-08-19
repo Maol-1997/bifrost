@@ -13,8 +13,8 @@ import { effectivePolicyState, isToolEnabled, type DiscoveredTool } from './cata
 import { discoverConnectedTools } from './discovery.js';
 import { visibleTools } from './filter.js';
 
-const RATE_LIMITS_PER_MINUTE: Readonly<Record<ProviderId, number>> = { github: 80, linear: 120, sentry: 50, slack: 50, notion: 50 };
-const CONCURRENCY_LIMITS: Readonly<Record<ProviderId, number>> = { github: 10, linear: 10, sentry: 5, slack: 5, notion: 5 };
+const RATE_LIMITS_PER_MINUTE: Readonly<Record<ProviderId, number>> = { github: 80, linear: 120, sentry: 50, slack: 50, notion: 50, granola: 100 };
+const CONCURRENCY_LIMITS: Readonly<Record<ProviderId, number>> = { github: 10, linear: 10, sentry: 5, slack: 5, notion: 5, granola: 5 };
 
 export type UserToolDependencies = {
   config: Config;

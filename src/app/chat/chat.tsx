@@ -19,7 +19,7 @@ import {
   type AgentSuggestion,
 } from "@app/components/ui/agent-chat"
 import { ProviderIcon } from "@app/components/ui/provider-icon"
-import { generateChatTitle, getChatConfig } from "@app/api/bifrost"
+import { generateChatTitle, getChatConfig, isConnectableProvider } from "@app/api/bifrost"
 import type { ProviderId } from "@app/api/bifrost"
 import { APP_ROUTES } from "@features/utils/routes"
 import {
@@ -529,11 +529,7 @@ function toolProviderId(part: DynamicToolUIPart): ProviderId | undefined {
 }
 
 function isProviderId(value: unknown): value is ProviderId {
-  return value === "github"
-    || value === "linear"
-    || value === "sentry"
-    || value === "slack"
-    || value === "notion"
+  return typeof value === "string" && isConnectableProvider(value)
 }
 
 function humanizeToolName(toolName: string, providerId: ProviderId | undefined): string {

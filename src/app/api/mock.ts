@@ -49,6 +49,12 @@ const mockTools: Readonly<Record<string, readonly [string, string, ToolMutabilit
     ['slack_list_channels', 'List channels', 'read'],
     ['slack_post_message', 'Post message', 'write'],
   ],
+  granola: [
+    ['granola_query_granola_meetings', 'Query meetings', 'read'],
+    ['granola_list_meetings', 'List meetings', 'read'],
+    ['granola_get_meetings', 'Get meetings', 'read'],
+    ['granola_get_meeting_transcript', 'Get meeting transcript', 'read'],
+  ],
 };
 
 let mockProviders: Provider[] = providerCatalog.map((provider) => ({

@@ -361,6 +361,14 @@ button:not(:disabled),
   cursor: default;
 }
 
+.agent-chat-surface[data-conversation="false"] {
+  background: linear-gradient(
+    to bottom,
+    var(--linear-gallery-main) 0%,
+    var(--linear-agent-mini) 100%
+  );
+}
+
 .agent-chat-composer-shell[data-variant="conversation"]::before {
   position: absolute;
   inset: 0;

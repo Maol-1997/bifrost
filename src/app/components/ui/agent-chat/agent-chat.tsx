@@ -273,7 +273,10 @@ function AgentChat({
           className,
         )}
       >
-        <section className="absolute inset-0 flex flex-col overflow-hidden bg-linear-gallery-main">
+        <section
+          className="agent-chat-surface absolute inset-0 flex flex-col overflow-hidden bg-linear-gallery-main"
+          data-conversation={conversation}
+        >
           <AgentChatHeader
             conversation={conversation}
             favorite={favorite}

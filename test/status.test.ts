@@ -53,9 +53,11 @@ describe('client identification', () => {
 type FeedTable = Record<string, () => Response>;
 
 const STATUSPAGE_HOSTS = {
+  granola: 'https://status.granola.ai',
   github: 'https://www.githubstatus.com',
   linear: 'https://linearstatus.com',
   notion: 'https://www.notion-status.com',
+  sentry: 'https://status.sentry.io',
 } as const;
 const SLACK_HOST = 'https://slack-status.com';
 const CHECKED_AT = new Date('2026-08-18T12:00:00.000Z');
@@ -89,9 +91,11 @@ function healthySlack(): FeedTable {
 
 function allHealthyFeeds(): FeedTable {
   return {
+    ...healthyStatuspage(STATUSPAGE_HOSTS.granola),
     ...healthyStatuspage(STATUSPAGE_HOSTS.github),
     ...healthyStatuspage(STATUSPAGE_HOSTS.linear),
     ...healthyStatuspage(STATUSPAGE_HOSTS.notion),
+    ...healthyStatuspage(STATUSPAGE_HOSTS.sentry),
     ...healthySlack(),
   };
 }
@@ -148,11 +152,11 @@ describe('reading the vendors status feeds', () => {
 
     vi.setSystemTime(CHECKED_AT.getTime() + CACHE_TTL_MS - 1);
     expect(await readAppHealth()).toBe(first);
-    expect(fetchedUrls).toHaveLength(8);
+    expect(fetchedUrls).toHaveLength(12);
 
     vi.setSystemTime(CHECKED_AT.getTime() + CACHE_TTL_MS);
     expect(await readAppHealth()).not.toBe(first);
-    expect(fetchedUrls).toHaveLength(16);
+    expect(fetchedUrls).toHaveLength(24);
   });
 
   it('reports a major Statuspage indicator as down, named after the open incident', async () => {
@@ -219,8 +223,8 @@ describe('reading the vendors status feeds', () => {
     // Unknown, never operational: a vendor's status page being down says
     // nothing about the vendor.
     expect(appHealth(snapshot, 'linear')).toEqual({ appId: 'linear', health: 'unknown', statusUrl: STATUSPAGE_HOSTS.linear });
-    const unaffected: readonly StatusAppId[] = ['github', 'notion', 'slack'];
-    expect(unaffected.map((appId) => appHealth(snapshot, appId).health)).toEqual(['operational', 'operational', 'operational']);
+    const unaffected: readonly StatusAppId[] = ['github', 'notion', 'sentry', 'slack', 'granola'];
+    expect(unaffected.map((appId) => appHealth(snapshot, appId).health)).toEqual(['operational', 'operational', 'operational', 'operational', 'operational']);
   });
 
   it('reads a malformed resolution timestamp as no history rather than a quiet streak', async () => {

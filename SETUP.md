@@ -50,7 +50,14 @@ upstream Notion application.
 4. Open **Basic Information → App Credentials**. Put **Client ID** in `SLACK_CLIENT_ID` and **Client Secret** in `SLACK_CLIENT_SECRET`.
 5. If token rotation is enabled, Bifrost uses the returned user refresh token and serializes refresh through Redis.
 
-## 7. OpenAI chat
+## 7. Granola
+
+No Granola application or environment variables are required. Bifrost dynamically registers a
+public OAuth client with `https://mcp-auth.granola.ai`, uses PKCE with the `mcp` scope, and stores
+the generated client ID inside the encrypted credential. Each user authorizes their own Granola
+account in the browser.
+
+## 8. OpenAI chat
 
 Put an OpenAI API key in `OPENAI_API_KEY` to enable the built-in chat. It uses
 the Responses API through the Vercel AI SDK and can run up to 20 model and tool
@@ -66,7 +73,7 @@ session resolves the same visible tool set and runs each call through the same
 deployment policy, user preference, provider OAuth, rate limit, concurrency
 limit, and fresh fingerprint check as `/mcp`.
 
-## 8. Encryption and tool administration
+## 9. Encryption and tool administration
 
 Generate the encryption key outside the repository:
 

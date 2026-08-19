@@ -47,6 +47,13 @@ export const providerCatalog: readonly Omit<Provider, 'tools'>[] = [
     neverPermission: 'Tools your administrator has not approved are never exposed to your agents.',
     successCapabilities: ['Use the Notion tools available to your account'],
   },
+  {
+    id: 'granola', name: 'Granola', monogram: 'Gr', description: 'Where meeting notes and transcripts live.', status: 'not-connected', isHidden: false,
+    toolDiscoveryFailed: false,
+    permissions: ['Use the Granola tools your Bifrost administrator has approved'],
+    neverPermission: 'Tools your administrator has not approved are never exposed to your agents.',
+    successCapabilities: ['Use the Granola tools available to your account'],
+  },
 ] as const;
 
 /**
@@ -58,5 +65,5 @@ export function getProviderCatalog(): readonly Provider[] {
 }
 
 export function isConnectableProvider(providerId: string): providerId is ConnectableProviderId {
-  return providerId === 'github' || providerId === 'linear' || providerId === 'sentry' || providerId === 'slack' || providerId === 'notion';
+  return providerId === 'github' || providerId === 'linear' || providerId === 'sentry' || providerId === 'slack' || providerId === 'notion' || providerId === 'granola';
 }

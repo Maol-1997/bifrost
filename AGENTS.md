@@ -7,7 +7,7 @@ provider, [docs/adding-a-provider.md](docs/adding-a-provider.md).
 ## What this is
 
 Bifrost is one internal MCP endpoint that gives an AI agent user-attributed access to GitHub,
-Linear, Sentry, Slack and Notion. A person signs into Bifrost with Google, connects their own provider accounts
+Linear, Sentry, Slack, Notion and Granola. A person signs into Bifrost with Google, connects their own provider accounts
 once, and points their coding agent at `POST /mcp`. The agent then acts **as that person**,
 using their permissions, without ever holding a provider token.
 
@@ -82,7 +82,7 @@ capabilities through their OAuth grants.
 
 ## Providers
 
-Five real providers proxy their official Streamable HTTP MCP servers:
+Six real providers proxy their official Streamable HTTP MCP servers:
 
 | Provider | MCP endpoint |
 | --- | --- |
@@ -91,6 +91,7 @@ Five real providers proxy their official Streamable HTTP MCP servers:
 | `sentry_` | `https://mcp.sentry.dev/mcp` |
 | `slack_` | `https://mcp.slack.com/mcp` |
 | `notion_` | `https://mcp.notion.com/mcp` |
+| `granola_` | `https://mcp.granola.ai/mcp` |
 
 Tool names, descriptions, schemas and annotations are discovered per user. Bifrost prefixes names,
 fingerprints normalized definitions, and treats only `readOnlyHint === true` as read-only. Missing
@@ -121,9 +122,9 @@ holds a short access token (1h) and a rotating refresh token (90d, slid forward 
 replaces its own credential without anyone being asked to log in again.
 
 The client side uses `openid-client` for authorization URLs, PKCE, provider code exchanges and
-refresh grants. Linear, Sentry and Notion dynamically register public clients against their official MCP
+refresh grants. Linear, Sentry, Notion and Granola dynamically register public clients against their official MCP
 authorization servers; their generated client IDs are stored inside the encrypted provider credential.
-Sentry and Notion expose OAuth Authorization Server metadata, so their discovery must use the `oauth2`
+Sentry, Notion and Granola expose OAuth Authorization Server metadata, so their discovery must use the `oauth2`
 algorithm. GitHub and Slack still use configured applications. Slack's user grant is normalized in
 `providers/slack-oauth.ts` because Slack nests
 it under `authed_user` instead of returning the standard top-level token fields. Google token

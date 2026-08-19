@@ -13,7 +13,7 @@ import { errorSummary, logger } from '../logger.js';
 const FETCH_TIMEOUT_MS = 5_000;
 const CACHE_TTL_MS = 60_000;
 
-export const STATUS_APP_IDS = ['github', 'linear', 'sentry', 'slack', 'notion'] as const;
+export const STATUS_APP_IDS = ['github', 'linear', 'sentry', 'slack', 'notion', 'granola'] as const;
 export type StatusAppId = (typeof STATUS_APP_IDS)[number];
 
 /** `unknown` means we could not reach or parse the vendor's feed — never that they are fine. */
@@ -35,6 +35,7 @@ export type HealthSnapshot = { checkedAt: string; apps: readonly AppHealth[] };
 // Every one of these is a Statuspage tenant, so they share the v2 REST shape.
 // Slack is the exception and gets its own reader below.
 const STATUSPAGE_HOSTS = {
+  granola: 'https://status.granola.ai',
   github: 'https://www.githubstatus.com',
   linear: 'https://linearstatus.com',
   sentry: 'https://status.sentry.io',
