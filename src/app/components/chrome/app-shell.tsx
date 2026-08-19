@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Activity, Bot, Plug, type LucideIcon } from 'lucide-react';
+import { Activity, Bot, MonitorSmartphone, Plug, type LucideIcon } from 'lucide-react';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { BifrostMark } from '@app/components/ui/bifrost-mark';
 import { Sidebar, SidebarBackdrop, SidebarContent, SidebarGroup, SidebarHeader, SidebarLink, SidebarMobileHeader, SidebarSpacer, SidebarTrigger } from '@app/components/ui/sidebar';
@@ -11,16 +11,20 @@ import { APP_ROUTES } from '@features/utils/routes';
 import { AdminToolNavigation } from './admin-tool-navigation';
 import { useAppHealth, type AppHealthState } from './use-app-health';
 
+const Chat = lazy(() => import('@app/chat/chat'));
+
 /** What the shell loads once and shares with every page under it. */
 export type AppShellContext = { health: AppHealthState; user: CurrentUser | null | undefined };
 
 const navItems: readonly { to: string; label: string; icon: LucideIcon }[] = [
+  { to: APP_ROUTES.chat, label: 'Agent', icon: Bot },
   { to: APP_ROUTES.integrations, label: 'Integrations', icon: Plug },
-  { to: APP_ROUTES.agents, label: 'Agents & sessions', icon: Bot },
+  { to: APP_ROUTES.agents, label: 'Sessions', icon: MonitorSmartphone },
   { to: APP_ROUTES.serviceStatus, label: 'Service status', icon: Activity },
 ];
 
 function isActiveRoute(pathname: string, to: string): boolean {
+  if (to === APP_ROUTES.chat) return pathname === APP_ROUTES.chat;
   if (to === APP_ROUTES.integrations) return pathname.startsWith(APP_ROUTES.integrations);
   if (to === APP_ROUTES.agents) return pathname.startsWith(APP_ROUTES.agents);
   return pathname === to;
@@ -38,6 +42,8 @@ function statusBadge(snapshot: HealthSnapshot | undefined): { text: string; clas
 
 export function AppShell(): React.JSX.Element {
   const location = useLocation();
+  const isChat = location.pathname === APP_ROUTES.chat;
+  const [chatActivated, setChatActivated] = useState(isChat);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const health = useAppHealth();
   const { data: user } = useQuery({ queryKey: ['current-user'], queryFn: getCurrentUser });
@@ -46,6 +52,10 @@ export function AppShell(): React.JSX.Element {
   useEffect(() => {
     setIsSidebarOpen(false);
   }, [location.pathname]);
+
+  useEffect(() => {
+    if (isChat) setChatActivated(true);
+  }, [isChat]);
 
   useEffect(() => {
     if (!isSidebarOpen) return;
@@ -91,12 +101,26 @@ export function AppShell(): React.JSX.Element {
         ) : null}
       </Sidebar>
       <SidebarSpacer />
-      <main className="flex min-w-0 flex-1 flex-col overflow-y-auto bg-linear-gallery-main min-[1025px]:mb-2 min-[1025px]:mr-2 min-[1025px]:mt-2 min-[1025px]:rounded-xl min-[1025px]:border-[0.5px] min-[1025px]:border-linear-border">
+      <main className={cn('flex min-w-0 flex-1 flex-col bg-linear-gallery-main min-[1025px]:mb-2 min-[1025px]:mr-2 min-[1025px]:mt-2 min-[1025px]:rounded-xl min-[1025px]:border-[0.5px] min-[1025px]:border-linear-border', isChat ? 'overflow-hidden' : 'overflow-y-auto')}>
         <SidebarMobileHeader>
           <SidebarTrigger aria-label="Open navigation" aria-controls="bifrost-sidebar" aria-expanded={isSidebarOpen} onClick={() => { setIsSidebarOpen(true); }} />
           <span className="font-medium text-linear-bright">Bifrost</span>
         </SidebarMobileHeader>
-        <div className={cn('mx-auto w-full px-5 pb-24 pt-8 sm:px-10 sm:pt-11', location.pathname.startsWith(APP_ROUTES.adminTools) ? 'max-w-5xl' : 'max-w-[760px]')}><Outlet context={{ health, user } satisfies AppShellContext} /></div>
+        {user && (chatActivated || isChat) ? (
+          <Suspense fallback={isChat ? <div className="min-h-0 w-full flex-1 bg-linear-canvas" /> : null}>
+            <Chat active={isChat} owner={user.email} />
+          </Suspense>
+        ) : isChat ? (
+          <div className="min-h-0 w-full flex-1 bg-linear-canvas" />
+        ) : null}
+        {!isChat ? (
+          <div className={cn(
+            'mx-auto w-full px-5 pb-24 pt-8 sm:px-10 sm:pt-11',
+            location.pathname.startsWith(APP_ROUTES.adminTools) ? 'max-w-5xl' : 'max-w-[760px]',
+          )}>
+            <Outlet context={{ health, user } satisfies AppShellContext} />
+          </div>
+        ) : null}
       </main>
     </div>
   );

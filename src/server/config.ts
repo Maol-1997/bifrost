@@ -2,6 +2,18 @@ import { z } from 'zod';
 import { parseAccessList, type AccessPolicy } from './security/access.js';
 
 const optionalNonEmptyString = z.preprocess((value) => value === '' ? undefined : value, z.string().min(1).optional());
+const optionalOpenAIBaseUrl = z.preprocess(
+  (value) => value === '' ? undefined : value,
+  z.url().default('https://api.openai.com/v1'),
+);
+const openAIModel = z.preprocess(
+  (value) => value === '' ? undefined : value,
+  z.string().min(1).default('gpt-5.6-luna'),
+);
+const openAIReasoningEffort = z.preprocess(
+  (value) => value === '' ? undefined : value,
+  z.enum(['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max']).default('medium'),
+);
 
 const environmentSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
@@ -16,6 +28,10 @@ const environmentSchema = z.object({
   GITHUB_CLIENT_SECRET: optionalNonEmptyString,
   SLACK_CLIENT_ID: optionalNonEmptyString,
   SLACK_CLIENT_SECRET: optionalNonEmptyString,
+  OPENAI_API_KEY: optionalNonEmptyString,
+  OPENAI_BASE_URL: optionalOpenAIBaseUrl,
+  OPENAI_MODEL: openAIModel,
+  OPENAI_REASONING_EFFORT: openAIReasoningEffort,
   // Short by design: a leaked access token stays useful for at most this long,
   // and the client replaces it silently with its refresh token.
   OAUTH_ACCESS_TOKEN_TTL_SECONDS: z.coerce.number().int().positive().default(3600),

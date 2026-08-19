@@ -3,6 +3,7 @@ import type { Next } from 'hono';
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { APP_ROUTES } from '../../features/utils/routes.js';
+import { createBifrostChatResponse } from '../chat.js';
 import { describeClient } from '../clients/describe.js';
 import { errorSummary, logger } from '../logger.js';
 import { PROVIDER_REGISTRY, SUPPORTED_APPS } from '../providers/registry.js';
@@ -14,7 +15,7 @@ import { isAdministrator } from '../security/access.js';
 import { authenticateBrowser, clearSessionCookie } from './auth.js';
 import type { AppContext, AppEnv } from './context.js';
 import { callbackParameters } from './public.js';
-import { limitRequestBody } from './request-body.js';
+import { limitRequestBody, readJsonBody } from './request-body.js';
 
 // A live session inside this window still works, but the UI warns that it will
 // need renewal soon.
@@ -37,6 +38,7 @@ const toolPolicySchema = z.object({
 const toolPolicyBatchSchema = z.object({
   tools: z.array(toolPolicySchema.extend(toolPathSchema.shape)).min(1),
 });
+const chatRequestSchema = z.object({ messages: z.unknown() });
 
 const validateProviderPath = validateRequest('param', providerPathSchema, { status: 404, message: 'Not found' });
 const validateClientAction = validateRequest('param', clientActionSchema, { status: 404, message: 'Not found' });
@@ -58,6 +60,19 @@ export function createBrowserRoutes() {
       const user = await context.get('dependencies').database.getUser(context.get('browserIdentity').userId);
       if (!user) return context.json({ error: 'Your account could not be found' }, 404);
       return context.json({ ...user, isAdmin: isAdministrator(user.email, context.get('dependencies').config.adminEmails) });
+    })
+    .get('/api/chat/config.json', (context) => context.json({
+      configured: Boolean(context.get('dependencies').config.OPENAI_API_KEY),
+    }))
+    .post('/api/chat', async (context) => {
+      const parsed = chatRequestSchema.safeParse(await readJsonBody(context));
+      if (!parsed.success) return context.json({ error: 'Invalid request body' }, 400);
+      return createBifrostChatResponse({
+        dependencies: context.get('dependencies'),
+        identity: context.get('browserIdentity'),
+        messages: parsed.data.messages,
+        signal: context.req.raw.signal,
+      });
     })
     .post('/api/clients/:kind/:id/:action', validateClientAction, (context) => (
       handleClientAction(context, context.req.valid('param'))

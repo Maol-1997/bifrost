@@ -1,0 +1,155 @@
+@font-face {
+  font-family: "Berkeley Mono";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("https://static.linear.app/fonts/Berkeley-Mono-Variable.woff2?v=3.2") format("woff2");
+}
+
+.agent-code-block {
+  position: relative;
+  display: grid;
+  margin: 22px 0 0;
+  overflow: visible;
+  border: 0.5px solid lch(22.193 1.93 272);
+  border-radius: 6px;
+  background: lch(6.307 0.85 272);
+  color: lch(90.826 1.425 272);
+  font-family: "Berkeley Mono", "SFMono Regular", Consolas, "Liberation Mono", Menlo, Courier, monospace;
+  font-size: 15px;
+  font-synthesis: weight style small-caps;
+  font-weight: 450;
+  letter-spacing: normal;
+  line-height: 21px;
+  text-rendering: optimizeLegibility;
+}
+
+.agent-code-toolbar {
+  position: absolute;
+  z-index: 1;
+  top: 10px;
+  right: 10px;
+  display: flex;
+  height: 31.5px;
+  align-items: center;
+  padding: 2px;
+  border: 0.5px solid lch(16.793 1.93 272);
+  border-radius: 9999px;
+  background: lch(9.232 0.85 272);
+  color: lch(63.304 1.425 272);
+  cursor: default;
+  opacity: 0;
+  pointer-events: auto;
+  transition: opacity 80ms ease-out;
+}
+
+.agent-code-block:hover .agent-code-toolbar,
+.agent-code-block:focus-within .agent-code-toolbar {
+  opacity: 1;
+  transition: opacity 80ms ease-in 180ms;
+}
+
+.agent-code-language {
+  display: block;
+  padding: 6px 6px 6px 8px;
+  font-family: var(--font-sans);
+  font-size: 12px;
+  font-weight: 450;
+  line-height: normal;
+}
+
+.agent-code-actions {
+  display: flex;
+  pointer-events: auto;
+}
+
+.agent-code-actions button {
+  position: relative;
+  display: flex;
+  width: 26px;
+  height: 26px;
+  align-items: center;
+  justify-content: center;
+  padding: 6px;
+  border: 0;
+  border-radius: 9999px;
+  background: transparent;
+  color: lch(63.304 1.425 272);
+  cursor: default;
+}
+
+.agent-code-actions button:hover,
+.agent-code-actions button:focus-visible {
+  background: lch(11.933 1.75 272);
+  color: lch(90.826 1.425 272);
+  outline: none;
+}
+
+.agent-code-actions svg {
+  width: 14px;
+  height: 14px;
+  fill: currentColor;
+}
+
+.agent-code-block > code {
+  display: block;
+  padding: 16px;
+  overflow-x: auto;
+  font-size: 13.125px;
+  font-weight: 450;
+  line-height: 18.375px;
+  letter-spacing: normal;
+  white-space: pre;
+}
+
+.agent-code-block[data-wrap="true"] > code {
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.hljs-keyword,
+.hljs-selector-tag,
+.hljs-literal {
+  color: #e394dc;
+}
+
+.hljs-params,
+.hljs-attr {
+  color: #fce27d;
+}
+
+.hljs-built_in {
+  color: #eb6e3d;
+}
+
+.hljs-title,
+.hljs-function {
+  color: #25f8ca;
+}
+
+.hljs-string {
+  color: #00c5f0;
+}
+
+.hljs-string .hljs-subst,
+.hljs-string.hljs-subst {
+  color: #25f8ca;
+}
+
+.hljs-number,
+.hljs-symbol {
+  color: #25f8ca;
+}
+
+.hljs-comment,
+.hljs-quote {
+  color: lch(63.304 1.425 272);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .agent-code-toolbar,
+  .agent-code-block:hover .agent-code-toolbar,
+  .agent-code-block:focus-within .agent-code-toolbar {
+    transition: none;
+  }
+}

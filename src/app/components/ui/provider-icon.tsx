@@ -42,7 +42,7 @@ export function ProviderIcon({
   size = 'md',
 }: {
   providerId: ProviderId;
-  monogram: string;
+  monogram?: string;
   size?: keyof typeof tileSizes;
 }): React.JSX.Element {
   const logo = providerLogos[providerId];
@@ -54,7 +54,7 @@ export function ProviderIcon({
         tileSizes[size],
       )}
     >
-      {Logo ? <Logo aria-hidden className={cn('text-logo', logoSizes[size], logo.className)} /> : monogram}
+      {Logo ? <Logo aria-hidden className={cn('text-logo', logoSizes[size], logo.className)} /> : monogram ?? providerId.charAt(0).toUpperCase()}
     </div>
   );
 }

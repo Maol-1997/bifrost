@@ -2,6 +2,7 @@ export const APP_ROUTES = {
   signIn: '/sign-in',
   integrations: '/integrations',
   integrationDetail: '/integrations/:providerId',
+  chat: '/chat',
   agents: '/agents',
   addAgent: '/agents/add',
   serviceStatus: '/service-status',

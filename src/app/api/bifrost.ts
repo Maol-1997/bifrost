@@ -46,6 +46,10 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
   return response.json();
 }
 
+export async function getChatConfig(): Promise<{ configured: boolean }> {
+  return parseRpcResponse(bifrostClient.api.chat['config.json'].$get());
+}
+
 /**
  * Deliberately has no mock branch. Vendor uptime is public and identical for
  * every user, so a fake here would only ever be a lie on the one screen whose

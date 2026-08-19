@@ -19,6 +19,7 @@ export function App(): React.JSX.Element {
       <Routes>
         <Route path={APP_ROUTES.signIn} element={<SignIn />} />
         <Route element={<AppShell />}>
+          <Route path={APP_ROUTES.chat} />
           <Route path={APP_ROUTES.integrations} element={<Integrations />} />
           <Route path={APP_ROUTES.integrationDetail} element={<IntegrationDetail />} />
           <Route path={APP_ROUTES.addAgent} element={<AgentSetup />} />

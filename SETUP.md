@@ -50,7 +50,23 @@ upstream Notion application.
 4. Open **Basic Information → App Credentials**. Put **Client ID** in `SLACK_CLIENT_ID` and **Client Secret** in `SLACK_CLIENT_SECRET`.
 5. If token rotation is enabled, Bifrost uses the returned user refresh token and serializes refresh through Redis.
 
-## 7. Encryption and tool administration
+## 7. OpenAI chat
+
+Put an OpenAI API key in `OPENAI_API_KEY` to enable the built-in chat. It uses
+the Responses API through the Vercel AI SDK and can run up to 20 model and tool
+steps per turn. Tool definitions are loaded lazily through Tool Search, grouped
+by provider. The model defaults to `gpt-5.6-luna` and reasoning effort defaults
+to `medium`; override them with `OPENAI_MODEL` and `OPENAI_REASONING_EFFORT`.
+
+`OPENAI_BASE_URL` defaults to `https://api.openai.com/v1`. An override must be
+an OpenAI-compatible API base that supports Responses and Tool Search.
+
+The chat does not need a separate Bifrost token. Its authenticated browser
+session resolves the same visible tool set and runs each call through the same
+deployment policy, user preference, provider OAuth, rate limit, concurrency
+limit, and fresh fingerprint check as `/mcp`.
+
+## 8. Encryption and tool administration
 
 Generate the encryption key outside the repository:
 

@@ -33,7 +33,9 @@ functions over separate tables. They used to share one, which meant a leaked ses
 Do not merge them back.
 
 The React SPA (`src/app`) is built by Vite and served through Hono by that same Node process,
-so there is one deployment, not two.
+so there is one deployment, not two. Its built-in chat uses a Vercel AI SDK
+`ToolLoopAgent`, OpenAI's Responses API, and the browser user's visible Bifrost
+tools. Chat history stays client-side in IndexedDB.
 
 ## The one thing to understand first
 
@@ -71,6 +73,12 @@ atomically and rejected when any submitted fingerprint is stale.
 
 User preferences store only deviations from the approved deployment default. This keeps deployment
 approval and user choice as separate authorities and makes absence meaningful.
+
+The built-in web chat adds a separate `bifrost_admin` tool namespace only when the cookie-backed
+browser identity belongs to an address in `ADMIN_EMAILS`. Those tools can inspect providers and
+atomically update deployment policies, but they are never registered by `createHumanMcpHandler` and
+therefore never appear on `/mcp`. Keep that boundary: external agents must not receive administrative
+capabilities through their OAuth grants.
 
 ## Providers
 
