@@ -7,7 +7,7 @@ provider, [docs/adding-a-provider.md](docs/adding-a-provider.md).
 ## What this is
 
 Bifrost is one internal MCP endpoint that gives an AI agent user-attributed access to GitHub,
-Linear, Sentry and Slack. A person signs into Bifrost with Google, connects their own provider accounts
+Linear, Sentry, Slack and Notion. A person signs into Bifrost with Google, connects their own provider accounts
 once, and points their coding agent at `POST /mcp`. The agent then acts **as that person**,
 using their permissions, without ever holding a provider token.
 
@@ -74,7 +74,7 @@ approval and user choice as separate authorities and makes absence meaningful.
 
 ## Providers
 
-Four real providers proxy their official Streamable HTTP MCP servers:
+Five real providers proxy their official Streamable HTTP MCP servers:
 
 | Provider | MCP endpoint |
 | --- | --- |
@@ -82,6 +82,7 @@ Four real providers proxy their official Streamable HTTP MCP servers:
 | `linear_` | `https://mcp.linear.app/mcp` |
 | `sentry_` | `https://mcp.sentry.dev/mcp` |
 | `slack_` | `https://mcp.slack.com/mcp` |
+| `notion_` | `https://mcp.notion.com/mcp` |
 
 Tool names, descriptions, schemas and annotations are discovered per user. Bifrost prefixes names,
 fingerprints normalized definitions, and treats only `readOnlyHint === true` as read-only. Missing
@@ -98,15 +99,11 @@ for the execution-time fingerprint check or policy approval: both must read upst
 in `src/server/providers/registry.ts`. `assertPrefixInvariant` runs at startup and refuses to boot on a
 one-character drift, because prefix drift silently breaks credential lookup rather than erroring.
 
-Notion appears in the frontend catalog (`src/app/api/catalog.ts`) but has **no server-side provider**.
-`/api/app-connections.json` only ever returns `SUPPORTED_APPS`, so Notion renders as a
-decorative, permanently unavailable card. Do not treat it as a fifth provider.
-
 ## OAuth: Bifrost is on both sides
 
 This trips people up. Bifrost is simultaneously:
 
-- **An OAuth client**, to Google (sign-in) and to GitHub/Linear/Sentry/Slack (provider connections).
+- **An OAuth client**, to Google (sign-in) and to GitHub/Linear/Sentry/Slack/Notion (provider connections).
   That is `src/server/oauth.ts`.
 - **An OAuth 2.1 authorization server plus resource server**, to MCP clients like Claude Code.
   That is all of `src/server/oauth-server/` and it implements the MCP `2026-07-28` authorization spec.
@@ -116,9 +113,9 @@ holds a short access token (1h) and a rotating refresh token (90d, slid forward 
 replaces its own credential without anyone being asked to log in again.
 
 The client side uses `openid-client` for authorization URLs, PKCE, provider code exchanges and
-refresh grants. Linear and Sentry dynamically register public clients against their official MCP
+refresh grants. Linear, Sentry and Notion dynamically register public clients against their official MCP
 authorization servers; their generated client IDs are stored inside the encrypted provider credential.
-Sentry exposes only OAuth Authorization Server metadata, so its discovery must use the `oauth2`
+Sentry and Notion expose OAuth Authorization Server metadata, so their discovery must use the `oauth2`
 algorithm. GitHub and Slack still use configured applications. Slack's user grant is normalized in
 `providers/slack-oauth.ts` because Slack nests
 it under `authed_user` instead of returning the standard top-level token fields. Google token

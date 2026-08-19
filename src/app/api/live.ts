@@ -3,7 +3,7 @@ import { APP_ROUTES } from '@features/utils/routes';
 import { isConnectableProvider, providerCatalog } from './catalog';
 import { bifrostClient } from './client';
 import { parseRpcResponse } from './parse-rpc-response';
-import type { BifrostApi, ConnectionStatus, ProviderId } from './types';
+import type { BifrostApi, ConnectionStatus } from './types';
 
 const getStatus = bifrostClient.api['status.json'].$get;
 const getConnections = bifrostClient.api['app-connections.json'].$get;
@@ -13,17 +13,15 @@ type ConnectionsResponse = InferResponseType<typeof getConnections, 200>;
 /**
  * Server facts win in this order: an unmounted provider is unavailable no
  * matter what the user connected; a connection decides between connected and
- * needs-reconnect; with neither, only Notion (no server-side provider) is
- * unavailable rather than merely not connected.
+ * needs-reconnect; with neither, the provider is ready to connect.
  */
 function deriveConnectionStatus(
-  providerId: ProviderId,
   mount: StatusResponse['providers'][number] | undefined,
   connection: ConnectionsResponse['apps'][number] | undefined,
 ): ConnectionStatus {
   if (mount?.isMounted === false) return 'unavailable';
   if (connection?.isConnected) return connection.needsReconnect ? 'needs-reconnect' : 'connected';
-  return providerId === 'notion' ? 'unavailable' : 'not-connected';
+  return 'not-connected';
 }
 
 /** The real thing: every operation is a typed request to the Bifrost server. */
@@ -40,7 +38,7 @@ export const liveApi: BifrostApi = {
       const connection = isConnectableProvider(provider.id) ? connectionById.get(provider.id) : undefined;
       return {
         ...provider,
-        status: deriveConnectionStatus(provider.id, mount, connection),
+        status: deriveConnectionStatus(mount, connection),
         isHidden: connection?.isHidden ?? false,
         ...(connection?.connectedAt ? { connectedAt: connection.connectedAt } : {}),
         ...(connection?.accountLabel ? { accountLabel: connection.accountLabel } : {}),

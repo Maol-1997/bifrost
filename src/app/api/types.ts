@@ -3,8 +3,7 @@
  * the live and mock implementations describe the same shapes.
  */
 export type ProviderId = 'github' | 'linear' | 'sentry' | 'slack' | 'notion';
-/** Notion is catalog-only: it renders as a card but has no server-side provider to connect to. */
-export type ConnectableProviderId = Exclude<ProviderId, 'notion'>;
+export type ConnectableProviderId = ProviderId;
 export type ConnectionStatus = 'connected' | 'needs-reconnect' | 'not-connected' | 'unavailable';
 export type ToolMutability = 'read' | 'write';
 export type ClientHealth = 'healthy' | 'needs-renewal';

@@ -41,11 +41,11 @@ export const providerCatalog: readonly Omit<Provider, 'tools'>[] = [
     successCapabilities: ['Use the Slack tools available to your account'],
   },
   {
-    id: 'notion', name: 'Notion', monogram: 'N', description: 'Where docs and notes live.', status: 'unavailable', isHidden: false,
+    id: 'notion', name: 'Notion', monogram: 'N', description: 'Where docs and notes live.', status: 'not-connected', isHidden: false,
     toolDiscoveryFailed: false,
-    permissions: ['Nothing yet — Bifrost has no Notion tools'],
-    neverPermission: 'Connecting it is not possible yet, so it grants nothing.',
-    successCapabilities: [],
+    permissions: ['Use the Notion tools your Bifrost administrator has approved'],
+    neverPermission: 'Tools your administrator has not approved are never exposed to your agents.',
+    successCapabilities: ['Use the Notion tools available to your account'],
   },
 ] as const;
 
@@ -58,5 +58,5 @@ export function getProviderCatalog(): readonly Provider[] {
 }
 
 export function isConnectableProvider(providerId: string): providerId is ConnectableProviderId {
-  return providerId === 'github' || providerId === 'linear' || providerId === 'sentry' || providerId === 'slack';
+  return providerId === 'github' || providerId === 'linear' || providerId === 'sentry' || providerId === 'slack' || providerId === 'notion';
 }

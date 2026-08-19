@@ -1,26 +1,29 @@
 import type { ProviderDefinition, ProviderId, ProviderMount } from './types.js';
 import { githubProvider } from './github.js';
 import { linearProvider } from './linear.js';
+import { notionProvider } from './notion.js';
 import { sentryProvider } from './sentry.js';
 import { slackProvider } from './slack.js';
 
 export const PROVIDER_NAMESPACES = {
   github: 'github_',
   linear: 'linear_',
+  notion: 'notion_',
   sentry: 'sentry_',
   slack: 'slack_',
 } as const satisfies Record<ProviderId, `${ProviderId}_`>;
 
-export const SUPPORTED_APPS = ['github', 'linear', 'sentry', 'slack'] as const satisfies readonly ProviderId[];
+export const SUPPORTED_APPS = ['github', 'linear', 'sentry', 'slack', 'notion'] as const satisfies readonly ProviderId[];
 
 export const CREDENTIAL_PROVIDER_BY_PREFIX = {
   github_: 'github',
   linear_: 'linear',
+  notion_: 'notion',
   sentry_: 'sentry',
   slack_: 'slack',
 } as const satisfies Record<(typeof PROVIDER_NAMESPACES)[ProviderId], ProviderId>;
 
-export const PROVIDER_REGISTRY: readonly ProviderDefinition[] = [githubProvider, linearProvider, sentryProvider, slackProvider];
+export const PROVIDER_REGISTRY: readonly ProviderDefinition[] = [githubProvider, linearProvider, sentryProvider, slackProvider, notionProvider];
 
 /** The four places a prefix is spelled. Each defaults to the real one; tests substitute a drifted copy. */
 export type PrefixInvariantInputs = {

@@ -36,6 +36,12 @@ const mockTools: Readonly<Record<string, readonly [string, string, ToolMutabilit
     ['sentry_find_projects', 'Find projects', 'read'],
     ['sentry_update_issue', 'Update issue', 'write'],
   ],
+  notion: [
+    ['notion_search', 'Search workspace', 'read'],
+    ['notion_fetch', 'Fetch page', 'read'],
+    ['notion_create_pages', 'Create pages', 'write'],
+    ['notion_update_page', 'Update page', 'write'],
+  ],
   slack: [
     ['slack_search_messages', 'Search messages', 'read'],
     ['slack_read_channel_history', 'Read channel history', 'read'],

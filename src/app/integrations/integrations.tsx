@@ -13,7 +13,7 @@ import { ProviderCard } from './components/provider-card';
 const CONNECTION_SETTLE_MS = 900;
 const emptyDemoProviders = getProviderCatalog().map((provider) => ({
   ...provider,
-  status: provider.id === 'notion' ? 'unavailable' as const : 'not-connected' as const,
+  status: 'not-connected' as const,
 }));
 
 function waitForConnectionRedirect(): Promise<void> {
@@ -46,7 +46,7 @@ export default function Integrations(): React.JSX.Element {
   const isLoading = requestedState === 'loading' || (usesLiveData && providersQuery.isPending);
   const hasLoadError = requestedState === 'error' || (usesLiveData && providersQuery.isError);
   const connectingId = connectMutation.isPending ? connectMutation.variables : null;
-  const isFirstRun = providers.filter((provider) => provider.id !== 'notion').every((provider) => provider.status === 'not-connected');
+  const isFirstRun = providers.every((provider) => provider.status === 'not-connected');
 
   function retry(): void {
     if (requestedState === 'error') {
