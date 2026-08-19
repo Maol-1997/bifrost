@@ -10,7 +10,6 @@ const IMMUTABLE_CACHE_CONTROL = 'public, max-age=31536000, immutable';
 const FRONTEND_ROUTES = [
   '/',
   APP_ROUTES.signIn,
-  APP_ROUTES.connectionResult,
   APP_ROUTES.integrations,
   APP_ROUTES.agents,
   APP_ROUTES.addAgent,

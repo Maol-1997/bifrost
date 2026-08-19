@@ -4,66 +4,78 @@ import { cva, type VariantProps } from "class-variance-authority"
 
 import { cn } from "@app/lib/cn"
 
-// Measured off Linear's live app (settings/issue-labels), not eyeballed.
-// The pill radius, the 0.5px transparent border and the hairline shadow are
-// the three things that make these read as Linear buttons; the transparent
-// border also keeps hover/focus from shifting layout by half a pixel.
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-full border-[0.5px] border-transparent text-[13px] font-medium transition-[border-color,background-color,color,opacity] duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/60 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
+  "relative inline-flex cursor-default shrink-0 items-center justify-center gap-1.5 whitespace-nowrap border-[0.5px] border-transparent text-[13px] font-medium [line-height:normal] outline-none select-none transition-[border,background-color,color,box-shadow,opacity] duration-150 ease-[ease] hover:duration-0 active:duration-0 disabled:pointer-events-none disabled:opacity-60 focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:[outline:1px_solid_var(--linear-primary)] focus-visible:[outline-offset:0] data-[preview=hover]:duration-0 motion-reduce:transition-none [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-3.5",
   {
     variants: {
       variant: {
         default:
-          "bg-brand text-white shadow-[0_0.5px_1px_1px_rgb(0_0_0/0.3)] hover:bg-brand-hover",
-        destructive:
-          "bg-danger text-white shadow-[0_0.5px_1px_1px_rgb(0_0_0/0.3)] hover:bg-danger/90",
-        // Linear's "Edit": same pill and hairline border as the ghost, but it
-        // carries a fill at rest and only deepens on hover. The label colour
-        // never changes — only the surface moves.
+          "min-w-8 bg-linear-primary text-linear-primary-foreground shadow-linear-control hover:bg-linear-primary-hover active:bg-linear-primary-hover data-[preview=hover]:bg-linear-primary-hover",
         secondary:
-          "bg-raised text-app-text-secondary hover:bg-raised-hover",
+          "min-w-8 bg-linear-control bg-clip-padding text-linear-foreground shadow-none after:pointer-events-none after:absolute after:inset-0 after:rounded-[inherit] after:shadow-linear-secondary after:content-[''] after:select-none hover:bg-linear-control-hover hover:after:shadow-linear-secondary-hover active:bg-linear-control-hover active:after:shadow-linear-secondary-hover data-[preview=hover]:bg-linear-control-hover data-[preview=hover]:after:shadow-linear-secondary-hover",
+        subtle:
+          "min-w-8 bg-linear-subtle bg-clip-padding text-linear-control-foreground shadow-none after:pointer-events-none after:absolute after:inset-0 after:rounded-[inherit] after:shadow-linear-subtle after:content-[''] after:select-none hover:bg-linear-ghost-hover hover:after:shadow-linear-subtle-hover active:bg-linear-ghost-hover active:after:shadow-linear-subtle-hover data-[preview=hover]:bg-linear-ghost-hover data-[preview=hover]:after:shadow-linear-subtle-hover",
         outline:
-          "border-control-border bg-transparent text-app-text-secondary hover:bg-control",
-        // Linear's own Connect button: transparent at rest, no shadow, and it
-        // only grows a surface on hover. Measured, not eyeballed.
-        ghost: "text-app-text-secondary hover:bg-control-hover hover:text-white",
-        link: "text-link underline-offset-4 hover:underline",
+          "bg-linear-control text-linear-foreground shadow-linear-outline hover:bg-linear-control-hover hover:shadow-linear-outline-hover active:bg-linear-control-hover active:shadow-linear-outline-hover data-[preview=hover]:bg-linear-control-hover data-[preview=hover]:shadow-linear-outline-hover",
+        ghost:
+          "bg-transparent text-linear-borderless-foreground shadow-none hover:bg-linear-subtle hover:text-linear-bright active:bg-linear-subtle active:text-linear-bright data-[preview=hover]:bg-linear-subtle data-[preview=hover]:text-linear-bright",
+        muted:
+          "bg-transparent font-[450] text-linear-muted shadow-none hover:bg-linear-muted-hover hover:text-linear-bright active:bg-linear-muted-hover active:text-linear-bright data-[preview=hover]:bg-linear-muted-hover data-[preview=hover]:text-linear-bright",
+        destructive:
+          "bg-transparent text-linear-danger shadow-none hover:bg-linear-danger-subtle active:bg-linear-danger-subtle data-[preview=hover]:bg-linear-danger-subtle",
+        destructiveSolid:
+          "bg-linear-danger-solid text-linear-primary-foreground shadow-none hover:bg-linear-danger-solid-hover active:bg-linear-danger-solid-hover data-[preview=hover]:bg-linear-danger-solid-hover",
+        card:
+          "flex-col items-start justify-start gap-2 border-linear-border bg-transparent text-left text-[13.3333px] font-normal text-white shadow-none transition-all duration-0 hover:bg-linear-card-hover active:bg-linear-card-hover data-[preview=hover]:bg-linear-card-hover",
       },
       size: {
-        // `xs` is Linear's inline-action size (their "Edit"): 24px tall, 12px
-        // text, 8px of horizontal padding. Small enough to sit inside a row of
-        // text without pushing the line height around.
-        xs: "h-6 px-2 text-[12px]",
-        default: "h-8 px-3",
-        sm: "h-7 px-2.5 text-[12.5px]",
-        lg: "h-9 px-4",
-        icon: "size-8",
+        default: "h-8 rounded-[9999px] px-3",
+        compact: "h-7 rounded-lg pl-2.5 pr-3 text-xs",
+        xs: "h-6 rounded-[9999px] px-1.5 text-xs",
+        select: "h-[30px] rounded-lg pl-2.5 pr-7 text-[13px] font-normal",
+        icon: "size-7 min-w-0 rounded-[9999px] px-0.5 py-0",
+        "icon-sm": "size-6 min-w-0 rounded-[9999px] px-0.5 py-0",
+        "icon-rounded": "size-7 min-w-0 rounded-lg px-0.5 py-0",
+        large: "h-11 rounded-[9999px] px-[18px]",
       },
     },
     defaultVariants: {
       variant: "default",
       size: "default",
     },
-  }
+    compoundVariants: [
+      {
+        variant: "subtle",
+        className: "rounded-[9999px]",
+      },
+      {
+        variant: "card",
+        size: "default",
+        className: "h-auto min-h-[134.5px] w-[232px] rounded-lg px-4 pb-3 pt-4",
+      },
+    ],
+  },
 )
 
-export type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> &
+type ButtonProps = React.ComponentPropsWithoutRef<"button"> &
   VariantProps<typeof buttonVariants> & {
-  asChild?: boolean
-}
+    asChild?: boolean
+  }
 
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ className, variant, size, asChild = false, ...props }, ref) => {
-    const Comp = asChild ? Slot : "button"
+  ({ className, variant, size, asChild = false, type, ...props }, ref) => {
+    const Component = asChild ? Slot : "button"
+
     return (
-      <Comp
+      <Component
         className={cn(buttonVariants({ variant, size, className }))}
         ref={ref}
+        type={asChild ? undefined : (type ?? "button")}
         {...props}
       />
     )
-  }
+  },
 )
 Button.displayName = "Button"
 
-export { Button, buttonVariants }
+export { Button, buttonVariants, type ButtonProps }

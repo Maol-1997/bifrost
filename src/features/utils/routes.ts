@@ -1,6 +1,5 @@
 export const APP_ROUTES = {
   signIn: '/sign-in',
-  connectionResult: '/connection-result',
   integrations: '/integrations',
   integrationDetail: '/integrations/:providerId',
   agents: '/agents',

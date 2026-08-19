@@ -1,30 +1,30 @@
-@import url("https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap");
+@import "./linear-components.css";
 @import "tailwindcss";
 @import "tw-animate-css";
 
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  --color-bg-primary: #121213;
-  --color-bg-sidebar: #09090a;
-  --color-bg-secondary: #161617;
-  --color-bg-tertiary: #17181a;
-  --color-bg-quaternary: #1a1a1b;
-  --color-text-primary: #ffffff;
-  --color-text-secondary: #e3e4e6;
-  --color-text-tertiary: #959597;
-  --color-text-quaternary: #565759;
-  --color-border: #1a1b1d;
-  --color-border-2: #232426;
-  --color-border-3: #28282b;
+  --color-bg-primary: var(--linear-canvas);
+  --color-bg-sidebar: var(--linear-canvas);
+  --color-bg-secondary: var(--linear-input);
+  --color-bg-tertiary: var(--linear-panel);
+  --color-bg-quaternary: var(--linear-control);
+  --color-text-primary: var(--linear-bright);
+  --color-text-secondary: var(--linear-foreground);
+  --color-text-tertiary: var(--linear-muted);
+  --color-text-quaternary: var(--linear-input-placeholder);
+  --color-border: var(--linear-border);
+  --color-border-2: var(--linear-settings-divider);
+  --color-border-3: var(--linear-inset-border);
   /* The one structural border in the app: the hairline Linear draws around its
      content pane, measured live as lch(13.08% 1.48 272) at 0.5px. Cards, row
      dividers, the sidebar edge and code boxes all use it, so the page reads as
      one surface. Icon plates and controls keep their own, heavier borders. */
-  --color-border-pane: #212224;
-  --color-accent: #5e6ad2;
-  --color-accent-hover: #7c88e8;
-  --color-link: #828fff;
+  --color-border-pane: var(--linear-border);
+  --color-accent: var(--linear-primary);
+  --color-accent-hover: var(--linear-primary-hover);
+  --color-link: var(--linear-focus);
   /* Sidebar geometry, measured off Linear's live app: a 244px rail with 12px
      of horizontal padding, so nav rows are 220px wide. Kept as one variable
      because the rail is fixed and the page has to offset itself by the same
@@ -34,36 +34,36 @@
      (9999px) while inputs and selects stay at 8px — that contrast is
      deliberate, so don't unify them. The 0.5px borders and the hairline
      shadow are what make Linear's controls read as crisp rather than flat. */
-  --color-control: #1b1c1d;
-  --color-control-border: #2c2d2f;
+  --color-control: var(--linear-control);
+  --color-control-border: var(--linear-input-border);
   /* Fill a transparent control takes on hover. Measured off Linear's Connect
      button, which is a ghost at rest and only gains a surface under the pointer. */
-  --color-control-hover: #2b2b2d;
+  --color-control-hover: var(--linear-control-hover);
   /* Linear's secondary button (their "Edit"): unlike the ghost it carries a
      fill at rest. Two separate values from --color-control-hover on purpose —
      they measured 1-2 units apart and we copied what is actually there. */
-  --color-raised: #232325;
-  --color-raised-hover: #2c2d2f;
+  --color-raised: var(--linear-control);
+  --color-raised-hover: var(--linear-control-hover);
   /* Switch track when off. Notably light for this palette — Linear wants "off"
      to read as a real state, not as a disabled control. When on, the track is
      --color-accent, which already matches theirs exactly. */
-  --color-switch-off: #707172;
+  --color-switch-off: var(--linear-switch-off);
   /* Hairline around icon plates. Same value the Bifrost mark strokes its own
      plate with, so provider tiles and the logo read as one family. */
-  --color-plate-border: #3e3f41;
+  --color-plate-border: var(--linear-popover-border);
   /* Popover menu card, measured off Linear (settings/teams). Lighter than every
      other surface we have, and a 12px radius rather than the 8px of tooltips:
      a menu is the frontmost thing on screen and is meant to lift off the page. */
-  --color-menu: #212122;
-  --color-menu-border: #3c3d40;
+  --color-menu: var(--linear-popover);
+  --color-menu-border: var(--linear-menu-border);
   /* Highlighted menu row. Deliberately a step lighter than --color-raised-hover:
      the menu card is already lighter than the page, so the same fill a button
      uses would barely register on top of it. */
-  --color-menu-hover: #313234;
+  --color-menu-hover: var(--linear-menu-item-hover);
   /* Tooltip surface, measured off Linear. Note the radius is 8px, not the pill
      radius the buttons use — tooltips are cards, not controls. */
-  --color-tooltip: #28292b;
-  --color-tooltip-border: #444549;
+  --color-tooltip: var(--linear-tooltip);
+  --color-tooltip-border: var(--linear-tooltip-border);
   /* Monochrome brand marks. Off-white rather than #fff so a logo does not
      out-shout the page title sitting next to it. */
   --color-logo: #d0d6e0;
@@ -93,8 +93,8 @@
 }
 
 @theme inline {
-  --font-sans: "Geist", ui-sans-serif, system-ui, sans-serif;
-  --font-mono: "Geist Mono", ui-monospace, monospace;
+  --font-sans: "Inter Variable", "SF Pro Display", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-mono: ui-monospace, "SFMono-Regular", Consolas, "Liberation Mono", monospace;
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -158,7 +158,7 @@
 @layer base {
   * { box-sizing: border-box; border-color: var(--color-border-pane); }
   html { background: var(--color-bg-primary); color-scheme: dark; }
-  body { margin: 0; min-width: 320px; min-height: 100vh; background: var(--color-bg-primary); color: var(--color-text-primary); font-family: "Geist", ui-sans-serif, system-ui, sans-serif; font-size: 13px; -webkit-font-smoothing: antialiased; }
+  body { margin: 0; min-width: 320px; min-height: 100vh; background: var(--color-bg-primary); color: var(--color-text-primary); font-family: "Inter Variable", "SF Pro Display", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-size: 13px; -webkit-font-smoothing: antialiased; }
   button, a { -webkit-tap-highlight-color: transparent; }
   a { color: var(--color-link); text-decoration: none; }
   ::selection { background: color-mix(in srgb, var(--color-accent) 40%, transparent); }

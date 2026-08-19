@@ -7,7 +7,6 @@ const AccountSecurity = lazy(() => import('./account-security/account-security')
 const AgentSetup = lazy(() => import('./agents/add/add-agent'));
 const AgentSessions = lazy(() => import('./agents/agents'));
 const AdminTools = lazy(() => import('./admin-tools/admin-tools'));
-const ConnectionResult = lazy(() => import('./connection-result/connection-result'));
 const IntegrationDetail = lazy(() => import('./integrations/[providerId]/integration-detail'));
 const Integrations = lazy(() => import('./integrations/integrations'));
 const ServiceStatus = lazy(() => import('./service-status/service-status'));
@@ -19,7 +18,6 @@ export function App(): React.JSX.Element {
     <Suspense fallback={<main className="min-h-dvh bg-app-bg-primary" />}>
       <Routes>
         <Route path={APP_ROUTES.signIn} element={<SignIn />} />
-        <Route path={APP_ROUTES.connectionResult} element={<ConnectionResult />} />
         <Route element={<AppShell />}>
           <Route path={APP_ROUTES.integrations} element={<Integrations />} />
           <Route path={APP_ROUTES.integrationDetail} element={<IntegrationDetail />} />

@@ -6,6 +6,7 @@ import { LoadingState } from '@app/components/ui/loading-state';
 import { PageHead } from '@app/components/ui/page-head';
 import { ProviderIcon } from '@app/components/ui/provider-icon';
 import { SectionCard } from '@app/components/ui/section-card';
+import { SettingsRow } from '@app/components/ui/settings-group';
 import { StatusBadge } from '@app/components/ui/status-badge';
 import { clockTime } from '@app/lib/format/clock-time';
 import { relativeTime } from '@app/lib/format/time-ago';
@@ -52,14 +53,14 @@ export default function ServiceStatus(): React.JSX.Element {
               const provider = providerMap.get(app.appId);
               const name = provider?.name ?? app.appId;
               return (
-                <div key={app.appId} className="flex items-center gap-3 border-t-[0.5px] border-app-border-pane p-3.5 first:border-t-0">
+                <SettingsRow key={app.appId}>
                   <ProviderIcon providerId={app.appId} monogram={provider?.monogram ?? '?'} />
                   <div className="flex-1 text-[13.5px] font-semibold">{name}</div>
                   <div className="text-right">
                     <StatusBadge status={app.health} />
                     <div className="mt-0.5 text-[11.5px] text-app-text-quaternary">{healthDetail(app, name)}</div>
                   </div>
-                </div>
+                </SettingsRow>
               );
             })}
           </SectionCard>

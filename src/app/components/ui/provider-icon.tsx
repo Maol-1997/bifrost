@@ -21,12 +21,13 @@ const providerLogos: Partial<Record<ProviderId, ComponentType<SVGProps<SVGSVGEle
 };
 
 const tileSizes = {
+  sidebar: 'size-4 rounded-none border-0 bg-transparent text-[10px]',
   sm: 'size-7 rounded-[7px] text-xs',
   md: 'size-8 rounded-lg text-sm',
   lg: 'size-10 rounded-[10px] text-[17px]',
 } as const;
 
-const logoSizes = { sm: 'size-4', md: 'size-[18px]', lg: 'size-[22px]' } as const;
+const logoSizes = { sidebar: 'size-4', sm: 'size-4', md: 'size-[18px]', lg: 'size-[22px]' } as const;
 
 export function ProviderIcon({
   providerId,

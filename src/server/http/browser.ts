@@ -2,6 +2,7 @@ import { zValidator, type Hook } from '@hono/zod-validator';
 import type { Next } from 'hono';
 import { Hono } from 'hono';
 import { z } from 'zod';
+import { APP_ROUTES } from '../../features/utils/routes.js';
 import { describeClient } from '../clients/describe.js';
 import { errorSummary, logger } from '../logger.js';
 import { PROVIDER_REGISTRY, SUPPORTED_APPS } from '../providers/registry.js';
@@ -165,17 +166,17 @@ async function startProviderAuthorization(context: AppContext, providerId: Provi
 async function finishProviderAuthorization(context: AppContext, expectedProvider: ProviderId): Promise<Response> {
   const url = new URL(context.req.url);
   if (url.searchParams.has('error')) {
-    return context.redirect(`/connection-result?result=cancelled&provider=${expectedProvider}`);
+    return context.redirect(APP_ROUTES.integrations);
   }
   try {
     const parameters = callbackParameters(url);
     const result = await context.get('dependencies').oauth.finishProvider(parameters.code, parameters.state);
     if (result.providerId !== expectedProvider) throw new Error('OAuth provider callback mismatch');
     invalidateProviderToolDiscovery(result.userId, result.providerId);
-    return context.redirect(`/connection-result?result=success&provider=${expectedProvider}`);
+    return context.redirect(APP_ROUTES.integrations);
   } catch (error) {
     logger.warn(errorSummary(error), 'Provider OAuth callback failed');
-    return context.redirect(`/connection-result?result=error&provider=${expectedProvider}`);
+    return context.redirect(APP_ROUTES.integrations);
   }
 }
 

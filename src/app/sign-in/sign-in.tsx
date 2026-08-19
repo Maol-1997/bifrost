@@ -48,7 +48,7 @@ export default function SignIn(): React.JSX.Element {
         ) : (
           <>
             <p className="mt-2.5 text-[13.5px] leading-[1.55] text-app-text-tertiary text-pretty">One sign-in for every tool your AI agents use. Your keys stay on the server — never on your laptop.</p>
-            <Button asChild className="mt-[22px] w-full bg-app-text-secondary text-app-bg-primary hover:bg-app-text-primary">
+            <Button asChild size="large" className="mt-[22px] w-full">
               <a href="/auth/google/start"><Google aria-hidden className="size-[15px]" />Continue with Google</a>
             </Button>
             {audience ? <div className="mt-3 text-[11.5px] text-app-text-quaternary">{audience}</div> : null}

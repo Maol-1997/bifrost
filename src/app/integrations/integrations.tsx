@@ -5,6 +5,7 @@ import { ErrorState } from '@app/components/ui/error-state';
 import { LoadingState } from '@app/components/ui/loading-state';
 import { PageHead } from '@app/components/ui/page-head';
 import { SectionCard } from '@app/components/ui/section-card';
+import { TooltipProvider } from '@app/components/ui/tooltip';
 import { startProviderConnection, disconnectProvider, getProviderCatalog, isConnectableProvider, setProviderHidden, type Provider, type ProviderId } from '@app/api/bifrost';
 import { providersQueryOptions } from '@app/api/query-options';
 import { ProviderCard } from './components/provider-card';
@@ -66,9 +67,11 @@ export default function Integrations(): React.JSX.Element {
       {!isLoading && !hasLoadError ? (
         <>
           {isFirstRun ? <EmptyState tone="accent" title="Let's connect your first app" body="Pick something you already use. You'll approve it on that app's own site — Bifrost never sees your password — and from then on your agents can use it as you. You can see, limit and undo everything from this page." /> : null}
-          <SectionCard className="mt-[22px] overflow-visible">
-            {providers.map((provider) => <ProviderCard key={provider.id} provider={provider} isConnecting={connectingId === provider.id} onConnect={() => { connectMutation.mutate(provider.id); }} onHide={() => { hideMutation.mutate(provider); }} onDisconnect={() => { disconnectMutation.mutate(provider.id); }} />)}
-          </SectionCard>
+          <TooltipProvider>
+            <SectionCard className="mt-[22px] overflow-visible">
+              {providers.map((provider) => <ProviderCard key={provider.id} provider={provider} isConnecting={connectingId === provider.id} onConnect={() => { connectMutation.mutate(provider.id); }} onHide={() => { hideMutation.mutate(provider); }} onDisconnect={() => { disconnectMutation.mutate(provider.id); }} />)}
+            </SectionCard>
+          </TooltipProvider>
           <p className="mt-3.5 text-xs leading-[1.55] text-app-text-quaternary text-pretty">Connecting an app never gives Bifrost your password — you approve it on the app's own site, and you can disconnect any time. <strong className="font-medium text-app-text-tertiary">Hidden</strong> means it stays connected but your agents can't use it.</p>
         </>
       ) : null}

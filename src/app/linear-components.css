@@ -1,0 +1,212 @@
+@font-face {
+  font-family: "Inter Variable";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("https://static.linear.app/fonts/InterVariable.woff2?v=4.1") format("woff2");
+  unicode-range: U+0-2B1B, U+2B1D-10FFFF;
+}
+
+@font-face {
+  font-family: "Inter Variable";
+  font-style: italic;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("https://static.linear.app/fonts/InterVariable-Italic.woff2?v=4.1") format("woff2");
+  unicode-range: U+0-2B1B, U+2B1D-10FFFF;
+}
+
+@theme inline {
+  --color-linear-canvas: var(--linear-canvas);
+  --color-linear-panel: var(--linear-panel);
+  --color-linear-border: var(--linear-border);
+  --color-linear-foreground: var(--linear-foreground);
+  --color-linear-bright: var(--linear-bright);
+  --color-linear-muted: var(--linear-muted);
+  --color-linear-borderless-foreground: var(--linear-borderless-foreground);
+  --color-linear-control-foreground: var(--linear-control-foreground);
+  --color-linear-subtle: var(--linear-subtle);
+  --color-linear-control: var(--linear-control);
+  --color-linear-control-hover: var(--linear-control-hover);
+  --color-linear-ghost-hover: var(--linear-ghost-hover);
+  --color-linear-muted-hover: var(--linear-muted-hover);
+  --color-linear-card-hover: var(--linear-card-hover);
+  --color-linear-popover: var(--linear-popover);
+  --color-linear-popover-elevated: var(--linear-popover-elevated);
+  --color-linear-popover-border: var(--linear-popover-border);
+  --color-linear-popover-elevated-border: var(--linear-popover-elevated-border);
+  --color-linear-menu-border: var(--linear-menu-border);
+  --color-linear-menu-foreground: var(--linear-menu-foreground);
+  --color-linear-menu-elevated-foreground: var(--linear-menu-elevated-foreground);
+  --color-linear-menu-icon: var(--linear-menu-icon);
+  --color-linear-menu-item-hover: var(--linear-menu-item-hover);
+  --color-linear-menu-danger: var(--linear-menu-danger);
+  --color-linear-menu-danger-hover: var(--linear-menu-danger-hover);
+  --color-linear-menu-separator: var(--linear-menu-separator);
+  --color-linear-select-chevron: var(--linear-select-chevron);
+  --color-linear-tooltip: var(--linear-tooltip);
+  --color-linear-tooltip-border: var(--linear-tooltip-border);
+  --color-linear-tooltip-foreground: var(--linear-tooltip-foreground);
+  --color-linear-tooltip-muted: var(--linear-tooltip-muted);
+  --color-linear-sidebar-active: var(--linear-sidebar-active);
+  --color-linear-sidebar-backdrop: var(--linear-sidebar-backdrop);
+  --color-linear-gallery-main: var(--linear-gallery-main);
+  --color-linear-input: var(--linear-input);
+  --color-linear-input-border: var(--linear-input-border);
+  --color-linear-input-border-hover: var(--linear-input-border-hover);
+  --color-linear-input-placeholder: var(--linear-input-placeholder);
+  --color-linear-input-disabled: var(--linear-input-disabled);
+  --color-linear-search-sidebar: var(--linear-search-sidebar);
+  --color-linear-search-sidebar-border: var(--linear-search-sidebar-border);
+  --color-linear-search-content-border: var(--linear-search-content-border);
+  --color-linear-search-content-border-hover: var(--linear-search-content-border-hover);
+  --color-linear-search-placeholder: var(--linear-search-placeholder);
+  --color-linear-search-icon: var(--linear-search-icon);
+  --color-linear-inline-placeholder: var(--linear-inline-placeholder);
+  --color-linear-switch-off: var(--linear-switch-off);
+  --color-linear-switch-off-hover: var(--linear-switch-off-hover);
+  --color-linear-switch-thumb: var(--linear-switch-thumb);
+  --color-linear-settings-divider: var(--linear-settings-divider);
+  --color-linear-settings-row-hover: var(--linear-settings-row-hover);
+  --color-linear-status-header: var(--linear-status-header);
+  --color-linear-inset: var(--linear-inset);
+  --color-linear-inset-border: var(--linear-inset-border);
+  --color-linear-accordion-divider: var(--linear-accordion-divider);
+  --color-linear-primary: var(--linear-primary);
+  --color-linear-primary-hover: var(--linear-primary-hover);
+  --color-linear-primary-foreground: var(--linear-primary-foreground);
+  --color-linear-focus: var(--linear-focus);
+  --color-linear-danger: var(--linear-danger);
+  --color-linear-danger-subtle: var(--linear-danger-subtle);
+  --color-linear-danger-solid: var(--linear-danger-solid);
+  --color-linear-danger-solid-hover: var(--linear-danger-solid-hover);
+  --shadow-linear-control: var(--linear-shadow-control);
+  --shadow-linear-outline: var(--linear-shadow-outline);
+  --shadow-linear-outline-hover: var(--linear-shadow-outline-hover);
+  --shadow-linear-secondary: var(--linear-shadow-secondary);
+  --shadow-linear-secondary-hover: var(--linear-shadow-secondary-hover);
+  --shadow-linear-subtle: var(--linear-shadow-subtle);
+  --shadow-linear-subtle-hover: var(--linear-shadow-subtle-hover);
+  --shadow-linear-popover: var(--linear-shadow-popover);
+  --shadow-linear-tooltip: var(--linear-shadow-tooltip);
+  --shadow-linear-settings: var(--linear-shadow-settings);
+  --shadow-linear-dialog: var(--linear-shadow-dialog);
+  --font-sans: "Inter Variable", "SF Pro Display", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+:root {
+  color-scheme: dark;
+  --linear-canvas: lch(4.5 0.3 272);
+  --linear-panel: lch(8.4 0.6 272);
+  --linear-border: lch(13.08 1.48 272);
+  --linear-foreground: lch(90.826 1.425 272);
+  --linear-bright: lch(100 0 272);
+  --linear-muted: lch(60.621 1.2 272);
+  --linear-borderless-foreground: lch(90.155 1.2 272);
+  --linear-control-foreground: lch(90.451 1.2 272);
+  --linear-subtle: lch(10.149 0.689 272);
+  --linear-control: lch(13.861 1.139 272);
+  --linear-control-hover: lch(18.49 1.525 272);
+  --linear-ghost-hover: lch(14.777 1.075 272);
+  --linear-muted-hover: lch(8.445 1.3 272);
+  --linear-card-hover: lch(9.345 0.85 272);
+  --linear-popover: lch(12.72 0.85 272);
+  --linear-popover-elevated: lch(16.433 1.3 272);
+  --linear-popover-border: lch(23.52 1.93 272);
+  --linear-popover-elevated-border: lch(27.233 2.38 272);
+  --linear-menu-border: lch(25.68 1.93 272);
+  --linear-menu-foreground: lch(91.178 1.425 272);
+  --linear-menu-elevated-foreground: lch(91.554 1.65 272);
+  --linear-menu-icon: lch(64.714 1.425 272);
+  --linear-menu-item-hover: lch(20.82 1.3 272);
+  --linear-menu-danger: #f34e52;
+  --linear-menu-danger-hover: rgb(243 78 82 / 10%);
+  --linear-menu-separator: lch(25.68 1.93 272);
+  --linear-select-chevron: lch(61.803 1.2 272);
+  --linear-tooltip: lch(16.433 1.3 272);
+  --linear-tooltip-border: lch(29.393 2.38 272);
+  --linear-tooltip-foreground: lch(91.554 1.65 272);
+  --linear-tooltip-muted: lch(66.215 1.65 272);
+  --linear-sidebar-active: lch(13.845 1.3 272);
+  --linear-sidebar-backdrop: lch(0 0 0 / 40%);
+  --linear-gallery-main: lch(5.52 0.4 272);
+  --linear-input: lch(9.232 0.85 272);
+  --linear-input-border: lch(30.833 1.93 272);
+  --linear-input-border-hover: lch(28.032 6.93 272);
+  --linear-input-placeholder: lch(39.452 1.425 272);
+  --linear-input-disabled: lch(63.304 1.425 272);
+  --linear-search-sidebar: lch(7.32 0.85 272);
+  --linear-search-sidebar-border: lch(18.48 1.48 272);
+  --linear-search-content-border: lch(27.12 1.48 272);
+  --linear-search-content-border-hover: lch(24.32 6.48 272);
+  --linear-search-placeholder: lch(60.621 1.2 272);
+  --linear-search-icon: lch(60.621 1.2 272);
+  --linear-inline-placeholder: lch(36.975 1.2 272);
+  --linear-switch-off: lch(47.551 0.913 271.998);
+  --linear-switch-off-hover: lch(56.238 1.008 271.999);
+  --linear-switch-thumb: lch(100 5 288.421);
+  --linear-settings-divider: lch(100 0 0 / 8.3%);
+  --linear-settings-row-hover: lch(13.058 1.3 272);
+  --linear-status-header: lch(11.033 1.3 272);
+  --linear-inset: lch(16.545 1.3 272);
+  --linear-inset-border: lch(21.36 1.93 272);
+  --linear-accordion-divider: lch(13.553 1.93 272);
+  --linear-primary: lch(47.918 59.303 288.421);
+  --linear-primary-hover: lch(52.418 61.103 288.421);
+  --linear-primary-foreground: lch(100 5 288.421);
+  --linear-focus: lch(65 48 288.421);
+  --linear-danger: lch(80 80 29);
+  --linear-danger-subtle: lch(12.928 11.894 17.621);
+  --linear-danger-solid: lch(58 73 29);
+  --linear-danger-solid-hover: lch(62.5 73 29);
+  --linear-shadow-control: 0 0.5px 1px 1px lch(0 0 0 / 30%);
+  --linear-shadow-outline: 0 0 0 0.5px lch(100 0 0 / 14.3%), 0 0.5px 1px 1px lch(0 0 0 / 30%);
+  --linear-shadow-outline-hover: 0 0 0 0.5px lch(100 0 0 / 23.8%), 0 0.5px 1px 1px lch(0 0 0 / 30%);
+  --linear-shadow-secondary: 0 0 0 0.5px lch(100 0 0 / 14.3%), 0 0.5px 1px 1px lch(0 0 0 / 30%);
+  --linear-shadow-secondary-hover: 0 0 0 0.5px lch(100 0 0 / 23.8%), 0 0.5px 1px 1px lch(0 0 0 / 30%);
+  --linear-shadow-subtle: 0 0 0 0.5px lch(100 0 0 / 13.7%), 0 0.5px 1px 1px lch(0 0 0 / 30%);
+  --linear-shadow-subtle-hover: 0 0 0 0.5px lch(100 0 0 / 22.9%), 0 0.5px 1px 1px lch(0 0 0 / 30%);
+  --linear-shadow-popover: 0 3px 8px lch(0 0 0 / 12.5%), 0 2px 5px lch(0 0 0 / 12.5%), 0 1px 1px lch(0 0 0 / 12.5%);
+  --linear-shadow-tooltip: 0 0.5px 1px 1px lch(0 0 0 / 30%);
+  --linear-shadow-settings: 0 0 0 0.5px lch(100 0 0 / 8.3%), 0 0.5px 1px 1px lch(0 0 0 / 30%);
+  --linear-shadow-dialog: 0 4px 40px lch(0 0 0 / 10%), 0 3px 20px lch(0 0 0 / 12.5%), 0 3px 12px lch(0 0 0 / 12.5%), 0 2px 8px lch(0 0 0 / 12.5%), 0 1px 1px lch(0 0 0 / 12.5%);
+  background: var(--linear-canvas);
+  color: var(--linear-foreground);
+  font-family: var(--font-sans);
+  font-synthesis: none;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+[data-linear-search-input]::-webkit-search-cancel-button,
+[data-linear-search-input]::-webkit-search-decoration {
+  display: none;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+body {
+  min-width: 320px;
+  min-height: 100vh;
+  margin: 0;
+  background:
+    radial-gradient(circle at 50% -20%, lch(20 18 288 / 22%), transparent 38rem),
+    var(--linear-canvas);
+}
+
+button:not(:disabled),
+[role="button"]:not([aria-disabled="true"]) {
+  cursor: default;
+}
+
+@media (pointer: coarse) {
+  button::before,
+  [role="button"]::before {
+    position: absolute;
+    width: max(100%, 44px);
+    height: max(100%, 44px);
+    content: "";
+  }
+}

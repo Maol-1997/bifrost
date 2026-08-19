@@ -1,6 +1,9 @@
+import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { Activity, Bot, Plug, type LucideIcon } from 'lucide-react';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { BifrostMark } from '@app/components/ui/bifrost-mark';
+import { Sidebar, SidebarBackdrop, SidebarContent, SidebarGroup, SidebarHeader, SidebarLink, SidebarMobileHeader, SidebarSpacer, SidebarTrigger } from '@app/components/ui/sidebar';
 import { cn } from '@app/lib/cn';
 import { initialsOf } from '@app/lib/initials';
 import { getCurrentUser, type CurrentUser, type HealthSnapshot } from '@app/api/bifrost';
@@ -11,10 +14,10 @@ import { useAppHealth, type AppHealthState } from './use-app-health';
 /** What the shell loads once and shares with every page under it. */
 export type AppShellContext = { health: AppHealthState; user: CurrentUser | null | undefined };
 
-const navItems: readonly { to: string; label: string }[] = [
-  { to: APP_ROUTES.integrations, label: 'Integrations' },
-  { to: APP_ROUTES.agents, label: 'Agents & sessions' },
-  { to: APP_ROUTES.serviceStatus, label: 'Service status' },
+const navItems: readonly { to: string; label: string; icon: LucideIcon }[] = [
+  { to: APP_ROUTES.integrations, label: 'Integrations', icon: Plug },
+  { to: APP_ROUTES.agents, label: 'Agents & sessions', icon: Bot },
+  { to: APP_ROUTES.serviceStatus, label: 'Service status', icon: Activity },
 ];
 
 function isActiveRoute(pathname: string, to: string): boolean {
@@ -35,31 +38,65 @@ function statusBadge(snapshot: HealthSnapshot | undefined): { text: string; clas
 
 export function AppShell(): React.JSX.Element {
   const location = useLocation();
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const health = useAppHealth();
   const { data: user } = useQuery({ queryKey: ['current-user'], queryFn: getCurrentUser });
   const badge = statusBadge(health.snapshot);
+
+  useEffect(() => {
+    setIsSidebarOpen(false);
+  }, [location.pathname]);
+
+  useEffect(() => {
+    if (!isSidebarOpen) return;
+    function closeSidebarWithEscape(event: KeyboardEvent): void {
+      if (event.key === 'Escape') setIsSidebarOpen(false);
+    }
+    window.addEventListener('keydown', closeSidebarWithEscape);
+    return () => { window.removeEventListener('keydown', closeSidebarWithEscape); };
+  }, [isSidebarOpen]);
+
   return (
-    <div className="min-h-dvh bg-app-bg-primary text-app-text-primary lg:flex">
-      <aside className="border-b-[0.5px] border-app-border-pane bg-app-bg-sidebar px-3 py-3 lg:fixed lg:inset-y-0 lg:w-(--sidebar-width) lg:border-r-[0.5px] lg:border-b-0">
-        <div className="flex items-center gap-2 px-2 pb-3.5"><BifrostMark className="size-[22px]" /><span className="text-sm font-semibold tracking-[-0.01em]">Bifrost</span></div>
-        <nav aria-label="Primary" className="flex gap-1 overflow-x-auto lg:flex-col">
-          {navItems.map((item) => (
-            <NavLink key={item.to} to={item.to} className={cn('flex min-h-9 shrink-0 items-center justify-between gap-3 rounded-md px-2 py-1.5 text-[13px] text-app-text-tertiary hover:bg-white/5 hover:text-app-text-secondary lg:min-h-0', isActiveRoute(location.pathname, item.to) && 'bg-white/7 font-semibold text-app-text-primary')}>
-              <span>{item.label}</span>{item.to === APP_ROUTES.serviceStatus && badge ? <span className={cn('rounded-full px-1.5 py-0.5 text-[10.5px] font-semibold', badge.className)}>{badge.text}</span> : null}
-            </NavLink>
-          ))}
+    <div className="flex h-dvh min-w-0 overflow-hidden bg-linear-canvas text-linear-foreground">
+      <SidebarBackdrop open={isSidebarOpen} aria-label="Close navigation" onClick={() => { setIsSidebarOpen(false); }} />
+      <Sidebar id="bifrost-sidebar" aria-label="Primary navigation" open={isSidebarOpen} onOpenChange={setIsSidebarOpen}>
+        <SidebarHeader className="h-auto px-4 pb-5">
+          <div className="flex items-center gap-2"><BifrostMark className="size-[22px]" /><span className="text-sm font-semibold text-linear-bright">Bifrost</span></div>
+        </SidebarHeader>
+        <SidebarContent className="pt-2">
+          <SidebarGroup>
+            <nav aria-label="Primary">
+          {navItems.map((item) => {
+            const Icon = item.icon;
+            return (
+                <SidebarLink key={item.to} asChild active={isActiveRoute(location.pathname, item.to)}>
+                  <NavLink to={item.to}>
+                    <Icon aria-hidden="true" />
+                    <span>{item.label}</span>{item.to === APP_ROUTES.serviceStatus && badge ? <span className={cn('ml-auto rounded-full px-1.5 py-0.5 text-[10.5px] font-semibold', badge.className)}>{badge.text}</span> : null}
+                  </NavLink>
+                </SidebarLink>
+            );
+          })}
+            </nav>
+          </SidebarGroup>
           {user?.isAdmin ? <AdminToolNavigation /> : null}
-          {user ? <NavLink to={APP_ROUTES.accountSecurity} className={({ isActive }) => cn('flex min-h-9 shrink-0 items-center rounded-md px-2 py-1.5 text-[13px] text-app-text-tertiary hover:bg-white/5 hover:text-app-text-secondary lg:hidden', isActive && 'bg-white/7 font-semibold text-app-text-primary')}>Account & security</NavLink> : null}
-        </nav>
+        </SidebarContent>
         {user ? (
-          <NavLink to={APP_ROUTES.accountSecurity} aria-label="Account & security" className={({ isActive }) => cn('bottom-3 left-3 right-3 hidden items-center gap-2 rounded-lg p-2 text-app-text-primary hover:bg-white/5 lg:absolute lg:flex', isActive && 'bg-white/7')}>
+          <SidebarLink asChild active={location.pathname === APP_ROUTES.accountSecurity} className="mb-3 h-auto py-2">
+            <NavLink to={APP_ROUTES.accountSecurity} aria-label="Account & security">
             <div className="flex size-6 shrink-0 items-center justify-center rounded-full bg-brand/25 text-[10.5px] font-semibold text-brand-hover">{initialsOf(user.name)}</div>
             <div className="min-w-0"><div className="truncate text-[12.5px] font-medium">{user.name}</div><div className="truncate text-[10.5px] text-app-text-quaternary">Account & security</div></div>
-          </NavLink>
+            </NavLink>
+          </SidebarLink>
         ) : null}
-      </aside>
-      <main className="min-h-dvh flex-1 lg:ml-(--sidebar-width)">
-        <div className="mx-auto max-w-[760px] px-5 pb-24 pt-8 sm:px-10 sm:pt-11"><Outlet context={{ health, user } satisfies AppShellContext} /></div>
+      </Sidebar>
+      <SidebarSpacer />
+      <main className="flex min-w-0 flex-1 flex-col overflow-y-auto bg-linear-gallery-main min-[1025px]:mb-2 min-[1025px]:mr-2 min-[1025px]:mt-2 min-[1025px]:rounded-xl min-[1025px]:border-[0.5px] min-[1025px]:border-linear-border">
+        <SidebarMobileHeader>
+          <SidebarTrigger aria-label="Open navigation" aria-controls="bifrost-sidebar" aria-expanded={isSidebarOpen} onClick={() => { setIsSidebarOpen(true); }} />
+          <span className="font-medium text-linear-bright">Bifrost</span>
+        </SidebarMobileHeader>
+        <div className={cn('mx-auto w-full px-5 pb-24 pt-8 sm:px-10 sm:pt-11', location.pathname.startsWith(APP_ROUTES.adminTools) ? 'max-w-5xl' : 'max-w-[760px]')}><Outlet context={{ health, user } satisfies AppShellContext} /></div>
       </main>
     </div>
   );

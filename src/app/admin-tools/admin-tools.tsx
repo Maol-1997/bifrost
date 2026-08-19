@@ -8,9 +8,12 @@ import { Button } from '@app/components/ui/button';
 import { Checkbox, type CheckboxState } from '@app/components/ui/checkbox';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger } from '@app/components/ui/dropdown-menu';
 import { ErrorState } from '@app/components/ui/error-state';
+import { SearchInput } from '@app/components/ui/input';
 import { LoadingState } from '@app/components/ui/loading-state';
 import { PageHead } from '@app/components/ui/page-head';
 import { SectionCard } from '@app/components/ui/section-card';
+import { SettingsRow } from '@app/components/ui/settings-group';
+import { Surface } from '@app/components/ui/surface';
 import { cn } from '@app/lib/cn';
 import { APP_ROUTES } from '@features/utils/routes';
 
@@ -89,49 +92,59 @@ function PolicyMenu({ ariaLabel, disabled, triggerLabel, value, className, onCha
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button type="button" variant="outline" aria-label={ariaLabel} disabled={disabled} className={cn('h-11 justify-between rounded-md border-app-border-pane bg-app-bg-secondary px-3 text-[12.5px] text-app-text-primary hover:bg-control', className)}>
+        <Button type="button" variant="outline" size="select" aria-label={ariaLabel} disabled={disabled} className={cn('justify-start [&_svg]:absolute [&_svg]:right-2.5', className)}>
           {triggerLabel}<ChevronDown aria-hidden />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-56">
         <DropdownMenuRadioGroup {...(value === undefined ? {} : { value })} onValueChange={(next) => { if (isToolPolicyState(next)) onChange(next); }}>
-          {POLICY_OPTIONS.map((option) => <DropdownMenuRadioItem key={option.value} value={option.value} className="h-11">{option.label}</DropdownMenuRadioItem>)}
+          {POLICY_OPTIONS.map((option) => <DropdownMenuRadioItem key={option.value} value={option.value}>{option.label}</DropdownMenuRadioItem>)}
         </DropdownMenuRadioGroup>
       </DropdownMenuContent>
     </DropdownMenu>
   );
 }
 
+function ContractBlock({ label, value }: { label: string; value: string }): React.JSX.Element {
+  return (
+    <Surface variant="inset" className="min-w-0 p-3">
+      <div className="mb-2 text-xs font-medium text-linear-bright">{label}</div>
+      <pre className="max-h-64 overflow-auto whitespace-pre font-mono text-[11px] leading-5 text-linear-input-disabled">{value}</pre>
+    </Surface>
+  );
+}
+
 function ToolRow({ tool, providerId, selected, disabled, onSelect, onDeselect, onChange }: { tool: AdminTool; providerId: ConnectableProviderId; selected: boolean; disabled: boolean; onSelect: (toolName: string) => void; onDeselect: (toolName: string) => void; onChange: (change: ToolPolicyChange) => void }): React.JSX.Element {
   const currentPolicy = POLICY_OPTIONS.find((option) => option.value === tool.state);
   return (
-    <div className="border-t-[0.5px] border-app-border-pane px-4 py-4 first:border-t-0">
-      <div className="flex items-start gap-1">
-        <label className="-ml-3 flex size-11 shrink-0 cursor-pointer items-center justify-center">
+    <SettingsRow className="block h-auto min-h-[65px] p-0">
+      <div className="grid grid-cols-[44px_minmax(0,1fr)] items-start gap-x-3 px-4 py-4 sm:grid-cols-[44px_minmax(0,1fr)_188px]">
+        <label className="flex size-11 cursor-pointer items-start justify-center pt-0.5">
           <Checkbox aria-label={`Select ${tool.title}`} checked={selected} disabled={disabled} onCheckedChange={(checked) => { if (checked) onSelect(tool.name); else onDeselect(tool.name); }} />
         </label>
-        <div className="flex min-w-0 flex-1 flex-col gap-3 sm:flex-row sm:items-start">
-          <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-2"><span className="text-[13px] font-semibold">{tool.title}</span>{tool.needsReview ? <span className="rounded-full bg-danger/10 px-2 py-0.5 text-[10.5px] font-semibold text-danger">Review required</span> : null}</div>
-            <ToolDescription description={tool.description} title={tool.title} />
-            <code className="mt-1 block break-all font-mono text-[11px] text-app-text-quaternary">{tool.name}</code>
-          </div>
-          <div className="shrink-0 text-[11px] font-medium text-app-text-tertiary">
-            <div>Policy</div>
-            <PolicyMenu ariaLabel={`Policy for ${tool.title}`} disabled={disabled} triggerLabel={currentPolicy?.label ?? tool.state} value={tool.state} className="mt-1 w-full sm:w-56" onChange={(state) => { if (state !== tool.state) onChange({ providerId, toolName: tool.name, fingerprint: tool.fingerprint, state }); }} />
-          </div>
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2"><span className="text-[13px] font-medium text-linear-bright">{tool.title}</span>{tool.needsReview ? <span className="rounded-full bg-danger/10 px-2 py-0.5 text-[10.5px] font-semibold text-danger">Review required</span> : null}</div>
+          <ToolDescription description={tool.description} title={tool.title} />
+          <code className="mt-1 block truncate font-mono text-[11px] text-app-text-quaternary" title={tool.name}>{tool.name}</code>
+        </div>
+        <div className="col-start-2 mt-3 min-w-0 text-[11px] font-medium text-app-text-tertiary sm:col-start-3 sm:row-start-1 sm:mt-0">
+          <div>Policy</div>
+          <PolicyMenu ariaLabel={`Policy for ${tool.title}`} disabled={disabled} triggerLabel={currentPolicy?.label ?? tool.state} value={tool.state} className="mt-1 w-full" onChange={(state) => { if (state !== tool.state) onChange({ providerId, toolName: tool.name, fingerprint: tool.fingerprint, state }); }} />
         </div>
       </div>
-      <details className="ml-9 mt-3 text-[11.5px] text-app-text-tertiary">
-        <summary className="min-h-11 cursor-pointer py-3 font-medium hover:text-app-text-primary">Review contract and fingerprint</summary>
-        <div className="space-y-3 rounded-md bg-black/15 p-3">
-          <div><div className="mb-1 font-semibold text-app-text-secondary">Fingerprint</div><code className="break-all font-mono text-[10.5px]">{tool.fingerprint}</code></div>
-          <div><div className="mb-1 font-semibold text-app-text-secondary">Annotations</div><pre className="max-h-56 overflow-auto whitespace-pre-wrap break-words font-mono text-[10.5px]">{JSON.stringify(tool.annotations, null, 2)}</pre></div>
-          <div><div className="mb-1 font-semibold text-app-text-secondary">Input schema</div><pre className="max-h-56 overflow-auto whitespace-pre-wrap break-words font-mono text-[10.5px]">{JSON.stringify(tool.inputSchema, null, 2)}</pre></div>
-          {tool.outputSchema !== undefined ? <div><div className="mb-1 font-semibold text-app-text-secondary">Output schema</div><pre className="max-h-56 overflow-auto whitespace-pre-wrap break-words font-mono text-[10.5px]">{JSON.stringify(tool.outputSchema, null, 2)}</pre></div> : null}
+      <details className="group text-[11.5px] text-app-text-tertiary open:border-t-[0.5px] open:border-linear-settings-divider">
+        <summary className="flex min-h-11 cursor-pointer list-none items-center gap-1.5 px-4 pl-[72px] font-medium outline-none hover:text-linear-bright focus-visible:[outline:1px_solid_var(--linear-primary)] focus-visible:[outline-offset:-1px] [&::-webkit-details-marker]:hidden">
+          <ChevronDown aria-hidden className="size-3.5 shrink-0 -rotate-90 transition-transform duration-150 group-open:rotate-0 motion-reduce:transition-none" />
+          Review contract and fingerprint
+        </summary>
+        <div className="grid gap-3 px-4 pb-4 sm:grid-cols-2">
+          <div className="sm:col-span-2"><ContractBlock label="Fingerprint" value={tool.fingerprint} /></div>
+          <ContractBlock label="Annotations" value={JSON.stringify(tool.annotations, null, 2)} />
+          <ContractBlock label="Input schema" value={JSON.stringify(tool.inputSchema, null, 2)} />
+          {tool.outputSchema !== undefined ? <ContractBlock label="Output schema" value={JSON.stringify(tool.outputSchema, null, 2)} /> : null}
         </div>
       </details>
-    </div>
+    </SettingsRow>
   );
 }
 
@@ -180,7 +193,7 @@ function ProviderTools({ provider, normalizedSearch, selectedToolNames, disabled
 }
 
 function BatchActions({ selectedCount, disabled, onClear, onChange }: { selectedCount: number; disabled: boolean; onClear: () => void; onChange: (state: ToolPolicyState) => void }): React.JSX.Element {
-  return <div aria-label="Batch actions" className="sticky top-3 z-20 mt-4 flex flex-wrap items-center justify-between gap-2 rounded-lg border-[0.5px] border-app-border-pane bg-app-bg-primary/95 p-2 shadow-lg backdrop-blur"><div aria-live="polite" className="px-2 text-[12.5px] font-medium tabular-nums">{selectedCount} selected</div><div className="flex items-center gap-1.5"><Button type="button" variant="ghost" disabled={disabled} className="h-11 rounded-md px-3" onClick={onClear}>Clear</Button><PolicyMenu ariaLabel={`Set policy for ${selectedCount} selected tools`} disabled={disabled} triggerLabel={disabled ? 'Applying…' : 'Set policy'} className="w-40" onChange={onChange} /></div></div>;
+  return <div aria-label="Batch actions" className="sticky top-3 z-20 mt-4 flex flex-wrap items-center justify-between gap-2 rounded-lg border-[0.5px] border-app-border-pane bg-app-bg-primary/95 p-2 shadow-lg backdrop-blur"><div aria-live="polite" className="px-2 text-[12.5px] font-medium tabular-nums">{selectedCount} selected</div><div className="flex items-center gap-1.5"><Button type="button" variant="ghost" size="large" disabled={disabled} onClick={onClear}>Clear</Button><PolicyMenu ariaLabel={`Set policy for ${selectedCount} selected tools`} disabled={disabled} triggerLabel={disabled ? 'Applying…' : 'Set policy'} className="w-40" onChange={onChange} /></div></div>;
 }
 
 function AdminProviderTools({ providerId }: { providerId: ConnectableProviderId }): React.JSX.Element {
@@ -216,8 +229,9 @@ function AdminProviderTools({ providerId }: { providerId: ConnectableProviderId 
   return (
     <section>
       <PageHead title={`${providerName(providerId)} tools`} subtitle={`Review tools discovered from ${providerName(providerId)}'s official MCP server. New or changed contracts stay blocked until you approve their current fingerprint.`} />
-      <div className="mt-4 flex justify-end"><Button type="button" variant="outline" disabled={refreshMutation.isPending} className="h-11 min-w-28 rounded-md" onClick={() => { refreshMutation.mutate(); }}>{refreshMutation.isPending ? 'Refreshing…' : 'Refresh tools'}</Button></div>
-      <label className="mt-6 block text-[11px] font-medium text-app-text-tertiary">Search tools<input aria-label="Search tools" type="search" value={search} onChange={(event) => { setSearch(event.target.value); }} placeholder="Name or description" className="mt-1 block min-h-11 w-full rounded-md border border-app-border-pane bg-app-bg-secondary px-3 text-[13px] text-app-text-primary placeholder:text-app-text-quaternary" /></label>
+      <div className="mt-4 flex justify-end"><Button type="button" variant="outline" size="large" disabled={refreshMutation.isPending} className="min-w-28" onClick={() => { refreshMutation.mutate(); }}>{refreshMutation.isPending ? 'Refreshing…' : 'Refresh tools'}</Button></div>
+      <label htmlFor="tool-search" className="mt-6 block text-[11px] font-medium text-app-text-tertiary">Search tools</label>
+      <SearchInput id="tool-search" variant="content" value={search} onChange={(event) => { setSearch(event.target.value); }} placeholder="Name or description" containerClassName="mt-1" className="h-11" />
       {selectedToolNames.size > 0 ? <BatchActions selectedCount={selectedToolNames.size} disabled={policyMutation.isPending} onClear={() => { setSelectedToolNames(new Set()); }} onChange={changeSelected} /> : null}
       {toolsQuery.isPending ? <LoadingState label="Loading official provider tools…" /> : null}
       {toolsQuery.isError ? <ErrorState title="We couldn't load tool administration" body="You may not have administrator access, or provider discovery failed before the catalog could load." onRetry={() => { void toolsQuery.refetch(); }} /> : null}

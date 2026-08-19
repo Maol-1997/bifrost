@@ -1,6 +1,6 @@
 import { cn } from '@app/lib/cn';
-import { Card } from './card';
+import { SettingsGroup } from './settings-group';
 
 export function SectionCard({ children, className }: { children: React.ReactNode; className?: string }): React.JSX.Element {
-  return <Card className={cn('gap-0 rounded-[10px] border-[0.5px] border-app-border-pane bg-app-bg-secondary py-0 shadow-none', className)}>{children}</Card>;
+  return <SettingsGroup className={cn('py-0', className)}>{children}</SettingsGroup>;
 }
