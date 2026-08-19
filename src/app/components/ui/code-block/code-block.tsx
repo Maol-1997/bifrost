@@ -54,6 +54,13 @@ function highlightedCode(code: string, language: string) {
   return hljs.highlightAuto(code, []).value
 }
 
+function languageLabel(language: string): string {
+  const knownLabel = languageLabels[language]
+  if (knownLabel) return knownLabel
+  if (!language) return "Code"
+  return `${language.charAt(0).toUpperCase()}${language.slice(1)}`
+}
+
 function WrapIcon() {
   return (
     <svg aria-hidden="true" height="16" viewBox="0 0 16 16" width="16">
@@ -77,8 +84,7 @@ const CodeBlock = React.memo(
     ref,
   ) {
     const normalizedLanguage = language.trim().toLowerCase()
-    const displayedLanguage =
-      label ?? languageLabels[normalizedLanguage] ?? (normalizedLanguage || "Code")
+    const displayedLanguage = label ?? languageLabel(normalizedLanguage)
     const highlighted = React.useMemo(
       () => highlightedCode(code, normalizedLanguage),
       [code, normalizedLanguage],

@@ -120,7 +120,7 @@ const AgentChatMini = React.forwardRef<HTMLElement, AgentChatMiniProps>(
           aria-label={title}
           aria-modal="true"
           className={cn(
-            "z-[90] flex h-[420px] max-h-[calc(100%-24px)] w-[400px] max-w-[calc(100%-24px)] flex-col overflow-hidden rounded-t-xl rounded-b-2xl border-[0.5px] border-linear-search-sidebar-border bg-linear-agent-mini shadow-linear-popover",
+            "z-[90] flex h-[480px] max-h-[calc(100%-24px)] w-[400px] max-w-[calc(100%-24px)] flex-col overflow-hidden rounded-t-xl rounded-b-2xl border-[0.5px] border-linear-search-sidebar-border bg-linear-agent-mini shadow-linear-popover",
             position === "fixed"
               ? "fixed bottom-[34px] right-[110px] max-[700px]:bottom-3 max-[700px]:right-3"
               : "absolute bottom-4 right-4",

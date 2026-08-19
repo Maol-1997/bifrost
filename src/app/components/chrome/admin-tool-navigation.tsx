@@ -1,6 +1,6 @@
-import { Wrench } from 'lucide-react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { getProviderCatalog, isConnectableProvider } from '@app/api/bifrost';
+import { BifrostMark } from '@app/components/ui/bifrost-mark';
 import { ProviderIcon } from '@app/components/ui/provider-icon';
 import { SidebarCollapsible, SidebarCollapsibleContent, SidebarCollapsibleTrigger, SidebarGroup, SidebarNestedLink } from '@app/components/ui/sidebar';
 import { APP_ROUTES } from '@features/utils/routes';
@@ -19,7 +19,7 @@ export function AdminToolNavigation(): React.JSX.Element {
     <SidebarGroup>
       <SidebarCollapsible defaultOpen={isAdminRoute}>
         <SidebarCollapsibleTrigger variant="team">
-          <Wrench aria-hidden="true" className="size-4" />
+          <BifrostMark aria-hidden="true" className="size-4" />
           <span className="truncate">Tool administration</span>
         </SidebarCollapsibleTrigger>
         <SidebarCollapsibleContent>

@@ -123,22 +123,7 @@ function AgentChatDock({
     </button>
   )
 
-  if (floating) return floatingContent
-
-  return (
-    <div className={cn("relative h-[720px] w-full", className)}>
-      <AgentChat
-        history={history}
-        {...(onHistorySelect ? { onHistorySelect } : {})}
-        {...(onNewChat ? { onNewChat } : {})}
-        title="New chat"
-      >
-        <div className="min-h-0 flex-1" />
-      </AgentChat>
-
-      {floatingContent}
-    </div>
-  )
+  return floatingContent
 }
 
 export {

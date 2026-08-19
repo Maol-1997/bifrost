@@ -38,9 +38,9 @@ function AgentChatLogo({ className }: AgentChatLogoProps) {
           y1="108.3681"
           y2="227.6319"
         >
-          <stop offset="0" stopColor="lch(27.12% 1.48 272)" />
-          <stop offset="0.5" stopColor="lch(27.12% 1.48 272)" />
-          <stop offset="1" stopColor="lch(36.975% 1.2 272)" />
+          <stop offset="0" stopColor="var(--linear-search-content-border)" />
+          <stop offset="0.5" stopColor="var(--linear-search-content-border)" />
+          <stop offset="1" stopColor="var(--linear-inline-placeholder)" />
         </linearGradient>
         <linearGradient
           id={maskGradientId}
@@ -63,7 +63,7 @@ function AgentChatLogo({ className }: AgentChatLogoProps) {
           key={path}
           d={path}
           fillRule="evenodd"
-          stroke="lch(13.08% 1.48 272)"
+          stroke="var(--linear-border)"
           strokeWidth="0.5"
           vectorEffect="non-scaling-stroke"
         />

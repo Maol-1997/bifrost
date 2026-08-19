@@ -11,10 +11,10 @@
   display: grid;
   margin: 22px 0 0;
   overflow: visible;
-  border: 0.5px solid lch(22.193 1.93 272);
+  border: var(--linear-border-width-hairline) solid var(--linear-agent-content-border);
   border-radius: 6px;
-  background: lch(6.307 0.85 272);
-  color: lch(90.826 1.425 272);
+  background: var(--linear-agent-code-background);
+  color: var(--linear-foreground);
   font-family: "Berkeley Mono", "SFMono Regular", Consolas, "Liberation Mono", Menlo, Courier, monospace;
   font-size: 15px;
   font-synthesis: weight style small-caps;
@@ -33,10 +33,10 @@
   height: 31.5px;
   align-items: center;
   padding: 2px;
-  border: 0.5px solid lch(16.793 1.93 272);
+  border: var(--linear-border-width-hairline) solid var(--linear-agent-code-toolbar-border);
   border-radius: 9999px;
-  background: lch(9.232 0.85 272);
-  color: lch(63.304 1.425 272);
+  background: var(--linear-input);
+  color: var(--linear-agent-composer-icon);
   cursor: default;
   opacity: 0;
   pointer-events: auto;
@@ -74,14 +74,14 @@
   border: 0;
   border-radius: 9999px;
   background: transparent;
-  color: lch(63.304 1.425 272);
+  color: var(--linear-agent-composer-icon);
   cursor: default;
 }
 
 .agent-code-actions button:hover,
 .agent-code-actions button:focus-visible {
-  background: lch(11.933 1.75 272);
-  color: lch(90.826 1.425 272);
+  background: var(--linear-agent-code-control-hover);
+  color: var(--linear-foreground);
   outline: none;
 }
 
@@ -110,40 +110,40 @@
 .hljs-keyword,
 .hljs-selector-tag,
 .hljs-literal {
-  color: #e394dc;
+  color: var(--linear-syntax-keyword);
 }
 
 .hljs-params,
 .hljs-attr {
-  color: #fce27d;
+  color: var(--linear-syntax-parameter);
 }
 
 .hljs-built_in {
-  color: #eb6e3d;
+  color: var(--linear-syntax-builtin);
 }
 
 .hljs-title,
 .hljs-function {
-  color: #25f8ca;
+  color: var(--linear-syntax-function);
 }
 
 .hljs-string {
-  color: #00c5f0;
+  color: var(--linear-syntax-string);
 }
 
 .hljs-string .hljs-subst,
 .hljs-string.hljs-subst {
-  color: #25f8ca;
+  color: var(--linear-syntax-function);
 }
 
 .hljs-number,
 .hljs-symbol {
-  color: #25f8ca;
+  color: var(--linear-syntax-function);
 }
 
 .hljs-comment,
 .hljs-quote {
-  color: lch(63.304 1.425 272);
+  color: var(--linear-agent-composer-icon);
 }
 
 @media (prefers-reduced-motion: reduce) {

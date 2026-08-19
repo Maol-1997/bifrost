@@ -91,6 +91,42 @@
   --color-linear-agent-header-icon: var(--linear-agent-header-icon);
   --color-linear-agent-header-hover: var(--linear-agent-header-hover);
   --color-linear-agent-mini: var(--linear-agent-mini);
+  --color-linear-agent-background: var(--linear-agent-background);
+  --color-linear-agent-content-border: var(--linear-agent-content-border);
+  --color-linear-agent-code-background: var(--linear-agent-code-background);
+  --color-linear-agent-code-toolbar-border: var(--linear-agent-code-toolbar-border);
+  --color-linear-agent-code-control-hover: var(--linear-agent-code-control-hover);
+  --color-linear-agent-inline-code: var(--linear-agent-inline-code);
+  --color-linear-markdown-link: var(--linear-markdown-link);
+  --color-linear-team-accent: var(--linear-team-accent);
+  --color-linear-theme-preview-dark-background: var(--linear-theme-preview-dark-background);
+  --color-linear-theme-preview-dark-foreground: var(--linear-theme-preview-dark-foreground);
+  --color-linear-theme-preview-dark-ring: var(--linear-theme-preview-dark-ring);
+  --color-linear-theme-preview-light-background: var(--linear-theme-preview-light-background);
+  --color-linear-theme-preview-light-foreground: var(--linear-theme-preview-light-foreground);
+  --color-linear-theme-preview-light-ring: var(--linear-theme-preview-light-ring);
+  --color-linear-status-yellow: var(--linear-status-yellow);
+  --color-linear-status-yellow-subtle: var(--linear-status-yellow-subtle);
+  --color-linear-status-purple: var(--linear-status-purple);
+  --color-linear-status-purple-subtle: var(--linear-status-purple-subtle);
+  --color-linear-status-green: var(--linear-status-green);
+  --color-linear-status-green-subtle: var(--linear-status-green-subtle);
+  --color-linear-syntax-keyword: var(--linear-syntax-keyword);
+  --color-linear-syntax-parameter: var(--linear-syntax-parameter);
+  --color-linear-syntax-builtin: var(--linear-syntax-builtin);
+  --color-linear-syntax-function: var(--linear-syntax-function);
+  --color-linear-syntax-string: var(--linear-syntax-string);
+  --color-linear-mermaid-canvas: var(--linear-mermaid-canvas);
+  --color-linear-mermaid-node: var(--linear-mermaid-node);
+  --color-linear-mermaid-border: var(--linear-mermaid-border);
+  --color-linear-mermaid-text: var(--linear-mermaid-text);
+  --color-linear-mermaid-line: var(--linear-mermaid-line);
+  --color-linear-gallery-glow: var(--linear-gallery-glow);
+  --color-linear-agent-prompt-glow: var(--linear-agent-prompt-glow);
+  --color-linear-agent-composer-border-top: var(--linear-agent-composer-border-top);
+  --color-linear-agent-composer-border-focus: var(--linear-agent-composer-border-focus);
+  --color-linear-agent-composer-border-conversation: var(--linear-agent-composer-border-conversation);
+  --color-linear-agent-composer-border-touch: var(--linear-agent-composer-border-touch);
   --shadow-linear-control: var(--linear-shadow-control);
   --shadow-linear-outline: var(--linear-shadow-outline);
   --shadow-linear-outline-hover: var(--linear-shadow-outline-hover);
@@ -102,7 +138,65 @@
   --shadow-linear-tooltip: var(--linear-shadow-tooltip);
   --shadow-linear-settings: var(--linear-shadow-settings);
   --shadow-linear-dialog: var(--linear-shadow-dialog);
+  --shadow-linear-gallery-panel: var(--linear-shadow-gallery-panel);
+  --drop-shadow-linear-agent-prompt: 0 0 4px var(--linear-agent-prompt-glow);
   --font-sans: "Inter Variable", "SF Pro Display", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+@utility linear-border-hairline {
+  border-width: var(--linear-border-width-hairline);
+}
+
+@utility linear-border-default {
+  border-width: var(--linear-border-width-default);
+}
+
+@utility linear-border-emphasis {
+  border-width: var(--linear-border-width-emphasis);
+}
+
+@utility linear-border-x-default {
+  border-inline-width: var(--linear-border-width-default);
+}
+
+@utility linear-border-y-default {
+  border-block-width: var(--linear-border-width-default);
+}
+
+@utility linear-border-t-hairline {
+  border-top-width: var(--linear-border-width-hairline);
+}
+
+@utility linear-border-r-hairline {
+  border-right-width: var(--linear-border-width-hairline);
+}
+
+@utility linear-border-b-hairline {
+  border-bottom-width: var(--linear-border-width-hairline);
+}
+
+@utility linear-border-l-hairline {
+  border-left-width: var(--linear-border-width-hairline);
+}
+
+@utility linear-border-t-default {
+  border-top-width: var(--linear-border-width-default);
+}
+
+@utility linear-border-r-default {
+  border-right-width: var(--linear-border-width-default);
+}
+
+@utility linear-border-b-default {
+  border-bottom-width: var(--linear-border-width-default);
+}
+
+@utility linear-border-l-default {
+  border-left-width: var(--linear-border-width-default);
+}
+
+@utility h-hairline {
+  height: var(--linear-border-width-hairline);
 }
 
 :root {
@@ -181,6 +275,49 @@
   --linear-agent-header-icon: lch(61.803 1.2 272);
   --linear-agent-header-hover: lch(14.006 0.593 272);
   --linear-agent-mini: lch(2.595 0.4 272);
+  --linear-agent-background: var(--linear-gallery-main);
+  --linear-agent-content-border: lch(22.193 1.93 272);
+  --linear-agent-code-background: lch(6.307 0.85 272);
+  --linear-agent-code-toolbar-border: lch(16.793 1.93 272);
+  --linear-agent-code-control-hover: lch(11.933 1.75 272);
+  --linear-agent-inline-code: rgb(255 255 255 / 7.5%);
+  --linear-markdown-link: lch(58.717 70 288.421);
+  --linear-team-accent: #00aaff;
+  --linear-theme-preview-dark-background: #111212;
+  --linear-theme-preview-dark-foreground: #e2e3e5;
+  --linear-theme-preview-dark-ring: #5e69d1;
+  --linear-theme-preview-light-background: #f8f8f9;
+  --linear-theme-preview-light-foreground: #2f2f31;
+  --linear-theme-preview-light-ring: #6d78d5;
+  --linear-status-yellow: lch(83.5 74 92);
+  --linear-status-yellow-subtle: lch(83.5 74 92 / 15%);
+  --linear-status-purple: lch(72 50 288);
+  --linear-status-purple-subtle: lch(72 50 288 / 15%);
+  --linear-status-green: lch(71 54 148);
+  --linear-status-green-subtle: lch(71 54 148 / 15%);
+  --linear-syntax-keyword: #e394dc;
+  --linear-syntax-parameter: #fce27d;
+  --linear-syntax-builtin: #eb6e3d;
+  --linear-syntax-function: #25f8ca;
+  --linear-syntax-string: #00c5f0;
+  --linear-mermaid-canvas: #19191b;
+  --linear-mermaid-node: #1c1d1f;
+  --linear-mermaid-border: #444446;
+  --linear-mermaid-text: #e3e4e7;
+  --linear-mermaid-line: #5c5c5f;
+  --linear-gallery-glow: lch(20 18 288 / 22%);
+  --linear-agent-prompt-glow: lch(100 0 272 / 30%);
+  --linear-agent-composer-border-top: lch(22.193 1.93 272);
+  --linear-agent-composer-border-focus: lch(16.793 1.93 272);
+  --linear-agent-composer-border-conversation: lch(20.505 2.38 272);
+  --linear-agent-composer-border-bottom: lch(16.793 1.93 272);
+  --linear-agent-composer-border-touch: lch(17.265 2.38 272);
+  --linear-agent-composer-shell-top: lch(6.307 0.85 272);
+  --linear-agent-composer-shell-bottom: lch(9.232 0.85 272);
+  --linear-border-width-hairline: 0.5px;
+  --linear-border-width-default: 1px;
+  --linear-border-width-emphasis: 2px;
+  --linear-mask-opaque: #000;
   --linear-shadow-control: 0 0.5px 1px 1px lch(0 0 0 / 30%);
   --linear-shadow-outline: 0 0 0 0.5px lch(100 0 0 / 14.3%), 0 0.5px 1px 1px lch(0 0 0 / 30%);
   --linear-shadow-outline-hover: 0 0 0 0.5px lch(100 0 0 / 23.8%), 0 0.5px 1px 1px lch(0 0 0 / 30%);
@@ -192,6 +329,7 @@
   --linear-shadow-tooltip: 0 0.5px 1px 1px lch(0 0 0 / 30%);
   --linear-shadow-settings: 0 0 0 0.5px lch(100 0 0 / 8.3%), 0 0.5px 1px 1px lch(0 0 0 / 30%);
   --linear-shadow-dialog: 0 4px 40px lch(0 0 0 / 10%), 0 3px 20px lch(0 0 0 / 12.5%), 0 3px 12px lch(0 0 0 / 12.5%), 0 2px 8px lch(0 0 0 / 12.5%), 0 1px 1px lch(0 0 0 / 12.5%);
+  --linear-shadow-gallery-panel: 0 25px 50px -12px lch(0 0 0 / 20%);
   background: var(--linear-canvas);
   color: var(--linear-foreground);
   font-family: var(--font-sans);
@@ -214,13 +352,27 @@ body {
   min-height: 100vh;
   margin: 0;
   background:
-    radial-gradient(circle at 50% -20%, lch(20 18 288 / 22%), transparent 38rem),
+    radial-gradient(circle at 50% -20%, var(--linear-gallery-glow), transparent 38rem),
     var(--linear-canvas);
 }
 
 button:not(:disabled),
 [role="button"]:not([aria-disabled="true"]) {
   cursor: default;
+}
+
+.agent-chat-composer-shell[data-variant="conversation"]::before {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  content: "";
+  background: linear-gradient(
+    to bottom,
+    var(--linear-agent-composer-shell-top),
+    var(--linear-agent-composer-shell-bottom)
+  );
+  border-radius: 12px;
 }
 
 .agent-chat-composer::before {
@@ -230,18 +382,32 @@ button:not(:disabled),
   padding: 0.5px;
   pointer-events: none;
   content: "";
-  background: linear-gradient(to bottom, lch(22.193 1.93 272), lch(13.08 1.48 272));
+  background: linear-gradient(
+    to bottom,
+    var(--linear-agent-composer-border-top),
+    var(--linear-agent-composer-border-bottom)
+  );
   border-radius: 11px;
-  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+  mask:
+    linear-gradient(var(--linear-mask-opaque) 0 0) content-box exclude,
+    linear-gradient(var(--linear-mask-opaque) 0 0);
   transition: background-image 100ms cubic-bezier(0.165, 0.84, 0.44, 1);
 }
 
 .agent-chat-composer:focus-within::before {
-  background: linear-gradient(to bottom, lch(16.793 1.93 272), lch(13.08 1.48 272));
+  background: linear-gradient(
+    to bottom,
+    var(--linear-agent-composer-border-focus),
+    var(--linear-agent-composer-border-bottom)
+  );
 }
 
 .agent-chat-composer[data-variant="conversation"]::before {
-  background: linear-gradient(to bottom, lch(20.505 2.38 272), lch(13.08 1.48 272));
+  background: linear-gradient(
+    to bottom,
+    var(--linear-agent-composer-border-conversation),
+    var(--linear-agent-composer-border-bottom)
+  );
 }
 
 .agent-chat-message:nth-last-child(n + 21) {
@@ -268,6 +434,10 @@ button:not(:disabled),
   }
 
   .agent-chat-composer[data-variant="conversation"]::before {
-    background: linear-gradient(to bottom, lch(17.265 2.38 272), lch(13.08 1.48 272));
+    background: linear-gradient(
+      to bottom,
+      var(--linear-agent-composer-border-touch),
+      var(--linear-agent-composer-border-bottom)
+    );
   }
 }

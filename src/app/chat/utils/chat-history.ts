@@ -7,6 +7,7 @@ const CONVERSATION_STORE = "conversations"
 export type StoredConversation = {
   createdAt: number
   favorite: boolean
+  generatedTitle: boolean
   id: string
   messages: UIMessage[]
   owner: string
@@ -19,6 +20,7 @@ export function createEmptyConversation(owner: string): StoredConversation {
   return {
     createdAt: now,
     favorite: false,
+    generatedTitle: false,
     id: crypto.randomUUID(),
     messages: [],
     owner,
@@ -39,6 +41,7 @@ export async function listConversations(owner: string): Promise<StoredConversati
     .map((conversation): StoredConversation => ({
       ...conversation,
       favorite: conversation.favorite ?? false,
+      generatedTitle: conversation.generatedTitle ?? false,
     }))
     .filter((conversation) => conversation.owner === owner)
     .sort((left, right) => right.updatedAt - left.updatedAt)
@@ -99,7 +102,10 @@ function transactionComplete(transaction: IDBTransaction): Promise<void> {
   })
 }
 
-type StoredConversationRecord = Omit<StoredConversation, "favorite"> & { favorite?: boolean }
+type StoredConversationRecord = Omit<StoredConversation, "favorite" | "generatedTitle"> & {
+  favorite?: boolean
+  generatedTitle?: boolean
+}
 
 function isStoredConversation(value: unknown): value is StoredConversationRecord {
   if (typeof value !== "object" || value === null) return false
@@ -110,5 +116,6 @@ function isStoredConversation(value: unknown): value is StoredConversationRecord
     && typeof candidate.updatedAt === "number"
     && typeof candidate.owner === "string"
     && (candidate.favorite === undefined || typeof candidate.favorite === "boolean")
+    && (candidate.generatedTitle === undefined || typeof candidate.generatedTitle === "boolean")
     && Array.isArray(candidate.messages)
 }

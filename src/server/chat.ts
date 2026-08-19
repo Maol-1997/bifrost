@@ -6,6 +6,7 @@ import {
 import {
   createAgentUIStreamResponse,
   dynamicTool,
+  generateText,
   jsonSchema,
   safeValidateUIMessages,
   stepCountIs,
@@ -20,6 +21,8 @@ import type { DiscoveredTool } from './tools/catalog.js';
 import { executeUserTool, loadVisibleUserTools } from './tools/user-toolset.js';
 
 const MAX_AGENT_STEPS = 20;
+const MAX_CHAT_TITLE_LENGTH = 64;
+const MAX_CHAT_TITLE_OUTPUT_TOKENS = 256;
 const TOOL_NAMESPACES = {
   github: { name: 'github', description: 'GitHub tools for repositories, code, issues, pull requests, and users.' },
   linear: { name: 'linear', description: 'Linear tools for projects, issues, teams, initiatives, and documents.' },
@@ -28,6 +31,36 @@ const TOOL_NAMESPACES = {
   slack: { name: 'slack', description: 'Slack tools for messages, channels, canvases, files, users, and search.' },
 } as const satisfies Record<ProviderId, NonNullable<OpenAIToolOptions['namespace']>>;
 const AGENT_INSTRUCTIONS = 'You are an agent connected to Bifrost. Help the user with their requests.';
+const CHAT_TITLE_INSTRUCTIONS = [
+  'Create a concise, polished title for this chat from the first user message.',
+  'Use the same language as the user. Use 3 to 6 words when possible.',
+  'Return only the title, without quotes, punctuation at the end, or markdown.',
+  'Do not answer the user request.',
+].join(' ');
+
+export async function createBifrostChatTitle(request: {
+  dependencies: AppDependencies;
+  firstMessage: string;
+  signal: AbortSignal;
+}): Promise<string> {
+  const { config } = request.dependencies;
+  if (!config.OPENAI_API_KEY) {
+    throw new Error('Chat is not configured');
+  }
+
+  const openai = createChatProvider(config.OPENAI_API_KEY, config.OPENAI_BASE_URL);
+  const result = await generateText({
+    model: openai.responses(config.OPENAI_MODEL),
+    instructions: CHAT_TITLE_INSTRUCTIONS,
+    prompt: request.firstMessage,
+    maxOutputTokens: MAX_CHAT_TITLE_OUTPUT_TOKENS,
+    abortSignal: request.signal,
+    providerOptions: {
+      openai: responseProviderOptions(config),
+    },
+  });
+  return normalizeChatTitle(result.text);
+}
 
 export async function createBifrostChatResponse(request: {
   dependencies: AppDependencies;
@@ -63,18 +96,12 @@ export async function createBifrostChatResponse(request: {
     tools: visibleTools,
   });
 
-  const openai = createOpenAI({
-    apiKey: config.OPENAI_API_KEY,
-    baseURL: config.OPENAI_BASE_URL,
-  });
+  const openai = createChatProvider(config.OPENAI_API_KEY, config.OPENAI_BASE_URL);
   const agent = new ToolLoopAgent({
     model: openai.responses(config.OPENAI_MODEL),
     instructions: AGENT_INSTRUCTIONS,
     providerOptions: {
-      openai: {
-        reasoningEffort: config.OPENAI_REASONING_EFFORT,
-        store: false,
-      } satisfies OpenAIResponsesProviderOptions,
+      openai: responseProviderOptions(config),
     },
     tools: {
       tool_search: openai.tools.toolSearch(),
@@ -89,6 +116,30 @@ export async function createBifrostChatResponse(request: {
     abortSignal: request.signal,
     onError: () => 'Bifrost could not complete that request.',
   });
+}
+
+function createChatProvider(apiKey: string, baseURL: string) {
+  return createOpenAI({
+    apiKey,
+    baseURL,
+  });
+}
+
+function responseProviderOptions(
+  config: AppDependencies['config'],
+): OpenAIResponsesProviderOptions {
+  return {
+    reasoningEffort: config.OPENAI_REASONING_EFFORT,
+    store: false,
+  };
+}
+
+function normalizeChatTitle(value: string): string {
+  const firstLine = value.split(/\r?\n/, 1)[0]?.trim() ?? '';
+  const title = firstLine.replace(/^[#*`'"\s]+|[#*`'"\s.!?]+$/g, '');
+  if (!title) throw new Error('Chat title generation returned an empty title');
+  if (title.length <= MAX_CHAT_TITLE_LENGTH) return title;
+  return `${title.slice(0, MAX_CHAT_TITLE_LENGTH - 1).trimEnd()}…`;
 }
 
 function createAgentTools(request: {

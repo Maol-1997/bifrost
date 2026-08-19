@@ -50,6 +50,13 @@ export async function getChatConfig(): Promise<{ configured: boolean }> {
   return parseRpcResponse(bifrostClient.api.chat['config.json'].$get());
 }
 
+export async function generateChatTitle(firstMessage: string): Promise<string> {
+  const response = await parseRpcResponse(bifrostClient.api.chat.title.$post({
+    json: { firstMessage },
+  }));
+  return response.title;
+}
+
 /**
  * Deliberately has no mock branch. Vendor uptime is public and identical for
  * every user, so a fake here would only ever be a lie on the one screen whose

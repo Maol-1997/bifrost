@@ -3,7 +3,7 @@ import type { Next } from 'hono';
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { APP_ROUTES } from '../../features/utils/routes.js';
-import { createBifrostChatResponse } from '../chat.js';
+import { createBifrostChatResponse, createBifrostChatTitle } from '../chat.js';
 import { describeClient } from '../clients/describe.js';
 import { errorSummary, logger } from '../logger.js';
 import { PROVIDER_REGISTRY, SUPPORTED_APPS } from '../providers/registry.js';
@@ -39,6 +39,7 @@ const toolPolicyBatchSchema = z.object({
   tools: z.array(toolPolicySchema.extend(toolPathSchema.shape)).min(1),
 });
 const chatRequestSchema = z.object({ messages: z.unknown() });
+const chatTitleRequestSchema = z.object({ firstMessage: z.string().trim().min(1).max(4000) });
 
 const validateProviderPath = validateRequest('param', providerPathSchema, { status: 404, message: 'Not found' });
 const validateClientAction = validateRequest('param', clientActionSchema, { status: 404, message: 'Not found' });
@@ -64,6 +65,16 @@ export function createBrowserRoutes() {
     .get('/api/chat/config.json', (context) => context.json({
       configured: Boolean(context.get('dependencies').config.OPENAI_API_KEY),
     }))
+    .post('/api/chat/title', async (context) => {
+      const parsed = chatTitleRequestSchema.safeParse(await readJsonBody(context));
+      if (!parsed.success) return context.json({ error: 'Invalid request body' }, 400);
+      const title = await createBifrostChatTitle({
+        dependencies: context.get('dependencies'),
+        firstMessage: parsed.data.firstMessage,
+        signal: context.req.raw.signal,
+      });
+      return context.json({ title });
+    })
     .post('/api/chat', async (context) => {
       const parsed = chatRequestSchema.safeParse(await readJsonBody(context));
       if (!parsed.success) return context.json({ error: 'Invalid request body' }, 400);

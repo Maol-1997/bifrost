@@ -381,7 +381,7 @@ function AgentChatEmptyState({ children, className }: AgentChatEmptyStateProps) 
         )}
       >
         <div className="relative flex w-full flex-col">
-          <AgentChatLogo className="pointer-events-none absolute left-1/2 top-0 -translate-x-1/2 -translate-y-3/4" />
+          <AgentChatLogo className="pointer-events-none absolute left-1/2 top-0 -translate-x-1/2 translate-y-[-70%]" />
           {children}
         </div>
       </div>
