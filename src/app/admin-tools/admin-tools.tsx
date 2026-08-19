@@ -96,7 +96,7 @@ function PolicyMenu({ ariaLabel, disabled, triggerLabel, value, className, onCha
           {triggerLabel}<ChevronDown aria-hidden />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-56">
+      <DropdownMenuContent align="end">
         <DropdownMenuRadioGroup {...(value === undefined ? {} : { value })} onValueChange={(next) => { if (isToolPolicyState(next)) onChange(next); }}>
           {POLICY_OPTIONS.map((option) => <DropdownMenuRadioItem key={option.value} value={option.value}>{option.label}</DropdownMenuRadioItem>)}
         </DropdownMenuRadioGroup>
