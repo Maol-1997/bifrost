@@ -23,8 +23,14 @@ const viewerSchema = z.object({ viewer: z.object({ email: z.string().min(1) }) }
 export const linearProvider: ProviderDefinition = {
   id: 'linear', prefix: 'linear_', displayName: 'Linear',
   mcpUrl: 'https://mcp.linear.app/mcp',
-  authorizationUrl: 'https://linear.app/oauth/authorize', tokenUrl: 'https://api.linear.app/oauth/token',
-  scopes: ['read', 'write', 'issues:create', 'comments:create'],
+  oauth: {
+    kind: 'dynamic',
+    issuer: 'https://mcp.linear.app',
+    authorizationUrl: 'https://mcp.linear.app/authorize',
+    tokenUrl: 'https://mcp.linear.app/token',
+    resource: 'https://mcp.linear.app/mcp',
+    scopes: ['read', 'write'],
+  },
   readAccountLabel: async (accessToken, signal) => {
     const data = await linearGraphQl('query Viewer{viewer{email}}', {}, { accessToken, signal });
     return viewerSchema.parse(data).viewer.email;

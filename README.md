@@ -44,7 +44,7 @@ Discovered catalogs use a one-hour server-side stale-while-revalidate cache. Bro
 
 ## Quick start
 
-Requirements: Docker with Compose v2, and OAuth apps for Google plus each provider you want (see [SETUP.md](SETUP.md)).
+Requirements: Docker with Compose v2, OAuth apps for Google and any GitHub or Slack providers you want, and no application setup for Linear (see [SETUP.md](SETUP.md)).
 
 ```bash
 cp .env.example .env
@@ -75,7 +75,7 @@ All settings are environment variables, validated at startup by `src/server/conf
 | `DATABASE_URL` | yes | Postgres. Outside Docker, point it at `localhost:5432`, not `postgres`. |
 | `REDIS_URL` | no | Shares locks, rate limits and concurrency leases across workers. Empty degrades to in-process state with a startup warning. |
 | `GOOGLE_CLIENT_ID` / `_SECRET` | yes | Sign-in. |
-| `GITHUB_*`, `LINEAR_*`, `SLACK_*` | per provider | Provider OAuth apps. A provider without credentials still mounts; connecting it fails until they are set. |
+| `GITHUB_*`, `SLACK_*` | per provider | Provider OAuth apps. A provider without credentials still mounts; connecting it fails until they are set. Linear uses its MCP server's dynamic client registration instead. |
 | `ALLOWED_EMAIL_DOMAINS`, `ALLOWED_EMAILS` | recommended | Who may sign in. The two lists OR together. **Both empty lets any verified Google account in**; the server warns and the sign-in screen says so. |
 | `ADMIN_EMAILS` | recommended | Comma-separated exact emails allowed to review and approve discovered tools. **Empty means every tool remains blocked.** |
 | `OAUTH_ACCESS_TOKEN_TTL_SECONDS` | no | Default 3600. |

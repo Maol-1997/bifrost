@@ -9,6 +9,8 @@ import {
   Configuration,
   customFetch,
   type CustomFetchOptions,
+  dynamicClientRegistration,
+  None,
   randomPKCECodeVerifier,
   randomState,
   refreshTokenGrant,
@@ -51,9 +53,15 @@ const tokenResponseSchema = z.object({
 const oauthStateSchema = z.object({
   userId: z.uuid().optional(),
   providerId: z.enum(SUPPORTED_APPS).optional(),
+  oauthClientId: z.string().min(1).optional(),
   verifier: z.string().min(43),
   returnTo: z.string().startsWith('/'),
 });
+
+type ProviderOAuthClient = {
+  configuration: Configuration;
+  oauthClientId?: string;
+};
 
 /** Signed in with Google successfully, but this account is not on the allowlist. */
 export class EmailNotAllowedError extends Error {
@@ -131,30 +139,43 @@ export class OAuthService {
 
   async startProviderAuthorization(userId: string, providerId: ProviderId): Promise<string> {
     const provider = findProvider(providerId);
+    const client = await this.createProviderOAuthClient(provider);
     const { state, verifier, challenge } = await createPkce();
-    await this.coordinator.setEphemeral(`oauth:state:${state}`, JSON.stringify({ userId, providerId, verifier, returnTo: '/' }), OAUTH_STATE_TTL_SECONDS);
+    await this.coordinator.setEphemeral(`oauth:state:${state}`, JSON.stringify({
+      userId,
+      providerId,
+      verifier,
+      returnTo: '/',
+      ...(client.oauthClientId === undefined ? {} : { oauthClientId: client.oauthClientId }),
+    }), OAUTH_STATE_TTL_SECONDS);
     const parameters = new URLSearchParams({
       redirect_uri: this.providerRedirectUri(providerId),
       response_type: 'code', state, code_challenge: challenge, code_challenge_method: 'S256',
     });
-    parameters.set('scope', provider.scopes.join(providerId === 'slack' ? ',' : ' '));
-    return buildAuthorizationUrl(this.providerConfiguration(provider), parameters).href;
+    parameters.set('scope', provider.oauth.scopes.join(providerId === 'slack' ? ',' : ' '));
+    if (provider.oauth.kind === 'dynamic') parameters.set('resource', provider.oauth.resource);
+    return buildAuthorizationUrl(client.configuration, parameters).href;
   }
 
   async finishProvider(code: string, state: string): Promise<{ userId: string; providerId: ProviderId }> {
     const storedState = await this.takeState(state);
     if (!storedState.userId || !storedState.providerId) throw new Error('OAuth state is not a provider connection state');
     const provider = findProvider(storedState.providerId);
+    const configuration = this.providerConfiguration(provider, storedState.oauthClientId);
     const callbackUrl = new URL(this.providerRedirectUri(provider.id));
     callbackUrl.searchParams.set('code', code);
     callbackUrl.searchParams.set('state', state);
     const tokenResponse = await this.exchangeProviderCode({
       provider,
+      configuration,
       callbackUrl,
       verifier: storedState.verifier,
       state,
     });
-    const credential = normalizeCredential(tokenResponse);
+    const credential = normalizeCredential(tokenResponse, {
+      fallbackScopes: provider.oauth.scopes,
+      oauthClientId: storedState.oauthClientId,
+    });
     await this.database.saveCredential(storedState.userId, provider.id, credential);
     await this.recordAccountLabel(storedState.userId, provider, credential.accessToken);
     return { userId: storedState.userId, providerId: provider.id };
@@ -186,7 +207,7 @@ export class OAuthService {
       const provider = findProvider(providerId);
       let exchanged: z.infer<typeof tokenResponseSchema>;
       try {
-        exchanged = await this.refreshProviderToken(provider, latest.refreshToken);
+        exchanged = await this.refreshProviderToken(provider, latest.refreshToken, latest.oauthClientId);
       } catch (error) {
         // Only the provider saying no means the user has to reconnect. A
         // network fault or a timeout says nothing about the grant, and telling
@@ -194,20 +215,31 @@ export class OAuthService {
         if (error instanceof TokenExchangeRejectedError) throw new ReconnectRequiredError(providerId);
         throw error;
       }
-      const refreshed = normalizeCredential(exchanged, latest.refreshToken);
+      const refreshed = normalizeCredential(exchanged, {
+        fallbackRefreshToken: latest.refreshToken,
+        fallbackScopes: latest.scopes,
+        oauthClientId: latest.oauthClientId,
+      });
       await this.database.saveCredential(userId, providerId, refreshed);
       return refreshed.accessToken;
     });
   }
 
   private async exchangeProviderCode(
-    request: { provider: ProviderDefinition; callbackUrl: URL; verifier: string; state: string },
+    request: {
+      provider: ProviderDefinition;
+      configuration: Configuration;
+      callbackUrl: URL;
+      verifier: string;
+      state: string;
+    },
   ): Promise<z.infer<typeof tokenResponseSchema>> {
     try {
       const tokens = await authorizationCodeGrant(
-        this.providerConfiguration(request.provider),
+        request.configuration,
         request.callbackUrl,
         { pkceCodeVerifier: request.verifier, expectedState: request.state },
+        this.tokenEndpointParameters(request.provider),
       );
       return tokenResponseSchema.parse(tokens);
     } catch (error) {
@@ -219,9 +251,14 @@ export class OAuthService {
   private async refreshProviderToken(
     provider: ProviderDefinition,
     refreshToken: string,
+    oauthClientId: string | undefined,
   ): Promise<z.infer<typeof tokenResponseSchema>> {
     try {
-      const tokens = await refreshTokenGrant(this.providerConfiguration(provider), refreshToken);
+      const tokens = await refreshTokenGrant(
+        this.providerConfiguration(provider, oauthClientId),
+        refreshToken,
+        this.tokenEndpointParameters(provider),
+      );
       return tokenResponseSchema.parse(tokens);
     } catch (error) {
       if (isProviderRejection(error)) throw new TokenExchangeRejectedError(provider.displayName);
@@ -229,12 +266,37 @@ export class OAuthService {
     }
   }
 
-  private providerConfiguration(provider: ProviderDefinition): Configuration {
+  private async createProviderOAuthClient(provider: ProviderDefinition): Promise<ProviderOAuthClient> {
+    if (provider.oauth.kind === 'static') return { configuration: this.providerConfiguration(provider) };
+    const configuration = await dynamicClientRegistration(new URL(provider.oauth.issuer), {
+      client_name: 'Bifrost',
+      redirect_uris: [this.providerRedirectUri(provider.id)],
+      grant_types: ['authorization_code', 'refresh_token'],
+      response_types: ['code'],
+      token_endpoint_auth_method: 'none',
+      scope: provider.oauth.scopes.join(' '),
+    }, None(), { timeout: TOKEN_EXCHANGE_TIMEOUT_MS / 1000 });
+    const oauthClientId = configuration.clientMetadata().client_id;
+    if (!oauthClientId) throw new Error(`${provider.displayName} dynamic registration did not return a client ID`);
+    return { configuration, oauthClientId };
+  }
+
+  private providerConfiguration(provider: ProviderDefinition, oauthClientId?: string): Configuration {
+    if (provider.oauth.kind === 'dynamic') {
+      if (!oauthClientId) throw new ReconnectRequiredError(provider.id);
+      const configuration = new Configuration({
+        issuer: provider.oauth.issuer,
+        authorization_endpoint: provider.oauth.authorizationUrl,
+        token_endpoint: provider.oauth.tokenUrl,
+      }, oauthClientId, { token_endpoint_auth_method: 'none' }, None());
+      configuration.timeout = TOKEN_EXCHANGE_TIMEOUT_MS / 1000;
+      return configuration;
+    }
     const clientSecret = this.providerClientSecret(provider.id);
     const configuration = new Configuration({
-      issuer: new URL(provider.authorizationUrl).origin,
-      authorization_endpoint: provider.authorizationUrl,
-      token_endpoint: provider.tokenUrl,
+      issuer: new URL(provider.oauth.authorizationUrl).origin,
+      authorization_endpoint: provider.oauth.authorizationUrl,
+      token_endpoint: provider.oauth.tokenUrl,
     }, this.providerClientId(provider.id), {
       client_secret: clientSecret,
       token_endpoint_auth_method: 'client_secret_post',
@@ -246,6 +308,10 @@ export class OAuthService {
       );
     }
     return configuration;
+  }
+
+  private tokenEndpointParameters(provider: ProviderDefinition): Record<string, string> | undefined {
+    return provider.oauth.kind === 'dynamic' ? { resource: provider.oauth.resource } : undefined;
   }
 
   private async takeState(state: string): Promise<z.infer<typeof oauthStateSchema>> {
@@ -313,17 +379,28 @@ function findProvider(providerId: ProviderId): ProviderDefinition {
   return provider;
 }
 
-function normalizeCredential(tokens: z.infer<typeof tokenResponseSchema>, fallbackRefreshToken?: string): StoredCredential {
+function normalizeCredential(
+  tokens: z.infer<typeof tokenResponseSchema>,
+  context: {
+    fallbackRefreshToken?: string | undefined;
+    fallbackScopes?: readonly string[] | undefined;
+    oauthClientId?: string | undefined;
+  } = {},
+): StoredCredential {
   const userTokens = tokens.authed_user?.access_token ? tokens.authed_user : tokens;
   const accessToken = userTokens.access_token;
   if (!accessToken) throw new Error('Provider token response did not include a user access token');
-  const refreshToken = userTokens.refresh_token ?? fallbackRefreshToken;
+  const refreshToken = userTokens.refresh_token ?? context.fallbackRefreshToken;
   const expiresIn = userTokens.expires_in;
-  const scopes = userTokens.scope ?? tokens.authed_user?.scope ?? '';
+  const returnedScopes = userTokens.scope ?? tokens.authed_user?.scope;
+  const scopes = returnedScopes === undefined
+    ? context.fallbackScopes ?? []
+    : returnedScopes.split(/[ ,]/).filter(Boolean);
   return {
     accessToken,
     ...(refreshToken === undefined ? {} : { refreshToken }),
+    ...(context.oauthClientId === undefined ? {} : { oauthClientId: context.oauthClientId }),
     ...(expiresIn === undefined ? {} : { expiresAt: new Date(Date.now() + expiresIn * 1000) }),
-    scopes: scopes.split(/[ ,]/).filter(Boolean),
+    scopes,
   };
 }

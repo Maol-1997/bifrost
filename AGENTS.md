@@ -115,7 +115,9 @@ holds a short access token (1h) and a rotating refresh token (90d, slid forward 
 replaces its own credential without anyone being asked to log in again.
 
 The client side uses `openid-client` for authorization URLs, PKCE, provider code exchanges and
-refresh grants. Slack's user grant is normalized in `providers/slack-oauth.ts` because Slack nests
+refresh grants. Linear dynamically registers a public client against its official MCP authorization
+server; its generated client ID is stored inside the encrypted provider credential. GitHub and Slack
+still use configured applications. Slack's user grant is normalized in `providers/slack-oauth.ts` because Slack nests
 it under `authed_user` instead of returning the standard top-level token fields. Google token
 verification deliberately remains on `jose`: Google documents two valid `iss` forms, while
 `openid-client` correctly enforces one exact configured issuer.

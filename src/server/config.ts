@@ -14,8 +14,6 @@ const environmentSchema = z.object({
   GOOGLE_CLIENT_SECRET: optionalNonEmptyString,
   GITHUB_CLIENT_ID: optionalNonEmptyString,
   GITHUB_CLIENT_SECRET: optionalNonEmptyString,
-  LINEAR_CLIENT_ID: optionalNonEmptyString,
-  LINEAR_CLIENT_SECRET: optionalNonEmptyString,
   SLACK_CLIENT_ID: optionalNonEmptyString,
   SLACK_CLIENT_SECRET: optionalNonEmptyString,
   // Short by design: a leaked access token stays useful for at most this long,

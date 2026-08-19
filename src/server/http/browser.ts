@@ -431,5 +431,5 @@ function hasRequiredScopes(providerId: ProviderId, grantedScopes: readonly strin
   const provider = PROVIDER_REGISTRY.find((entry) => entry.id === providerId);
   if (!provider) return false;
   const granted = new Set(grantedScopes);
-  return provider.scopes.every((scope) => granted.has(scope));
+  return provider.oauth.scopes.every((scope) => granted.has(scope));
 }

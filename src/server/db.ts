@@ -29,6 +29,7 @@ const MILLISECONDS_PER_DAY = 86_400_000;
 export type StoredCredential = {
   accessToken: string;
   refreshToken?: string;
+  oauthClientId?: string;
   expiresAt?: Date;
   scopes: readonly string[];
 };
@@ -91,7 +92,11 @@ export type RefreshOutcome =
   | { kind: 'unknown' }
   | { kind: 'replayed'; userId: string; clientId: string };
 
-const credentialPayloadSchema = z.object({ accessToken: z.string().min(1), refreshToken: z.string().min(1).optional() });
+const credentialPayloadSchema = z.object({
+  accessToken: z.string().min(1),
+  refreshToken: z.string().min(1).optional(),
+  oauthClientId: z.string().min(1).optional(),
+});
 type CredentialPayload = z.infer<typeof credentialPayloadSchema>;
 
 type OAuthAccessTokenRow = {
@@ -445,6 +450,7 @@ export class Database {
   async saveCredential(userId: string, providerId: ProviderId, credential: StoredCredential): Promise<void> {
     const payload: CredentialPayload = { accessToken: credential.accessToken };
     if (credential.refreshToken !== undefined) payload.refreshToken = credential.refreshToken;
+    if (credential.oauthClientId !== undefined) payload.oauthClientId = credential.oauthClientId;
     const encryptedPayload = encryptSecret(JSON.stringify(payload), this.config.encryptionKey);
     await this.database
       .insert(providerCredentials)
@@ -483,6 +489,7 @@ export class Database {
     return {
       accessToken: payload.accessToken,
       ...(payload.refreshToken === undefined ? {} : { refreshToken: payload.refreshToken }),
+      ...(payload.oauthClientId === undefined ? {} : { oauthClientId: payload.oauthClientId }),
       ...(row.expiresAt === null ? {} : { expiresAt: row.expiresAt }),
       scopes: row.scopes,
     };

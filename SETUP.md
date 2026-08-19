@@ -21,11 +21,13 @@ Use `http://localhost:3000` below for local development. Replace it with the exa
 
 ## 3. Linear
 
-1. In Linear, open **Workspace settings → API → OAuth applications → Create new**.
-2. Set the callback URL to `http://localhost:3000/oauth/linear/callback`.
-3. Put the generated values in `LINEAR_CLIENT_ID` and `LINEAR_CLIENT_SECRET`.
-4. Enable these scopes: `read`, `write`, `issues:create`, and `comments:create`.
-5. Linear may rotate refresh tokens. Bifrost serializes each user's refresh with a Redis lock and persists the replacement before releasing the lock.
+No Linear application or environment variables are required. When a user connects Linear,
+Bifrost registers a public OAuth client with Linear's official MCP authorization server and uses
+PKCE with the `read write` scopes. The generated client ID is stored alongside that user's
+encrypted credential so refreshes continue to use the same registration.
+
+Connections created with the old Linear application flow keep working until their token expires.
+Reconnect Linear once to move them to the MCP-native flow.
 
 ## 4. Slack
 

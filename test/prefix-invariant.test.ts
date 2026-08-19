@@ -3,7 +3,8 @@ import { assertPrefixInvariant, type PrefixInvariantInputs } from '../src/server
 import type { ProviderDefinition } from '../src/server/providers/types.js';
 
 const registry: readonly ProviderDefinition[] = [{
-  id: 'github', prefix: 'github_', displayName: 'GitHub', mcpUrl: 'https://example.test/mcp', authorizationUrl: '', tokenUrl: '', scopes: [],
+  id: 'github', prefix: 'github_', displayName: 'GitHub', mcpUrl: 'https://example.test/mcp',
+  oauth: { kind: 'static', authorizationUrl: '', tokenUrl: '', scopes: [] },
   readAccountLabel: async () => '@tester',
 }];
 

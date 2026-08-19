@@ -15,9 +15,7 @@ const provider: ProviderDefinition = {
   prefix: 'github_',
   displayName: 'GitHub',
   mcpUrl: 'https://example.test/mcp',
-  authorizationUrl: '',
-  tokenUrl: '',
-  scopes: [],
+  oauth: { kind: 'static', authorizationUrl: '', tokenUrl: '', scopes: [] },
   readAccountLabel: async () => '@tester',
 };
 
