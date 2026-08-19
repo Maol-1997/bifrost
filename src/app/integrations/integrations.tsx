@@ -68,7 +68,7 @@ export default function Integrations(): React.JSX.Element {
         <>
           {isFirstRun ? <EmptyState tone="accent" title="Let's connect your first app" body="Pick something you already use. You'll approve it on that app's own site — Bifrost never sees your password — and from then on your agents can use it as you. You can see, limit and undo everything from this page." /> : null}
           <TooltipProvider>
-            <SectionCard className="mt-[22px] overflow-visible">
+            <SectionCard className="mt-[22px] overflow-hidden">
               {providers.map((provider) => <ProviderCard key={provider.id} provider={provider} isConnecting={connectingId === provider.id} onConnect={() => { connectMutation.mutate(provider.id); }} onHide={() => { hideMutation.mutate(provider); }} onDisconnect={() => { disconnectMutation.mutate(provider.id); }} />)}
             </SectionCard>
           </TooltipProvider>
