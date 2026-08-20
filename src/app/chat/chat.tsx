@@ -23,6 +23,7 @@ import { generateChatTitle, getChatConfig, isConnectableProvider } from "@app/ap
 import type { ProviderId } from "@app/api/bifrost"
 import { APP_ROUTES } from "@features/utils/routes"
 import {
+  CHAT_TITLE_VERSION,
   conversationTitle,
   createEmptyConversation,
   deleteConversation,
@@ -279,7 +280,9 @@ function ChatConversation({
   const [historyError, setHistoryError] = useState(false)
   const deleting = useRef(false)
   const pendingSave = useRef<StoredConversation | undefined>(undefined)
-  const titleGenerationStarted = useRef(conversation.generatedTitle)
+  const hasCurrentGeneratedTitle = conversation.generatedTitle
+    && conversation.titleVersion === CHAT_TITLE_VERSION
+  const titleGenerationStarted = useRef(hasCurrentGeneratedTitle)
   const transport = useMemo(() => new DefaultChatTransport({ api: "/api/chat" }), [])
   const { error, messages, sendMessage, status, stop } = useChat({
     id: conversation.id,
@@ -288,7 +291,7 @@ function ChatConversation({
   })
   const isWorking = status === "submitted" || status === "streaming"
   const provisionalTitle = conversationTitle(messages)
-  const title = conversation.generatedTitle ? conversation.title : provisionalTitle
+  const title = hasCurrentGeneratedTitle ? conversation.title : provisionalTitle
   const currentConversationRef = useRef<StoredConversation>(conversation)
   currentConversationRef.current = {
     ...conversation,
@@ -331,6 +334,7 @@ function ChatConversation({
     conversation.generatedTitle,
     conversation.id,
     conversation.owner,
+    conversation.titleVersion,
     messages,
     onConversationChange,
     title,
@@ -338,7 +342,7 @@ function ChatConversation({
 
   const firstUserMessage = firstUserMessageText(messages)
   useEffect(() => {
-    if (!firstUserMessage || conversation.generatedTitle || titleGenerationStarted.current) return
+    if (!firstUserMessage || hasCurrentGeneratedTitle || titleGenerationStarted.current) return
     titleGenerationStarted.current = true
     let active = true
     void generateChatTitle(firstUserMessage)
@@ -348,6 +352,7 @@ function ChatConversation({
           ...currentConversationRef.current,
           generatedTitle: true,
           title: generatedTitle,
+          titleVersion: CHAT_TITLE_VERSION,
           updatedAt: Date.now(),
         }
         pendingSave.current = updatedConversation
@@ -357,7 +362,7 @@ function ChatConversation({
       })
       .catch(() => undefined)
     return () => { active = false }
-  }, [conversation.generatedTitle, firstUserMessage, onConversationChange])
+  }, [firstUserMessage, hasCurrentGeneratedTitle, onConversationChange])
 
   useEffect(() => () => {
     if (!deleting.current && pendingSave.current) void saveConversation(pendingSave.current).catch(() => undefined)

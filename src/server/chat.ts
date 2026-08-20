@@ -22,7 +22,6 @@ import { executeUserTool, loadVisibleUserTools } from './tools/user-toolset.js';
 
 const MAX_AGENT_STEPS = 20;
 const MAX_CHAT_TITLE_LENGTH = 64;
-const MAX_CHAT_TITLE_OUTPUT_TOKENS = 256;
 const TOOL_NAMESPACES = {
   granola: { name: 'granola', description: 'Granola tools for meeting notes, transcripts, attendees, decisions, and action items.' },
   github: { name: 'github', description: 'GitHub tools for repositories, code, issues, pull requests, and users.' },
@@ -35,6 +34,7 @@ const AGENT_INSTRUCTIONS = 'You are an agent connected to Bifrost. Help the user
 const CHAT_TITLE_INSTRUCTIONS = [
   'Create a concise, polished title for this chat from the first user message.',
   'Use the same language as the user. Use 3 to 6 words when possible.',
+  'Prefer a descriptive label over repeating the message verbatim. For example, title the Spanish greeting "hola" as "Saludo en español".',
   'Return only the title, without quotes, punctuation at the end, or markdown.',
   'Do not answer the user request.',
 ].join(' ');
@@ -54,10 +54,9 @@ export async function createBifrostChatTitle(request: {
     model: openai.responses(config.OPENAI_MODEL),
     instructions: CHAT_TITLE_INSTRUCTIONS,
     prompt: request.firstMessage,
-    maxOutputTokens: MAX_CHAT_TITLE_OUTPUT_TOKENS,
     abortSignal: request.signal,
     providerOptions: {
-      openai: responseProviderOptions(config),
+      openai: titleProviderOptions(),
     },
   });
   return normalizeChatTitle(result.text);
@@ -131,6 +130,13 @@ function responseProviderOptions(
 ): OpenAIResponsesProviderOptions {
   return {
     reasoningEffort: config.OPENAI_REASONING_EFFORT,
+    store: false,
+  };
+}
+
+function titleProviderOptions(): OpenAIResponsesProviderOptions {
+  return {
+    reasoningEffort: 'minimal',
     store: false,
   };
 }

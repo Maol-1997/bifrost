@@ -3,6 +3,7 @@ import type { UIMessage } from "ai"
 const DATABASE_NAME = "bifrost-chat"
 const DATABASE_VERSION = 1
 const CONVERSATION_STORE = "conversations"
+export const CHAT_TITLE_VERSION = 1
 
 export type StoredConversation = {
   createdAt: number
@@ -12,6 +13,7 @@ export type StoredConversation = {
   messages: UIMessage[]
   owner: string
   title: string
+  titleVersion: number
   updatedAt: number
 }
 
@@ -25,6 +27,7 @@ export function createEmptyConversation(owner: string): StoredConversation {
     messages: [],
     owner,
     title: "New chat",
+    titleVersion: 0,
     updatedAt: now,
   }
 }
@@ -42,6 +45,7 @@ export async function listConversations(owner: string): Promise<StoredConversati
       ...conversation,
       favorite: conversation.favorite ?? false,
       generatedTitle: conversation.generatedTitle ?? false,
+      titleVersion: conversation.titleVersion ?? 0,
     }))
     .filter((conversation) => conversation.owner === owner)
     .sort((left, right) => right.updatedAt - left.updatedAt)
@@ -102,9 +106,10 @@ function transactionComplete(transaction: IDBTransaction): Promise<void> {
   })
 }
 
-type StoredConversationRecord = Omit<StoredConversation, "favorite" | "generatedTitle"> & {
+type StoredConversationRecord = Omit<StoredConversation, "favorite" | "generatedTitle" | "titleVersion"> & {
   favorite?: boolean
   generatedTitle?: boolean
+  titleVersion?: number
 }
 
 function isStoredConversation(value: unknown): value is StoredConversationRecord {
@@ -117,5 +122,6 @@ function isStoredConversation(value: unknown): value is StoredConversationRecord
     && typeof candidate.owner === "string"
     && (candidate.favorite === undefined || typeof candidate.favorite === "boolean")
     && (candidate.generatedTitle === undefined || typeof candidate.generatedTitle === "boolean")
+    && (candidate.titleVersion === undefined || typeof candidate.titleVersion === "number")
     && Array.isArray(candidate.messages)
 }
