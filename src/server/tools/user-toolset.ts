@@ -71,19 +71,24 @@ export async function executeUserTool(request: {
     if (effectivePolicyState(request.tool, currentPolicies) === 'blocked') {
       throw new Error(`Tool ${request.tool.name} is not permitted by this deployment`);
     }
-    await request.dependencies.coordinator.enforceRateLimit(provider.id, RATE_LIMITS_PER_MINUTE[provider.id]);
+    await request.dependencies.coordinator.enforceRateLimit({
+      provider: provider.id,
+      userId: request.userId,
+      maximumStarts: RATE_LIMITS_PER_MINUTE[provider.id],
+    });
     const accessToken = await request.dependencies.oauth.getOrRefreshAccessToken(request.userId, provider.id);
-    const result = await request.dependencies.coordinator.withConcurrencyLease(
-      provider.id,
-      CONCURRENCY_LIMITS[provider.id],
-      () => callUpstreamTool({
+    const result = await request.dependencies.coordinator.withConcurrencyLease({
+      provider: provider.id,
+      userId: request.userId,
+      maximumInFlight: CONCURRENCY_LIMITS[provider.id],
+      operation: () => callUpstreamTool({
         provider,
         accessToken,
         tool: request.tool,
         arguments: request.input,
         ...(request.signal ? { signal: request.signal } : {}),
       }),
-    );
+    });
     logToolCall({
       startedAt,
       userId: request.userId,

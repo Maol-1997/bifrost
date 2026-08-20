@@ -1,8 +1,8 @@
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
+import { DEVELOPMENT_DATABASE_URL } from '../config.js';
 import { createDatabaseConnection } from './client.js';
 
-const DEFAULT_DATABASE_URL = 'postgres://bifrost:bifrost@localhost:5432/bifrost';
-const connection = createDatabaseConnection(process.env.DATABASE_URL ?? DEFAULT_DATABASE_URL);
+const connection = createDatabaseConnection(process.env.DATABASE_URL ?? DEVELOPMENT_DATABASE_URL);
 
 try {
   await migrate(connection.database, { migrationsFolder: 'migrations' });

@@ -9,7 +9,7 @@ import { errorSummary, logger } from '../logger.js';
 import { PROVIDER_REGISTRY, SUPPORTED_APPS } from '../providers/registry.js';
 import type { ProviderId } from '../providers/types.js';
 import { effectivePolicyState, isToolEnabled, toolPolicyReviewsMatchCurrentDefinitions, TOOL_POLICY_STATES } from '../tools/catalog.js';
-import { discoverConnectedTools, discoverProviderTools, discoverProviderToolsFresh, invalidateProviderToolDiscovery } from '../tools/discovery.js';
+import { discoverConnectedTools, discoverProviderTools, discoverProviderToolsFresh, invalidateProviderToolDiscovery, mcpToolNameSchema } from '../tools/discovery.js';
 import { aggregateToolCacheHints, toolCacheHintFromError } from '../tools/discovery-cache.js';
 import { isAdministrator } from '../security/access.js';
 import { authenticateBrowser, clearSessionCookie } from './auth.js';
@@ -28,7 +28,7 @@ const clientActionSchema = z.object({
 });
 const providerPreferenceSchema = z.object({ isHidden: z.boolean() });
 const toolPathSchema = z.object({
-  toolName: z.string().regex(/^[A-Za-z0-9_.-]{1,128}$/),
+  toolName: mcpToolNameSchema,
 });
 const toolPreferenceSchema = z.object({ isEnabled: z.boolean() });
 const toolPolicySchema = z.object({
@@ -366,8 +366,7 @@ async function handleClientAction(
     ? await database.revokeOAuthGrant(identity.userId, request.id)
     : await database.revokeSession(identity.userId, request.id);
   if (!isRevoked) return context.json({ error: 'That client is no longer connected' }, 404);
-  const wasCurrentClient = identity.kind === 'browser'
-    && request.kind === 'browser'
+  const wasCurrentClient = request.kind === 'browser'
     && request.id === identity.sessionId;
   if (wasCurrentClient) clearSessionCookie(context);
   return context.json({ revoked: true, wasCurrentClient });
@@ -385,7 +384,7 @@ async function clientList(context: AppContext) {
       id: session.id,
       kind: 'browser' as const,
       ...describeClient(session.clientId, session.userAgent),
-      isCurrent: identity.kind === 'browser' && session.id === identity.sessionId,
+      isCurrent: session.id === identity.sessionId,
       firstConnectedAt: session.createdAt.toISOString(),
       lastUsedAt: session.lastUsedAt.toISOString(),
       expiresAt: session.expiresAt.toISOString(),

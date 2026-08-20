@@ -1,4 +1,4 @@
-import { afterAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, describe, expect, it, vi } from 'vitest';
 import { loadConfig } from '../src/server/config.js';
 import { Coordinator } from '../src/server/coordination.js';
 import type { Database } from '../src/server/db.js';
@@ -20,10 +20,12 @@ const coordinator = new Coordinator();
 const oauth = new OAuthService(config, {} as Database, coordinator);
 
 afterAll(async () => coordinator.close());
+afterEach(() => vi.restoreAllMocks());
 
 describe('OAuth authorization requests', () => {
   it('builds the Google authorization request with PKCE', async () => {
-    const url = new URL(await oauth.startGoogleAuthorization('/'));
+    const authorization = await oauth.startGoogleAuthorization('/');
+    const url = new URL(authorization.location);
     expect({
       origin: url.origin,
       pathname: url.pathname,
@@ -48,6 +50,49 @@ describe('OAuth authorization requests', () => {
         stateIsValid: true,
       },
     });
+    expect(authorization.browserNonce).toMatch(/^[A-Za-z0-9_-]{43}$/);
+    expect(authorization.expiresInSeconds).toBe(600);
+  });
+
+  it('stores only the Google browser nonce hash in ephemeral state', async () => {
+    const authorization = await oauth.startGoogleAuthorization('/');
+    const state = new URL(authorization.location).searchParams.get('state');
+    const stored = await coordinator.takeEphemeral(`oauth:state:${state}`);
+    const storedState = JSON.parse(stored ?? '') as unknown;
+
+    expect(stored).toBeDefined();
+    expect(stored).not.toContain(authorization.browserNonce);
+    expect(storedState).toMatchObject({ returnTo: '/' });
+    if (!isRecord(storedState)) throw new Error('Stored OAuth state is not an object');
+    expect(storedState.browserNonceHash).toMatch(/^[A-Za-z0-9_-]{43}$/);
+  });
+
+  it('rejects a Google callback from a browser without the initiating nonce', async () => {
+    const authorization = await oauth.startGoogleAuthorization('/');
+    const state = new URL(authorization.location).searchParams.get('state') ?? '';
+    const fetchSpy = vi.spyOn(globalThis, 'fetch');
+
+    await expect(oauth.finishGoogle('code', state, undefined)).rejects.toThrow('browser binding');
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('rejects a mismatched nonce and consumes the state once', async () => {
+    const authorization = await oauth.startGoogleAuthorization('/');
+    const state = new URL(authorization.location).searchParams.get('state') ?? '';
+
+    await expect(oauth.finishGoogle('code', state, 'another-browser-nonce')).rejects.toThrow('browser binding');
+    await expect(oauth.finishGoogle('code', state, authorization.browserNonce)).rejects.toThrow('invalid or expired');
+  });
+
+  it('accepts the initiating nonce before attempting the token exchange', async () => {
+    const authorization = await oauth.startGoogleAuthorization('/');
+    const state = new URL(authorization.location).searchParams.get('state') ?? '';
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      Response.json({ error: 'invalid_grant' }, { status: 400 }),
+    );
+
+    await expect(oauth.finishGoogle('code', state, authorization.browserNonce)).rejects.toThrow('Google sign-in failed');
+    expect(fetchSpy).toHaveBeenCalledOnce();
   });
 
   it('uses Slack official MCP user scopes', async () => {
@@ -57,6 +102,38 @@ describe('OAuth authorization requests', () => {
     expect(url.searchParams.get('scope')).toBe('canvases:read,canvases:write,channels:history,channels:read,channels:write,chat:write,emoji:read,files:read,groups:history,groups:read,groups:write,im:history,im:write,mpim:history,mpim:read,mpim:write,reactions:write,search:read.files,search:read.im,search:read.mpim,search:read.private,search:read.public,search:read.users,users:read,users:read.email');
   });
 });
+
+describe('Google sign-in return paths', () => {
+  it.each([
+    '/',
+    '/integrations',
+    '/oauth/authorize?client_id=client#consent',
+  ])('accepts same-origin absolute path %s', async (returnTo) => {
+    const authorization = await oauth.startGoogleAuthorization(returnTo);
+    expect(authorization.location).toContain('https://accounts.google.com/');
+  });
+
+  it.each([
+    '',
+    'integrations',
+    'https://attacker.example/path',
+    '//attacker.example/path',
+    '///attacker.example/path',
+    '/\\attacker.example/path',
+    '\\attacker.example/path',
+    '/path\\attacker',
+    '/%5cattacker.example/path',
+    '/%5Cattacker.example/path',
+    '/%2fattacker.example/path',
+    '/%2Fattacker.example/path',
+  ])('rejects unsafe return path %s', async (returnTo) => {
+    await expect(oauth.startGoogleAuthorization(returnTo)).rejects.toThrow();
+  });
+});
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
 
 describe('Slack OAuth token responses', () => {
   it('promotes the user grant over the bot grant', async () => {

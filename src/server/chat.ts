@@ -14,7 +14,7 @@ import {
   type ToolSet,
 } from 'ai';
 import type { AppDependencies } from './http/context.js';
-import type { HumanIdentity } from './mcp.js';
+import type { BrowserIdentity } from './mcp.js';
 import type { ProviderId } from './providers/types.js';
 import { createAdminAgentTools } from './tools/admin-agent-tools.js';
 import type { DiscoveredTool } from './tools/catalog.js';
@@ -64,7 +64,7 @@ export async function createBifrostChatTitle(request: {
 
 export async function createBifrostChatResponse(request: {
   dependencies: AppDependencies;
-  identity: HumanIdentity;
+  identity: BrowserIdentity;
   messages: unknown;
   signal: AbortSignal;
 }): Promise<Response> {
@@ -151,7 +151,7 @@ function normalizeChatTitle(value: string): string {
 
 function createAgentTools(request: {
   dependencies: AppDependencies;
-  identity: HumanIdentity;
+  identity: BrowserIdentity;
   tools: readonly DiscoveredTool[];
 }): ToolSet {
   return Object.fromEntries(request.tools.map((tool) => [

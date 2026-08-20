@@ -1,12 +1,4 @@
 import { SUPPORTED_GRANT_TYPES } from './clients.js';
-/**
- * The documents an MCP client reads to discover how to authenticate, and the
- * challenge that points it at them.
- *
- * Pure on purpose: every value here is derived from `PUBLIC_URL`, and getting
- * one of them wrong is the difference between a client that connects by itself
- * and one that cannot start the flow at all.
- */
 
 /**
  * The single scope Bifrost issues. Per-provider scopes would be the natural next

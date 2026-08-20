@@ -1,7 +1,7 @@
 import type { MiddlewareHandler } from 'hono';
 import { Hono } from 'hono';
 import type { ContentfulStatusCode } from 'hono/utils/http-status';
-import { authenticateBrowser } from '../http/auth.js';
+import { authenticateBrowser, setGoogleOAuthNonceCookie } from '../http/auth.js';
 import type { AppContext, AppEnv } from '../http/context.js';
 import { limitRequestBody, readFormBody, readJsonBody } from '../http/request-body.js';
 import { handleAuthorize, handleConsent } from './authorize.js';
@@ -97,6 +97,7 @@ async function sendOAuthResult(context: AppContext, result: OAuthHttpResult): Pr
   if (result.kind === 'redirect') return context.redirect(result.location);
   if (result.kind === 'json') return context.json(result.body, result.status as ContentfulStatusCode);
   if (result.kind === 'html') return context.html(result.body, result.status as ContentfulStatusCode);
-  const location = await context.get('dependencies').oauth.startGoogleAuthorization(result.returnTo);
-  return context.redirect(location);
+  const authorization = await context.get('dependencies').oauth.startGoogleAuthorization(result.returnTo);
+  setGoogleOAuthNonceCookie(context, authorization);
+  return context.redirect(authorization.location);
 }

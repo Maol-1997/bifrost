@@ -6,7 +6,12 @@ import { PROVIDER_REGISTRY } from '../providers/registry.js';
 import type { ProviderMount } from '../providers/types.js';
 import { isAccessRestricted } from '../security/access.js';
 import { readAppHealth } from '../status/upstream.js';
-import { setSessionCookie } from './auth.js';
+import {
+  clearGoogleOAuthNonceCookie,
+  readGoogleOAuthNonceCookie,
+  setGoogleOAuthNonceCookie,
+  setSessionCookie,
+} from './auth.js';
 import type { AppContext, AppEnv } from './context.js';
 import { createStaticRoutes } from './static.js';
 
@@ -25,25 +30,32 @@ export function createPublicRoutes() {
       });
     })
     .get('/auth/google/start', async (context) => {
-      const location = await context.get('dependencies').oauth.startGoogleAuthorization('/');
-      return context.redirect(location);
+      const authorization = await context.get('dependencies').oauth.startGoogleAuthorization('/');
+      setGoogleOAuthNonceCookie(context, authorization);
+      return context.redirect(authorization.location);
     })
     .get('/auth/google/callback', finishGoogle)
     .route('/', createStaticRoutes());
 }
 
 async function finishGoogle(context: AppContext): Promise<Response> {
-  const parameters = callbackParameters(new URL(context.req.url));
+  let returnTo: string;
   try {
-    const result = await context.get('dependencies').oauth.finishGoogle(parameters.code, parameters.state);
+    const parameters = callbackParameters(new URL(context.req.url));
+    const result = await context.get('dependencies').oauth.finishGoogle(
+      parameters.code,
+      parameters.state,
+      readGoogleOAuthNonceCookie(context),
+    );
     setSessionCookie(context, result.sessionToken);
-    // Returning to the interrupted authorization request lets an agent's
-    // connection flow resume after the browser sign-in step.
-    return context.redirect(result.returnTo);
+    returnTo = result.returnTo;
   } catch (error) {
-    if (error instanceof EmailNotAllowedError) return context.redirect(`${APP_ROUTES.signIn}?denied=true`);
-    throw error;
+    if (!(error instanceof EmailNotAllowedError)) throw error;
+    returnTo = `${APP_ROUTES.signIn}?denied=true`;
+  } finally {
+    clearGoogleOAuthNonceCookie(context);
   }
+  return context.redirect(returnTo);
 }
 
 export function callbackParameters(url: URL): { code: string; state: string } {

@@ -4,7 +4,7 @@ import type { RequestIdVariables } from 'hono/request-id';
 import type { Config } from '../config.js';
 import type { Coordinator } from '../coordination.js';
 import type { Database } from '../db.js';
-import type { HumanIdentity } from '../mcp.js';
+import type { AgentIdentity, BrowserIdentity } from '../mcp.js';
 import type { OAuthService } from '../oauth.js';
 import type { ProviderMount } from '../providers/types.js';
 
@@ -21,8 +21,8 @@ export type AppDependencies = {
 export type AppEnv = {
   Variables: RequestIdVariables & {
     dependencies: AppDependencies;
-    browserIdentity: HumanIdentity;
-    agentIdentity: HumanIdentity;
+    browserIdentity: BrowserIdentity;
+    agentIdentity: AgentIdentity;
   };
 };
 

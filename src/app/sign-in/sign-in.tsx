@@ -7,9 +7,6 @@ import { getSignInPolicy, type SignInPolicy } from '@app/api/bifrost';
 
 const domainList = new Intl.ListFormat('en', { style: 'long', type: 'conjunction' });
 
-// Every line below is derived from the server's actual policy. The screen used
-// to claim "For Northlight accounts only" while the server accepted any Google
-// account, which is the one thing a sign-in screen must never do.
 function describeAudience(policy: SignInPolicy | undefined): string | null {
   if (!policy) return null;
   if (!policy.isRestricted) return 'Any Google account can sign in.';

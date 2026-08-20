@@ -1,45 +1,54 @@
 import * as React from "react"
 
 import { cn } from "@app/lib/cn"
-import { AgentChat, type AgentChatProps, type AgentHistoryItem } from "./agent-chat"
+import {
+  AgentChat,
+  type AgentChatConversation,
+  type AgentChatHistory,
+} from "./agent-chat"
 import { AgentChatMini } from "./agent-chat-mini"
 
 type AgentChatPlacement = "minimized" | "page" | "toolbar"
 
-type AgentChatDockProps = Pick<
-  AgentChatProps,
-  "conversation" | "favorite" | "onCopyAsMarkdown" | "onDelete" | "onFavoriteChange" | "onHistorySelect" | "onNewChat"
-> & {
+type AgentChatDockConversation = Omit<AgentChatConversation, "onMoveToToolbar">
+type AgentChatPlacementControl =
+  | {
+    current: AgentChatPlacement
+    kind: "controlled"
+    onChange: (placement: AgentChatPlacement) => void
+  }
+  | {
+    defaultPlacement?: AgentChatPlacement
+    kind: "uncontrolled"
+    onChange?: (placement: AgentChatPlacement) => void
+  }
+
+type AgentChatDockProps = {
   children: React.ReactNode
   className?: string
-  defaultPlacement?: AgentChatPlacement
-  history?: AgentHistoryItem[]
+  conversation?: AgentChatDockConversation
+  history?: AgentChatHistory
   onOpenFullPage?: () => void
-  onPlacementChange?: (placement: AgentChatPlacement) => void
   pageVisible?: boolean
-  placement?: AgentChatPlacement
+  placement?: AgentChatPlacementControl
   title?: string
 }
 
-type PlacementStateOptions = Pick<
-  AgentChatDockProps,
-  "defaultPlacement" | "onPlacementChange" | "placement"
->
-
-function useAgentChatPlacement({
-  defaultPlacement = "page",
-  onPlacementChange,
-  placement,
-}: PlacementStateOptions) {
+function useAgentChatPlacement(control?: AgentChatPlacementControl) {
+  const defaultPlacement = control?.kind === "uncontrolled"
+    ? control.defaultPlacement ?? "page"
+    : "page"
   const [internalPlacement, setInternalPlacement] =
     React.useState<AgentChatPlacement>(defaultPlacement)
-  const currentPlacement = placement ?? internalPlacement
+  const currentPlacement = control?.kind === "controlled"
+    ? control.current
+    : internalPlacement
 
   function changePlacement(nextPlacement: AgentChatPlacement) {
-    if (placement === undefined) {
+    if (control?.kind !== "controlled") {
       setInternalPlacement(nextPlacement)
     }
-    onPlacementChange?.(nextPlacement)
+    control?.onChange?.(nextPlacement)
   }
 
   return [currentPlacement, changePlacement] as const
@@ -48,26 +57,14 @@ function useAgentChatPlacement({
 function AgentChatDock({
   children,
   className,
-  conversation = false,
-  defaultPlacement,
-  favorite = false,
-  history = [],
-  onCopyAsMarkdown,
-  onDelete,
-  onFavoriteChange,
-  onHistorySelect,
-  onNewChat,
+  conversation,
+  history,
   onOpenFullPage,
-  onPlacementChange,
   pageVisible = true,
   placement,
   title = "New chat",
 }: AgentChatDockProps) {
-  const [currentPlacement, changePlacement] = useAgentChatPlacement({
-    ...(defaultPlacement ? { defaultPlacement } : {}),
-    ...(onPlacementChange ? { onPlacementChange } : {}),
-    ...(placement ? { placement } : {}),
-  })
+  const [currentPlacement, changePlacement] = useAgentChatPlacement(placement)
 
   function openFullPage(): void {
     changePlacement("page")
@@ -80,15 +77,13 @@ function AgentChatDock({
     return (
       <AgentChat
         {...(className ? { className } : {})}
-        conversation={conversation}
-        favorite={favorite}
-        history={history}
-        {...(onCopyAsMarkdown ? { onCopyAsMarkdown } : {})}
-        {...(onDelete ? { onDelete } : {})}
-        {...(onFavoriteChange ? { onFavoriteChange } : {})}
-        {...(onHistorySelect ? { onHistorySelect } : {})}
-        onMoveToToolbar={() => changePlacement("toolbar")}
-        {...(onNewChat ? { onNewChat } : {})}
+        {...(conversation ? {
+          conversation: {
+            ...conversation,
+            onMoveToToolbar: () => changePlacement("toolbar"),
+          },
+        } : {})}
+        {...(history ? { history } : {})}
         title={title}
       >
         {children}
@@ -99,11 +94,17 @@ function AgentChatDock({
   const floating = !pageVisible
   const floatingContent = currentPlacement === "toolbar" ? (
     <AgentChatMini
-      {...(onCopyAsMarkdown ? { onCopyAsMarkdown } : {})}
-      {...(onDelete ? { onDelete } : {})}
-      onClose={() => changePlacement("minimized")}
-      onMinimize={() => changePlacement("minimized")}
-      onOpenFullPage={openFullPage}
+      {...(conversation ? {
+        actions: {
+          onCopyAsMarkdown: conversation.onCopyAsMarkdown,
+          onDelete: conversation.onDelete,
+        },
+      } : {})}
+      controls={{
+        onClose: () => changePlacement("minimized"),
+        onMinimize: () => changePlacement("minimized"),
+        onOpenFullPage: openFullPage,
+      }}
       position={floating ? "fixed" : "contained"}
       title={title}
     >
@@ -128,6 +129,8 @@ function AgentChatDock({
 
 export {
   AgentChatDock,
+  type AgentChatDockConversation,
   type AgentChatDockProps,
   type AgentChatPlacement,
+  type AgentChatPlacementControl,
 }

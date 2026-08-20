@@ -177,7 +177,7 @@ test/                  vitest, pure units only; no database in tests
 excludes `src/app`; `tsconfig.app.json` includes `src/app` plus explicitly shared `src/features`;
 ESLint forbids runtime imports across `app` and `server`, and forbids runtime dependencies from
 `features` into either side. The one deliberate exception is the type-only `AppType` import in
-`features/bifrost-api/client.ts`: Hono RPC infers its contract from the implemented routes, and the
+`src/features/bifrost-api/client.ts`: Hono RPC infers its contract from the implemented routes, and the
 import is erased before bundling. Do not widen this exception or import an app type into server code.
 Other shared-looking types remain written twice on purpose (`ProviderId`, `ClientLogoId`).
 
@@ -217,7 +217,7 @@ URLs explicitly in `src/app/app.tsx`; the folders organize ownership and do not 
 - **Dates use `date-fns`.** Keep ISO timestamps across the HTTP boundary and format them in the
   browser so local time stays honest. Do not add another hand-written date arithmetic helper.
 - **Browser APIs use Hono RPC.** Keep route registrations chained so `AppType` retains their input
-  and response schemas. Consume them through `features/bifrost-api/client.ts`; do not recreate URL,
+  and response schemas. Consume them through `src/features/bifrost-api/client.ts`; do not recreate URL,
   body or response DTOs in the app. `parseRpcResponse` owns authenticated 401 behavior.
 
 ## HTTP architecture
@@ -282,7 +282,7 @@ needing one is verified by running it.
 ## Gotchas that cost real time
 
 - **Vite does not discover route files.** Every new route entry must be registered in
-  `src/app/app.tsx` and, when the server must serve the SPA there, in `src/server/http/static.ts`.
+  `src/app/app.tsx` and `src/features/utils/routes.ts`; server SPA fallbacks derive from that manifest.
 - **The Docker image contains its own copy of `dist`.** Rebuilding on the host does nothing to a
   running container. Deploying a change means `docker compose up -d --build app`. Forgetting this
   looks exactly like a change that did not work.

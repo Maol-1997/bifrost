@@ -31,10 +31,7 @@ type CacheFailure = {
   nextRetryAt: number;
 };
 
-type ActiveRefresh = {
-  generation: number;
-  promise: Promise<readonly DiscoveredTool[]>;
-};
+type ActiveRefreshes = Map<number, Promise<readonly DiscoveredTool[]>>;
 
 type CacheLoaders = {
   blocking: () => Promise<readonly DiscoveredTool[]>;
@@ -55,7 +52,7 @@ export class ToolDiscoveryCache {
   private readonly entries = new Map<string, CacheEntry>();
   private readonly failures = new Map<string, CacheFailure>();
   private readonly generations = new Map<string, number>();
-  private readonly refreshes = new Map<string, ActiveRefresh>();
+  private readonly refreshes = new Map<string, ActiveRefreshes>();
   private readonly now: () => number;
 
   constructor(private readonly options: CacheOptions) {
@@ -99,7 +96,7 @@ export class ToolDiscoveryCache {
   invalidate(key: string): void {
     this.entries.delete(key);
     this.failures.delete(key);
-    this.generations.set(key, this.generation(key) + 1);
+    this.supersedeActiveRefreshes(key);
   }
 
   private async refresh(key: string, load: () => Promise<readonly DiscoveredTool[]>): Promise<readonly DiscoveredTool[]> {
@@ -125,15 +122,16 @@ export class ToolDiscoveryCache {
         throw error;
       })
       .finally(() => {
-        if (this.refreshes.get(key)?.promise === refresh) this.refreshes.delete(key);
+        this.finishRefresh(key, generation, refresh);
       });
-    this.refreshes.set(key, { generation, promise: refresh });
+    const activeRefreshes = this.refreshes.get(key) ?? new Map<number, Promise<readonly DiscoveredTool[]>>();
+    activeRefreshes.set(generation, refresh);
+    this.refreshes.set(key, activeRefreshes);
     return refresh;
   }
 
   private activeRefresh(key: string): Promise<readonly DiscoveredTool[]> | undefined {
-    const activeRefresh = this.refreshes.get(key);
-    return activeRefresh?.generation === this.generation(key) ? activeRefresh.promise : undefined;
+    return this.refreshes.get(key)?.get(this.generation(key));
   }
 
   private recordFailure(key: string, generation: number): void {
@@ -157,6 +155,7 @@ export class ToolDiscoveryCache {
       const oldestKey = this.failures.keys().next().value;
       if (oldestKey === undefined) return;
       this.failures.delete(oldestKey);
+      this.supersedeActiveRefreshes(oldestKey);
     }
   }
 
@@ -171,7 +170,28 @@ export class ToolDiscoveryCache {
       const oldestKey = this.entries.keys().next().value;
       if (oldestKey === undefined) return;
       this.entries.delete(oldestKey);
-      this.generations.set(oldestKey, this.generation(oldestKey) + 1);
+      this.supersedeActiveRefreshes(oldestKey);
+    }
+  }
+
+  private supersedeActiveRefreshes(key: string): void {
+    if (this.refreshes.has(key)) {
+      this.generations.set(key, this.generation(key) + 1);
+      return;
+    }
+    this.generations.delete(key);
+  }
+
+  private finishRefresh(
+    key: string,
+    generation: number,
+    refresh: Promise<readonly DiscoveredTool[]>,
+  ): void {
+    const activeRefreshes = this.refreshes.get(key);
+    if (activeRefreshes?.get(generation) === refresh) activeRefreshes.delete(generation);
+    if (activeRefreshes?.size === 0) this.refreshes.delete(key);
+    if (!this.entries.has(key) && !this.failures.has(key) && !this.refreshes.has(key)) {
+      this.generations.delete(key);
     }
   }
 

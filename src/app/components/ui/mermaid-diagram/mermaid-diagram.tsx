@@ -1,5 +1,6 @@
 import * as React from "react"
 import { Check, Code2, Copy, MoreHorizontal } from "lucide-react"
+import { toast } from "sonner"
 
 import {
   DropdownMenu,
@@ -115,14 +116,20 @@ const MermaidDiagram = React.memo(
       }
     }, [isActivated, source])
 
-    function copySource() {
-      void navigator.clipboard.writeText(source)
-      setCopied(true)
-      window.clearTimeout(copyTimer.current)
-      copyTimer.current = window.setTimeout(
-        () => setCopied(false),
-        COPY_CONFIRMATION_DURATION,
-      )
+    async function copySource(): Promise<void> {
+      try {
+        await navigator.clipboard.writeText(source)
+        setCopied(true)
+        window.clearTimeout(copyTimer.current)
+        copyTimer.current = window.setTimeout(
+          () => setCopied(false),
+          COPY_CONFIRMATION_DURATION,
+        )
+      } catch {
+        setCopied(false)
+        window.clearTimeout(copyTimer.current)
+        toast.error("Diagram source could not be copied")
+      }
     }
 
     return (
@@ -152,7 +159,7 @@ const MermaidDiagram = React.memo(
                 <Code2 className="size-4" aria-hidden="true" />
                 {showSource ? "Hide source" : "Show source"}
               </DropdownMenuItem>
-              <DropdownMenuItem onSelect={copySource}>
+              <DropdownMenuItem onSelect={() => void copySource()}>
                 {copied ? (
                   <Check className="size-4" aria-hidden="true" />
                 ) : (

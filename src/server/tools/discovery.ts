@@ -1,3 +1,4 @@
+import { z } from 'zod';
 import { errorSummary, logger } from '../logger.js';
 import { listUpstreamTools } from '../providers/mcp-client.js';
 import { PROVIDER_REGISTRY } from '../providers/registry.js';
@@ -13,7 +14,7 @@ import {
   type ToolCacheHint,
 } from './discovery-cache.js';
 
-const MCP_TOOL_NAME = /^[A-Za-z0-9_.-]{1,128}$/;
+export const mcpToolNameSchema = z.string().regex(/^[A-Za-z0-9_.-]{1,128}$/);
 const providerToolDiscoveryCache = new ToolDiscoveryCache({
   ...TOOL_DISCOVERY_CACHE_OPTIONS,
   onBackgroundError: (error) => {
@@ -64,7 +65,7 @@ async function loadProviderTools(request: ProviderDiscoveryRequest): Promise<rea
   return upstreamTools
     .map((tool) => normalizeUpstreamTool(provider, tool))
     .filter((tool) => {
-      if (!MCP_TOOL_NAME.test(tool.name)) {
+      if (!mcpToolNameSchema.safeParse(tool.name).success) {
         logger.warn({ providerId: provider.id, upstreamToolName: tool.upstreamName }, 'Ignored upstream tool with an invalid Bifrost name');
         return false;
       }

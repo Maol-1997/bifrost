@@ -51,7 +51,7 @@ export type StoredOAuthClient = {
   metadataExpiresAt: Date | undefined;
 };
 
-/** A grant as "Agents & sessions" needs it: no token material, only what a human can act on. */
+/** Fields needed to display and revoke a grant without exposing token material. */
 export type OAuthGrantRecord = {
   id: string;
   clientId: string;

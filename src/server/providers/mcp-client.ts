@@ -35,28 +35,43 @@ type UpstreamToolCall = UpstreamConnectionRequest & {
   arguments: Record<string, unknown>;
 };
 
+export type UpstreamToolExecutionClient = {
+  listTools: Client['listTools'];
+  callTool: Client['callTool'];
+};
+
+type VerifiedUpstreamToolCall = Pick<
+  UpstreamToolCall,
+  'provider' | 'tool' | 'arguments' | 'signal'
+>;
+
 export async function callUpstreamTool(request: UpstreamToolCall): Promise<CallToolResult> {
-  return withUpstreamConnection(request, async ({ client }) => {
-    const currentTools = await client.listTools(undefined, {
-      ...(request.signal ? { signal: request.signal } : {}),
-      timeout: UPSTREAM_LIST_TIMEOUT_MS,
-      cacheMode: 'refresh',
-    });
-    const currentDefinition = currentTools.tools.find((tool) => tool.name === request.tool.upstreamName);
-    if (!currentDefinition) throw new Error(`Upstream tool disappeared: ${request.tool.upstreamName}`);
-    const currentTool = normalizeUpstreamTool(request.provider, currentDefinition);
-    if (currentTool.fingerprint !== request.tool.fingerprint) {
-      throw new Error(`Upstream tool changed after approval: ${request.tool.upstreamName}`);
-    }
-    return client.callTool(
-      { name: currentDefinition.name, arguments: request.arguments },
-      {
-        ...(request.signal ? { signal: request.signal } : {}),
-        timeout: UPSTREAM_CALL_TIMEOUT_MS,
-        toolDefinition: currentDefinition,
-      },
-    );
+  return withUpstreamConnection(request, async ({ client }) => callVerifiedUpstreamTool(client, request));
+}
+
+export async function callVerifiedUpstreamTool(
+  client: UpstreamToolExecutionClient,
+  request: VerifiedUpstreamToolCall,
+): Promise<CallToolResult> {
+  const currentTools = await client.listTools(undefined, {
+    ...(request.signal ? { signal: request.signal } : {}),
+    timeout: UPSTREAM_LIST_TIMEOUT_MS,
+    cacheMode: 'refresh',
   });
+  const currentDefinition = currentTools.tools.find((tool) => tool.name === request.tool.upstreamName);
+  if (!currentDefinition) throw new Error(`Upstream tool disappeared: ${request.tool.upstreamName}`);
+  const currentTool = normalizeUpstreamTool(request.provider, currentDefinition);
+  if (currentTool.fingerprint !== request.tool.fingerprint) {
+    throw new Error(`Upstream tool changed after approval: ${request.tool.upstreamName}`);
+  }
+  return client.callTool(
+    { name: currentDefinition.name, arguments: request.arguments },
+    {
+      ...(request.signal ? { signal: request.signal } : {}),
+      timeout: UPSTREAM_CALL_TIMEOUT_MS,
+      toolDefinition: currentDefinition,
+    },
+  );
 }
 
 async function withUpstreamConnection<Result>(

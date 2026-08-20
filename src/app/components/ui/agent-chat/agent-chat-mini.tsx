@@ -23,13 +23,19 @@ import {
 } from "./agent-chat-icons"
 
 type AgentChatMiniPosition = "contained" | "fixed"
+type AgentChatMiniActions = {
+  onCopyAsMarkdown: () => void
+  onDelete: () => void
+}
+type AgentChatMiniControls = {
+  onClose: () => void
+  onMinimize: () => void
+  onOpenFullPage: () => void
+}
 
 type AgentChatMiniProps = React.ComponentPropsWithoutRef<"section"> & {
-  onClose?: () => void
-  onCopyAsMarkdown?: () => void
-  onDelete?: () => void
-  onMinimize?: () => void
-  onOpenFullPage?: () => void
+  actions?: AgentChatMiniActions
+  controls: AgentChatMiniControls
   position?: AgentChatMiniPosition
   title?: string
 }
@@ -65,10 +71,7 @@ const MiniHeaderButton = React.forwardRef<
 ))
 MiniHeaderButton.displayName = "MiniHeaderButton"
 
-function MiniChatOptions({
-  onCopyAsMarkdown,
-  onDelete,
-}: Pick<AgentChatMiniProps, "onCopyAsMarkdown" | "onDelete">) {
+function MiniChatOptions({ actions }: { actions?: AgentChatMiniActions }) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -78,16 +81,16 @@ function MiniChatOptions({
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-44 min-w-44" sideOffset={4}>
         <DropdownMenuItem
-          disabled={!onCopyAsMarkdown}
-          {...(onCopyAsMarkdown ? { onSelect: onCopyAsMarkdown } : {})}
+          disabled={!actions}
+          {...(actions ? { onSelect: actions.onCopyAsMarkdown } : {})}
         >
           <Copy className="size-4" aria-hidden="true" />
           Copy as markdown
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem
-          disabled={!onDelete}
-          {...(onDelete ? { onSelect: onDelete } : {})}
+          disabled={!actions}
+          {...(actions ? { onSelect: actions.onDelete } : {})}
         >
           <Trash2 className="size-4" aria-hidden="true" />
           Delete
@@ -100,13 +103,10 @@ function MiniChatOptions({
 const AgentChatMini = React.forwardRef<HTMLElement, AgentChatMiniProps>(
   function AgentChatMini(
     {
+      actions,
       children,
       className,
-      onClose,
-      onCopyAsMarkdown,
-      onDelete,
-      onMinimize,
-      onOpenFullPage,
+      controls,
       position = "fixed",
       title = "New chat",
       ...props
@@ -134,19 +134,16 @@ const AgentChatMini = React.forwardRef<HTMLElement, AgentChatMiniProps>(
               <span className="truncate pl-1.5 text-[13px] font-medium text-linear-bright">
                 {title}
               </span>
-              <MiniChatOptions
-                {...(onCopyAsMarkdown ? { onCopyAsMarkdown } : {})}
-                {...(onDelete ? { onDelete } : {})}
-              />
+              <MiniChatOptions {...(actions ? { actions } : {})} />
             </div>
             <div className="flex items-center gap-0.5">
-              <MiniHeaderButton label="Minimize chat" onClick={onMinimize}>
+              <MiniHeaderButton label="Minimize chat" onClick={controls.onMinimize}>
                 <MinimizeChatIcon />
               </MiniHeaderButton>
-              <MiniHeaderButton label="Open full page" onClick={onOpenFullPage}>
+              <MiniHeaderButton label="Open full page" onClick={controls.onOpenFullPage}>
                 <OpenFullPageIcon />
               </MiniHeaderButton>
-              <MiniHeaderButton label="Close chat" onClick={onClose}>
+              <MiniHeaderButton label="Close chat" onClick={controls.onClose}>
                 <CloseChatIcon />
               </MiniHeaderButton>
             </div>
@@ -163,6 +160,8 @@ AgentChatMini.displayName = "AgentChatMini"
 
 export {
   AgentChatMini,
+  type AgentChatMiniActions,
+  type AgentChatMiniControls,
   type AgentChatMiniPosition,
   type AgentChatMiniProps,
 }

@@ -4,11 +4,12 @@ import { Coordinator } from './coordination.js';
 import { Database } from './db.js';
 import { createApp } from './http/app.js';
 import type { AppDependencies } from './http/context.js';
-import { logger } from './logger.js';
+import { errorSummary, logger } from './logger.js';
 import { createHumanMcpHandler } from './mcp.js';
 import { OAuthService } from './oauth.js';
 import { assertPrefixInvariant, mountProviders } from './providers/registry.js';
 import { isAccessRestricted } from './security/access.js';
+import { shutdownServer } from './shutdown.js';
 
 async function main(): Promise<void> {
   const config = loadConfig();
@@ -34,17 +35,26 @@ async function main(): Promise<void> {
     port: config.PORT,
   }, ({ port }) => logger.info({ port }, 'Bifrost listening'));
 
-  let isShuttingDown = false;
-  const shutdown = async (): Promise<void> => {
-    if (isShuttingDown) return;
-    isShuttingDown = true;
-    server.close();
-    await mcpHandler.close();
-    await coordinator.close();
-    await database.close();
+  let shutdownPromise: Promise<void> | undefined;
+  const shutdown = (): Promise<void> => {
+    shutdownPromise ??= shutdownServer({
+      server,
+      dependencies: [
+        { name: 'MCP handler', close: () => mcpHandler.close() },
+        { name: 'coordinator', close: () => coordinator.close() },
+        { name: 'database', close: () => database.close() },
+      ],
+    });
+    return shutdownPromise;
   };
-  process.once('SIGTERM', () => { void shutdown(); });
-  process.once('SIGINT', () => { void shutdown(); });
+  const handleShutdownSignal = (): void => {
+    void shutdown().catch((error: unknown) => {
+      process.exitCode = 1;
+      logger.error(errorSummary(error), 'Graceful shutdown failed');
+    });
+  };
+  process.once('SIGTERM', handleShutdownSignal);
+  process.once('SIGINT', handleShutdownSignal);
 }
 
 function logDeploymentWarnings(config: ReturnType<typeof loadConfig>): void {

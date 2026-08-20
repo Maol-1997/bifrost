@@ -10,3 +10,10 @@ export const APP_ROUTES = {
   adminTools: '/admin/tools',
   adminToolDetail: '/admin/tools/:providerId',
 } as const;
+
+const DYNAMIC_ROUTE_SEGMENT = /\/:[^/]+/g;
+
+export const SPA_FALLBACK_ROUTES: readonly string[] = [...new Set([
+  '/',
+  ...Object.values(APP_ROUTES).map((route) => route.replace(DYNAMIC_ROUTE_SEGMENT, '/*')),
+])];

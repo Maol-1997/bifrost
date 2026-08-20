@@ -35,18 +35,25 @@ type AgentHistoryItem = {
   title: string
 }
 
+type AgentChatConversation = {
+  favorite: boolean
+  onCopyAsMarkdown: () => void
+  onDelete: () => void
+  onFavoriteChange: (favorite: boolean) => void
+  onMoveToToolbar: () => void
+}
+
+type AgentChatHistory = {
+  items: AgentHistoryItem[]
+  onNewChat: () => void
+  onSelect: (item: AgentHistoryItem) => void
+}
+
 type AgentChatProps = {
   children: React.ReactNode
   className?: string
-  conversation?: boolean
-  favorite?: boolean
-  history?: AgentHistoryItem[]
-  onCopyAsMarkdown?: () => void
-  onDelete?: () => void
-  onFavoriteChange?: (favorite: boolean) => void
-  onHistorySelect?: (item: AgentHistoryItem) => void
-  onMoveToToolbar?: () => void
-  onNewChat?: () => void
+  conversation?: AgentChatConversation
+  history?: AgentChatHistory
   title?: string
 }
 
@@ -80,15 +87,10 @@ HeaderIconButton.displayName = "HeaderIconButton"
 type HistoryMenuProps = {
   align?: "end" | "start"
   children: React.ReactNode
-  history: AgentHistoryItem[]
-  onNewChat?: () => void
-  onSelect?: (item: AgentHistoryItem) => void
+  history?: AgentChatHistory
 }
 
-function ChatOptionsMenu({
-  onCopyAsMarkdown,
-  onDelete,
-}: Pick<AgentChatProps, "onCopyAsMarkdown" | "onDelete">) {
+function ChatOptionsMenu({ conversation }: { conversation: AgentChatConversation }) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -98,16 +100,14 @@ function ChatOptionsMenu({
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-44 min-w-44" sideOffset={4}>
         <DropdownMenuItem
-          disabled={!onCopyAsMarkdown}
-          {...(onCopyAsMarkdown ? { onSelect: onCopyAsMarkdown } : {})}
+          onSelect={conversation.onCopyAsMarkdown}
         >
           <Copy className="size-4" aria-hidden="true" />
           Copy as markdown
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem
-          disabled={!onDelete}
-          {...(onDelete ? { onSelect: onDelete } : {})}
+          onSelect={conversation.onDelete}
         >
           <Trash2 className="size-4" aria-hidden="true" />
           Delete
@@ -122,10 +122,9 @@ function HistoryMenu({
   align = "start",
   children,
   history,
-  onNewChat,
-  onSelect,
 }: HistoryMenuProps) {
-  const group = history[0]?.group ?? "Today"
+  const items = history?.items ?? []
+  const group = items[0]?.group ?? "Today"
 
   return (
     <DropdownMenu>
@@ -137,7 +136,8 @@ function HistoryMenu({
       >
         <DropdownMenuItem
           className="h-7 pl-3 pr-3 text-[12.5px] before:inset-x-1 before:rounded-md"
-          {...(onNewChat ? { onSelect: onNewChat } : {})}
+          disabled={!history}
+          {...(history ? { onSelect: history.onNewChat } : {})}
         >
           <Plus
             aria-hidden="true"
@@ -154,18 +154,18 @@ function HistoryMenu({
         >
           {group}
         </div>
-        {history.length === 0 ? (
+        {items.length === 0 ? (
           <div className="px-3.5 py-2 text-[13px] font-[450] text-linear-agent-action">
             No history
           </div>
         ) : (
-          history.map((item) => (
+          items.map((item) => (
             <DropdownMenuItem
               key={item.id}
               className="h-[30px] pl-3 pr-3 text-[12.5px] before:inset-x-1 before:rounded-md data-[current=true]:before:bg-linear-menu-item-hover"
               data-current={item.current}
               aria-current={item.current ? "page" : undefined}
-              onSelect={() => onSelect?.(item)}
+              onSelect={() => history?.onSelect(item)}
             >
               <span aria-hidden="true" className="flex w-6 shrink-0 items-center">
                 {item.favorite ? <Star className="size-3 fill-current" /> : null}
@@ -187,25 +187,14 @@ function HistoryMenu({
 type AgentChatHeaderProps = Omit<AgentChatProps, "children" | "className">
 
 function AgentChatHeader({
-  conversation = false,
-  favorite = false,
-  history = [],
-  onCopyAsMarkdown,
-  onDelete,
-  onFavoriteChange,
-  onHistorySelect,
-  onMoveToToolbar,
-  onNewChat,
+  conversation,
+  history,
   title = "New chat",
 }: AgentChatHeaderProps) {
   return (
     <header className="flex h-11 shrink-0 items-center justify-between border-b-[0.5px] border-linear-border px-2">
       <div className="flex min-w-0 items-center">
-        <HistoryMenu
-          history={history}
-          {...(onNewChat ? { onNewChat } : {})}
-          {...(onHistorySelect ? { onSelect: onHistorySelect } : {})}
-        >
+        <HistoryMenu {...(history ? { history } : {})}>
           <button
             aria-label="Switch agent chat"
             className="relative ml-0 flex h-7 min-w-0 items-center gap-2 rounded-full border-[0.5px] border-transparent px-2 text-xs font-medium text-linear-control-foreground transition-[background-color,color] duration-150 hover:bg-linear-ghost-hover hover:text-linear-bright focus-visible:bg-linear-ghost-hover focus-visible:text-linear-bright focus-visible:outline-none data-[state=open]:bg-linear-ghost-hover data-[state=open]:text-linear-bright max-[1024px]:h-8 min-[1025px]:ml-0.5"
@@ -220,20 +209,17 @@ function AgentChatHeader({
         {conversation ? (
           <>
             <HeaderIconButton
-              aria-pressed={favorite}
-              label={favorite ? "Remove from favorites" : "Add to favorites"}
-              onClick={() => onFavoriteChange?.(!favorite)}
+              aria-pressed={conversation.favorite}
+              label={conversation.favorite ? "Remove from favorites" : "Add to favorites"}
+              onClick={() => conversation.onFavoriteChange(!conversation.favorite)}
             >
-              <Star className={cn("size-4", favorite && "fill-current text-linear-bright")} aria-hidden="true" />
+              <Star className={cn("size-4", conversation.favorite && "fill-current text-linear-bright")} aria-hidden="true" />
             </HeaderIconButton>
-            <ChatOptionsMenu
-              {...(onCopyAsMarkdown ? { onCopyAsMarkdown } : {})}
-              {...(onDelete ? { onDelete } : {})}
-            />
+            <ChatOptionsMenu conversation={conversation} />
           </>
         ) : null}
       </div>
-      {conversation && onMoveToToolbar ? <AgentChatToolbarButton onClick={onMoveToToolbar} /> : null}
+      {conversation ? <AgentChatToolbarButton onClick={conversation.onMoveToToolbar} /> : null}
     </header>
   )
 }
@@ -241,29 +227,25 @@ function AgentChatHeader({
 function AgentChat({
   children,
   className,
-  conversation = false,
-  favorite = false,
-  history = [],
-  onCopyAsMarkdown,
-  onDelete,
-  onFavoriteChange,
-  onHistorySelect,
-  onMoveToToolbar,
-  onNewChat,
+  conversation,
+  history,
   title = "New chat",
 }: AgentChatProps) {
+  const onDelete = conversation?.onDelete
+
   React.useEffect(() => {
-    if (!conversation || !onDelete) return
+    if (!onDelete) return
+    const deleteConversation = onDelete
 
     function handleDeleteShortcut(event: KeyboardEvent): void {
       if (!event.metaKey || event.key !== "Backspace" || isEditableTarget(event.target)) return
       event.preventDefault()
-      onDelete?.()
+      deleteConversation()
     }
 
     window.addEventListener("keydown", handleDeleteShortcut)
     return () => window.removeEventListener("keydown", handleDeleteShortcut)
-  }, [conversation, onDelete])
+  }, [onDelete])
 
   return (
     <TooltipProvider>
@@ -275,18 +257,11 @@ function AgentChat({
       >
         <section
           className="agent-chat-surface absolute inset-0 flex flex-col overflow-hidden bg-linear-gallery-main"
-          data-conversation={conversation}
+          data-conversation={conversation ? true : undefined}
         >
           <AgentChatHeader
-            conversation={conversation}
-            favorite={favorite}
-            history={history}
-            {...(onCopyAsMarkdown ? { onCopyAsMarkdown } : {})}
-            {...(onDelete ? { onDelete } : {})}
-            {...(onFavoriteChange ? { onFavoriteChange } : {})}
-            {...(onHistorySelect ? { onHistorySelect } : {})}
-            {...(onMoveToToolbar ? { onMoveToToolbar } : {})}
-            {...(onNewChat ? { onNewChat } : {})}
+            {...(conversation ? { conversation } : {})}
+            {...(history ? { history } : {})}
             title={title}
           />
           {children}
@@ -397,6 +372,8 @@ export {
   AgentChatEmptyState,
   AgentChatHeader,
   AgentChatSuggestions,
+  type AgentChatConversation,
+  type AgentChatHistory,
   type AgentChatProps,
   type AgentHistoryItem,
   type AgentSuggestion,

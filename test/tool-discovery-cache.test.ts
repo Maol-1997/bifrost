@@ -4,16 +4,27 @@ import type { DiscoveredTool } from '../src/server/tools/catalog.js';
 
 const tool = { name: 'github_example' } as DiscoveredTool;
 
-function cacheAt(clock: { now: number }, onBackgroundError?: (error: unknown) => void): ToolDiscoveryCache {
+function cacheAt(
+  clock: { now: number },
+  options: { maxEntries?: number; onBackgroundError?: (error: unknown) => void } = {},
+): ToolDiscoveryCache {
   return new ToolDiscoveryCache({
     freshnessMs: 3_600_000,
     revalidationPollMs: 3_000,
     initialRetryMs: 5_000,
     maxRetryMs: 300_000,
-    maxEntries: 100,
+    maxEntries: options.maxEntries ?? 100,
     now: () => clock.now,
-    ...(onBackgroundError ? { onBackgroundError } : {}),
+    ...(options.onBackgroundError ? { onBackgroundError: options.onBackgroundError } : {}),
   });
+}
+
+function cacheMetadataSizes(cache: ToolDiscoveryCache): { entries: number; generations: number } {
+  const internals = cache as unknown as {
+    entries: ReadonlyMap<string, unknown>;
+    generations: ReadonlyMap<string, unknown>;
+  };
+  return { entries: internals.entries.size, generations: internals.generations.size };
 }
 
 describe('tool discovery SWR cache', () => {
@@ -68,7 +79,7 @@ describe('tool discovery SWR cache', () => {
     const blocking = vi.fn(async () => [tool]);
     const failure = new Error('provider down');
     const background = vi.fn(async () => Promise.reject(failure));
-    const cache = cacheAt(clock, onError);
+    const cache = cacheAt(clock, { onBackgroundError: onError });
     await cache.read('user:github', { blocking, background });
     clock.now += 3_600_000;
     await cache.read('user:github', { blocking, background });
@@ -110,6 +121,71 @@ describe('tool discovery SWR cache', () => {
     finishLoad?.([tool]);
     await firstRead;
     const result = await replacementRead;
+
+    expect(result.tools).toEqual([]);
+    expect(replacementLoad).toHaveBeenCalledOnce();
+  });
+
+  it('keeps tracking an older refresh after its replacement completes', async () => {
+    const clock = { now: 1_000 };
+    const cache = cacheAt(clock);
+    let finishOldLoad: ((tools: readonly DiscoveredTool[]) => void) | undefined;
+    const oldLoad = vi.fn(() => new Promise<readonly DiscoveredTool[]>((resolve) => {
+      finishOldLoad = resolve;
+    }));
+    const oldRead = cache.read('user:github', { blocking: oldLoad, background: oldLoad });
+    cache.invalidate('user:github');
+    await cache.read('user:github', { blocking: async () => [], background: async () => [] });
+    cache.invalidate('user:github');
+
+    finishOldLoad?.([tool]);
+    await oldRead;
+    const currentLoad = vi.fn(async () => []);
+    const result = await cache.read('user:github', { blocking: currentLoad, background: currentLoad });
+
+    expect(result.tools).toEqual([]);
+    expect(currentLoad).toHaveBeenCalledOnce();
+  });
+
+  it('removes generation metadata after invalidating settled state', async () => {
+    const clock = { now: 1_000 };
+    const cache = cacheAt(clock);
+    await cache.read('user:github', { blocking: async () => [tool], background: async () => [tool] });
+
+    cache.invalidate('user:github');
+
+    expect(cacheMetadataSizes(cache)).toEqual({ entries: 0, generations: 0 });
+  });
+
+  it('bounds entries and generation metadata under key churn', async () => {
+    const clock = { now: 1_000 };
+    const cache = cacheAt(clock, { maxEntries: 2 });
+    const load = vi.fn(async () => [tool]);
+
+    for (let index = 0; index < 10; index += 1) {
+      await cache.read(`user:${index}`, { blocking: load, background: load });
+    }
+
+    expect(cacheMetadataSizes(cache)).toEqual({ entries: 2, generations: 0 });
+  });
+
+  it('does not let an evicted stale refresh repopulate the cache', async () => {
+    const clock = { now: 1_000 };
+    const cache = cacheAt(clock, { maxEntries: 1 });
+    let finishStaleRefresh: ((tools: readonly DiscoveredTool[]) => void) | undefined;
+    const firstLoad = vi.fn(async () => [tool]);
+    const staleRefresh = vi.fn(() => new Promise<readonly DiscoveredTool[]>((resolve) => {
+      finishStaleRefresh = resolve;
+    }));
+    await cache.read('user:github', { blocking: firstLoad, background: staleRefresh });
+    clock.now += 3_600_000;
+    await cache.read('user:github', { blocking: firstLoad, background: staleRefresh });
+    await cache.read('user:linear', { blocking: async () => [], background: async () => [] });
+
+    finishStaleRefresh?.([tool]);
+    await vi.waitFor(() => { expect(cacheMetadataSizes(cache).generations).toBe(0); }, { interval: 1 });
+    const replacementLoad = vi.fn(async () => []);
+    const result = await cache.read('user:github', { blocking: replacementLoad, background: replacementLoad });
 
     expect(result.tools).toEqual([]);
     expect(replacementLoad).toHaveBeenCalledOnce();

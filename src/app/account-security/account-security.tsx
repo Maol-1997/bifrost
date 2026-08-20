@@ -18,16 +18,12 @@ export default function AccountSecurity(): React.JSX.Element {
   const providers = providersQuery.data?.data ?? getProviderCatalog();
   const clients = clientsQuery.data ?? [];
   const hasLoadError = providersQuery.isError || clientsQuery.isError;
-  // No fallback to the catalog on failure: this screen summarizes what is
-  // authorized, and a fixture shown here would read as a real answer.
   const connectedProviders = providers.filter((provider) => provider.status === 'connected');
   const totalTools = connectedProviders.reduce((count, provider) => count + provider.tools.length, 0);
   const enabledTools = connectedProviders.reduce((count, provider) => count + provider.tools.filter((tool) => tool.isEnabled).length, 0);
   const providerNames = connectedProviders.map((provider) => provider.name).join(', ');
 
   const summaryRows = [
-    // "apps", not "tools": this row counts providers, and the row below it
-    // counts tools for real now, so the two cannot share a word.
     { big: `${connectedProviders.length} ${connectedProviders.length === 1 ? 'app connected' : 'apps connected'}`, detail: providerNames || 'Nothing connected right now', to: APP_ROUTES.integrations },
     { big: `${enabledTools} of ${totalTools} tools enabled`, detail: 'What your agents are allowed to do', to: APP_ROUTES.integrations },
     { big: `${clients.length} active ${clients.length === 1 ? 'session' : 'sessions'}`, detail: clients.length > 0 ? clients.map((client) => client.name).join(', ') : 'No agents or browsers are using your account', to: APP_ROUTES.agents },

@@ -1,23 +1,11 @@
 import path from 'node:path';
 import { serveStatic } from '@hono/node-server/serve-static';
 import { Hono } from 'hono';
-import { APP_ROUTES } from '../../features/utils/routes.js';
+import { SPA_FALLBACK_ROUTES } from '../../features/utils/routes.js';
 import type { AppEnv } from './context.js';
 
 const CLIENT_DIRECTORY = path.resolve(process.cwd(), 'dist/client');
 const IMMUTABLE_CACHE_CONTROL = 'public, max-age=31536000, immutable';
-
-const FRONTEND_ROUTES = [
-  '/',
-  APP_ROUTES.signIn,
-  APP_ROUTES.chat,
-  APP_ROUTES.integrations,
-  APP_ROUTES.agents,
-  APP_ROUTES.addAgent,
-  APP_ROUTES.serviceStatus,
-  APP_ROUTES.accountSecurity,
-  APP_ROUTES.adminTools,
-] as const;
 
 export function createStaticRoutes(): Hono<AppEnv> {
   const routes = new Hono<AppEnv>();
@@ -40,8 +28,6 @@ export function createStaticRoutes(): Hono<AppEnv> {
     503,
   );
 
-  for (const route of FRONTEND_ROUTES) routes.get(route, serveIndex, frontendUnavailable);
-  routes.get(`${APP_ROUTES.integrations}/*`, serveIndex, frontendUnavailable);
-  routes.get(`${APP_ROUTES.adminTools}/*`, serveIndex, frontendUnavailable);
+  for (const route of SPA_FALLBACK_ROUTES) routes.get(route, serveIndex, frontendUnavailable);
   return routes;
 }

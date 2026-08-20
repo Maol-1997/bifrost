@@ -8,18 +8,6 @@ import type { ProviderMount } from './providers/types.js';
 import type { DiscoveredTool } from './tools/catalog.js';
 import { executeUserTool, loadVisibleUserTools } from './tools/user-toolset.js';
 
-/**
- * Who is calling, however they proved it.
- *
- * `browser` is a cookie-backed session; `agent` is an OAuth grant reached with a
- * bearer access token. The two live in different tables and must never be
- * confused for one another, so each carries its own handle instead of a shared
- * `id` whose meaning depends on `kind`.
- */
-export type HumanIdentity =
-  | ({ kind: 'browser'; sessionId: string } & HumanIdentityCommon)
-  | ({ kind: 'agent'; grantId: string } & HumanIdentityCommon);
-
 type HumanIdentityCommon = {
   userId: string;
   clientId: string;
@@ -28,7 +16,10 @@ type HumanIdentityCommon = {
   scopes: readonly string[];
 };
 
-export function toAuthInfo(identity: HumanIdentity): AuthInfo {
+export type BrowserIdentity = { kind: 'browser'; sessionId: string } & HumanIdentityCommon;
+export type AgentIdentity = { kind: 'agent'; grantId: string } & HumanIdentityCommon;
+
+export function toAuthInfo(identity: AgentIdentity): AuthInfo {
   return {
     token: identity.token,
     clientId: identity.clientId,

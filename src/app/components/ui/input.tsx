@@ -200,33 +200,8 @@ const SearchInput = React.forwardRef<HTMLInputElement, SearchInputProps>(
 )
 SearchInput.displayName = "SearchInput"
 
-const InputGroup = React.forwardRef<
-  HTMLDivElement,
-  React.ComponentPropsWithoutRef<"div">
->(({ className, ...props }, ref) => (
-  <div ref={ref} className={cn("relative", className)} {...props} />
-))
-InputGroup.displayName = "InputGroup"
-
-const InputAddon = React.forwardRef<
-  HTMLSpanElement,
-  React.ComponentPropsWithoutRef<"span">
->(({ className, ...props }, ref) => (
-  <span
-    ref={ref}
-    className={cn(
-      "pointer-events-none absolute left-3 top-1/2 z-10 -translate-y-1/2 text-[13px] font-medium [line-height:normal] text-linear-input-placeholder",
-      className,
-    )}
-    {...props}
-  />
-))
-InputAddon.displayName = "InputAddon"
-
 export {
   Input,
-  InputAddon,
-  InputGroup,
   SearchInput,
   inputVariants,
   type InputProps,

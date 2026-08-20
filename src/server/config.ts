@@ -1,6 +1,8 @@
 import { z } from 'zod';
 import { parseAccessList, type AccessPolicy } from './security/access.js';
 
+export const DEVELOPMENT_DATABASE_URL = 'postgres://bifrost:bifrost@localhost:5432/bifrost';
+
 const optionalNonEmptyString = z.preprocess((value) => value === '' ? undefined : value, z.string().min(1).optional());
 const optionalOpenAIBaseUrl = z.preprocess(
   (value) => value === '' ? undefined : value,
@@ -19,7 +21,7 @@ const environmentSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   PORT: z.coerce.number().int().positive().default(3000),
   PUBLIC_URL: z.url().default('http://localhost:3000'),
-  DATABASE_URL: z.string().min(1).default('postgres://bifrost:bifrost@localhost:5432/bifrost'),
+  DATABASE_URL: z.string().min(1).default(DEVELOPMENT_DATABASE_URL),
   REDIS_URL: z.url().optional(),
   ENCRYPTION_KEY: z.string().min(1),
   GOOGLE_CLIENT_ID: optionalNonEmptyString,

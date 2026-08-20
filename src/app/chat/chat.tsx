@@ -27,20 +27,19 @@ import {
   type AgentChatPlacement,
 } from "@app/components/ui/agent-chat"
 import { ProviderIcon } from "@app/components/ui/provider-icon"
-import { generateChatTitle, getChatConfig, isConnectableProvider } from "@app/api/bifrost"
+import { getChatConfig, isConnectableProvider } from "@app/api/bifrost"
 import type { ProviderId } from "@app/api/bifrost"
 import { APP_ROUTES } from "@features/utils/routes"
 import {
-  CHAT_TITLE_VERSION,
-  conversationTitle,
   createEmptyConversation,
   deleteConversation,
   listConversations,
-  saveConversation,
   type StoredConversation,
 } from "./utils/chat-history"
+import { useConversationRecord } from "./hooks/use-conversation-record"
+import { useMessageEditing } from "./hooks/use-message-editing"
+import { messageText } from "./utils/chat-messages"
 
-const SAVE_DELAY_MS = 250
 const CHAT_ID_QUERY_PARAMETER = "id"
 
 type ChatProps = {
@@ -51,6 +50,26 @@ type ChatProps = {
 type FloatingConversation = {
   conversation: StoredConversation
   placement: Exclude<AgentChatPlacement, "page">
+}
+
+type ChatConversationRecord = {
+  conversation: StoredConversation
+  history: readonly StoredConversation[]
+  onChange: (conversation: StoredConversation) => void
+  onDelete: (conversation: StoredConversation) => Promise<void>
+}
+
+type ChatConversationNavigation = {
+  onConversationStarted?: (conversationId: string) => void
+  onHistorySelect: (id: string) => void
+  onNewChat: () => void
+}
+
+type ChatConversationDock = {
+  active: boolean
+  onOpenFullPage: (conversation: StoredConversation) => void
+  onPlacementChange: (placement: AgentChatPlacement, conversation: StoredConversation) => void
+  placement: AgentChatPlacement
 }
 
 type ChatToolPart = DynamicToolUIPart | ToolUIPart
@@ -236,32 +255,44 @@ function ChatHistory({ active, owner }: { active: boolean; owner: string }): Rea
   return (
     <div className={`relative min-h-0 ${active ? "h-full" : "h-0"}`}>
       <ChatConversation
-        active={active}
+        dock={{
+          active,
+          onOpenFullPage: (conversation) => openConversationUrl(conversation.id),
+          onPlacementChange: changePagePlacement,
+          placement: "page",
+        }}
         key={`page:${activeConversation.id}`}
-        conversation={activeConversation}
-        history={conversations}
-        onConversationChange={updateConversation}
-        onDelete={removeConversation}
-        onHistorySelect={selectConversation}
-        onNewChat={startConversation}
-        onConversationStarted={openConversationUrl}
-        onOpenFullPage={(conversation) => openConversationUrl(conversation.id)}
-        onPlacementChange={changePagePlacement}
-        placement="page"
+        navigation={{
+          onConversationStarted: openConversationUrl,
+          onHistorySelect: selectConversation,
+          onNewChat: startConversation,
+        }}
+        record={{
+          conversation: activeConversation,
+          history: conversations,
+          onChange: updateConversation,
+          onDelete: removeConversation,
+        }}
       />
       {floatingConversation && floatingConversation.conversation.id !== activeConversation.id ? (
         <ChatConversation
-          active={active}
+          dock={{
+            active,
+            onOpenFullPage: (conversation) => openConversationUrl(conversation.id),
+            onPlacementChange: changeFloatingPlacement,
+            placement: floatingConversation.placement,
+          }}
           key={`floating:${floatingConversation.conversation.id}`}
-          conversation={floatingConversation.conversation}
-          history={conversations}
-          onConversationChange={updateConversation}
-          onDelete={removeConversation}
-          onHistorySelect={selectConversation}
-          onNewChat={startConversation}
-          onOpenFullPage={(conversation) => openConversationUrl(conversation.id)}
-          onPlacementChange={(placement, conversation) => changeFloatingPlacement(placement, conversation)}
-          placement={floatingConversation.placement}
+          navigation={{
+            onHistorySelect: selectConversation,
+            onNewChat: startConversation,
+          }}
+          record={{
+            conversation: floatingConversation.conversation,
+            history: conversations,
+            onChange: updateConversation,
+            onDelete: removeConversation,
+          }}
         />
       ) : null}
     </div>
@@ -269,38 +300,16 @@ function ChatHistory({ active, owner }: { active: boolean; owner: string }): Rea
 }
 
 function ChatConversation({
-  active,
-  conversation,
-  history,
-  onConversationChange,
-  onDelete,
-  onHistorySelect,
-  onNewChat,
-  onConversationStarted,
-  onOpenFullPage,
-  onPlacementChange,
-  placement,
+  dock,
+  navigation,
+  record,
 }: {
-  active: boolean
-  conversation: StoredConversation
-  history: readonly StoredConversation[]
-  onConversationChange: (conversation: StoredConversation) => void
-  onDelete: (conversation: StoredConversation) => Promise<void>
-  onHistorySelect: (id: string) => void
-  onNewChat: () => void
-  onConversationStarted?: (conversationId: string) => void
-  onOpenFullPage: (conversation: StoredConversation) => void
-  onPlacementChange: (placement: AgentChatPlacement, conversation: StoredConversation) => void
-  placement: AgentChatPlacement
+  dock: ChatConversationDock
+  navigation: ChatConversationNavigation
+  record: ChatConversationRecord
 }): React.JSX.Element {
+  const { conversation, history } = record
   const [input, setInput] = useState("")
-  const [editingMessageId, setEditingMessageId] = useState<string>()
-  const [historyError, setHistoryError] = useState(false)
-  const deleting = useRef(false)
-  const pendingSave = useRef<StoredConversation | undefined>(undefined)
-  const hasCurrentGeneratedTitle = conversation.generatedTitle
-    && conversation.titleVersion === CHAT_TITLE_VERSION
-  const titleGenerationStarted = useRef(hasCurrentGeneratedTitle)
   const transport = useMemo(() => new DefaultChatTransport({ api: "/api/chat" }), [])
   const { error, messages, regenerate, sendMessage, setMessages, status, stop } = useChat({
     id: conversation.id,
@@ -308,21 +317,21 @@ function ChatConversation({
     transport,
   })
   const isWorking = status === "submitted" || status === "streaming"
-  const provisionalTitle = conversationTitle(messages)
-  const title = hasCurrentGeneratedTitle ? conversation.title : provisionalTitle
-  const editingMessageIndex = editingMessageId
-    ? messages.findIndex((message) => message.id === editingMessageId)
-    : -1
-  const visibleMessages = editingMessageIndex >= 0
-    ? messages.slice(0, editingMessageIndex)
-    : messages
-  const currentConversationRef = useRef<StoredConversation>(conversation)
-  currentConversationRef.current = {
-    ...conversation,
+  const conversationRecord = useConversationRecord({
+    conversation,
+    isWorking,
     messages,
-    title,
-    updatedAt: Date.now(),
-  }
+    onConversationChange: record.onChange,
+    onDelete: record.onDelete,
+    stop,
+  })
+  const messageEditing = useMessageEditing({
+    isWorking,
+    messages,
+    regenerate,
+    setMessages,
+    stop,
+  })
   const historyItems = history.map((entry): AgentHistoryItem => ({
     age: relativeAge(entry.updatedAt),
     current: entry.id === conversation.id,
@@ -332,103 +341,23 @@ function ChatConversation({
     title: entry.title,
   }))
 
-  useEffect(() => {
-    if (messages.length === 0) return
-    const updatedConversation: StoredConversation = {
-      ...conversation,
-      messages,
-      title,
-      updatedAt: Date.now(),
-    }
-    pendingSave.current = updatedConversation
-    let active = true
-    const timeout = window.setTimeout(() => {
-      if (deleting.current) return
-      void saveConversation(updatedConversation).then(() => {
-        if (active) onConversationChange(updatedConversation)
-      }).catch(() => { if (active) setHistoryError(true) })
-    }, SAVE_DELAY_MS)
-    return () => {
-      active = false
-      window.clearTimeout(timeout)
-    }
-  }, [
-    conversation.createdAt,
-    conversation.favorite,
-    conversation.generatedTitle,
-    conversation.id,
-    conversation.owner,
-    conversation.titleVersion,
-    messages,
-    onConversationChange,
-    title,
-  ])
-
-  const firstUserMessage = firstUserMessageText(messages)
-  useEffect(() => {
-    if (!firstUserMessage || hasCurrentGeneratedTitle || titleGenerationStarted.current) return
-    titleGenerationStarted.current = true
-    let active = true
-    void generateChatTitle(firstUserMessage)
-      .then((generatedTitle) => {
-        if (!active || deleting.current) return
-        const updatedConversation: StoredConversation = {
-          ...currentConversationRef.current,
-          generatedTitle: true,
-          title: generatedTitle,
-          titleVersion: CHAT_TITLE_VERSION,
-          updatedAt: Date.now(),
-        }
-        pendingSave.current = updatedConversation
-        return saveConversation(updatedConversation).then(() => {
-          if (active) onConversationChange(updatedConversation)
-        })
-      })
-      .catch(() => undefined)
-    return () => { active = false }
-  }, [firstUserMessage, hasCurrentGeneratedTitle, onConversationChange])
-
-  useEffect(() => () => {
-    if (!deleting.current && pendingSave.current) void saveConversation(pendingSave.current).catch(() => undefined)
-  }, [])
-
   function submit(value: string): void {
-    if (editingMessageId) {
-      submitEditedMessage(value, editingMessageId)
+    if (messageEditing.submitEditedMessage(value)) {
+      setInput("")
       return
     }
-    if (messages.length === 0) onConversationStarted?.(conversation.id)
+    if (messages.length === 0) navigation.onConversationStarted?.(conversation.id)
     setInput("")
     void sendMessage({ text: value })
   }
 
-  function submitEditedMessage(value: string, messageId: string): void {
-    const messageIndex = messages.findIndex((message) => message.id === messageId)
-    const message = messages[messageIndex]
-    if (!message || message.role !== "user") {
-      cancelEditingMessage()
-      return
-    }
-
-    const editedMessage: UIMessage = {
-      ...message,
-      parts: [{ type: "text", text: value }],
-    }
-    setMessages([...messages.slice(0, messageIndex), editedMessage])
-    setEditingMessageId(undefined)
-    setInput("")
-    void regenerate({ messageId })
-  }
-
   function beginEditingMessage(message: UIMessage): void {
-    if (message.role !== "user") return
-    if (isWorking) void stop()
-    setEditingMessageId(message.id)
-    setInput(messageText(message))
+    const editedText = messageEditing.beginEditingMessage(message)
+    if (editedText !== undefined) setInput(editedText)
   }
 
   function cancelEditingMessage(): void {
-    setEditingMessageId(undefined)
+    messageEditing.cancelEditingMessage()
     setInput("")
   }
 
@@ -437,56 +366,41 @@ function ChatConversation({
       .catch(() => toast.error("Message could not be copied"))
   }
 
-  function changeConversation(action: () => void): void {
+  function cancelResponseAndChangeConversation(action: () => void): void {
     if (isWorking) void stop()
     action()
   }
 
-  function currentConversation(): StoredConversation {
-    return currentConversationRef.current
-  }
-
   function copyAsMarkdown(): void {
-    void navigator.clipboard.writeText(conversationMarkdown(title, messages))
+    void navigator.clipboard.writeText(conversationMarkdown(conversationRecord.title, messages))
       .then(() => toast.success("Copied as markdown"))
       .catch(() => toast.error("Chat could not be copied"))
-  }
-
-  function changeFavorite(favorite: boolean): void {
-    const updatedConversation = { ...currentConversation(), favorite }
-    pendingSave.current = updatedConversation
-    void saveConversation(updatedConversation)
-      .then(() => onConversationChange(updatedConversation))
-      .catch(() => setHistoryError(true))
-  }
-
-  function deleteCurrentConversation(): void {
-    const deletedConversation = currentConversation()
-    deleting.current = true
-    pendingSave.current = undefined
-    if (isWorking) void stop()
-    void onDelete(deletedConversation).catch(() => {
-      deleting.current = false
-      pendingSave.current = deletedConversation
-    })
   }
 
   return (
     <AgentChatDock
       className="h-full min-h-[540px] bg-transparent"
-      conversation={messages.length > 0}
-      favorite={conversation.favorite}
-      history={historyItems}
-      onCopyAsMarkdown={copyAsMarkdown}
-      onDelete={deleteCurrentConversation}
-      onFavoriteChange={changeFavorite}
-      onHistorySelect={(item) => changeConversation(() => onHistorySelect(item.id))}
-      onNewChat={() => changeConversation(onNewChat)}
-      onOpenFullPage={() => onOpenFullPage(currentConversation())}
-      onPlacementChange={(nextPlacement) => onPlacementChange(nextPlacement, currentConversation())}
-      pageVisible={active}
-      placement={placement}
-      title={title}
+      {...(messages.length > 0 ? {
+        conversation: {
+          favorite: conversation.favorite,
+          onCopyAsMarkdown: copyAsMarkdown,
+          onDelete: conversationRecord.deleteCurrentConversation,
+          onFavoriteChange: conversationRecord.changeFavorite,
+        },
+      } : {})}
+      history={{
+        items: historyItems,
+        onNewChat: () => cancelResponseAndChangeConversation(navigation.onNewChat),
+        onSelect: (item) => cancelResponseAndChangeConversation(() => navigation.onHistorySelect(item.id)),
+      }}
+      onOpenFullPage={() => dock.onOpenFullPage(conversationRecord.currentConversation())}
+      pageVisible={dock.active}
+      placement={{
+        current: dock.placement,
+        kind: "controlled",
+        onChange: (nextPlacement) => dock.onPlacementChange(nextPlacement, conversationRecord.currentConversation()),
+      }}
+      title={conversationRecord.title}
     >
       {messages.length === 0 ? (
         <AgentChatEmptyState>
@@ -501,23 +415,23 @@ function ChatConversation({
       ) : (
         <>
           <AgentChatMessages>
-            {visibleMessages.map((message, index) => (
+            {messageEditing.visibleMessages.map((message, index) => (
               <ChatMessage
                 key={message.id}
                 message={message}
                 onCopy={() => copyMessage(message)}
                 onEdit={() => beginEditingMessage(message)}
-                streaming={isWorking && index === visibleMessages.length - 1 && message.role === "assistant"}
+                streaming={isWorking && index === messageEditing.visibleMessages.length - 1 && message.role === "assistant"}
               />
             ))}
-            {status === "submitted" && !editingMessageId ? (
+            {status === "submitted" && !messageEditing.editingMessageId ? (
               <AgentChatMessage actions={false} role="assistant">
                 <span className="animate-design-blink text-linear-muted">Thinking…</span>
               </AgentChatMessage>
             ) : null}
           </AgentChatMessages>
           <div className="shrink-0 pb-4 pt-2">
-            {editingMessageId ? <AgentChatEditingBanner onCancel={cancelEditingMessage} /> : null}
+            {messageEditing.editingMessageId ? <AgentChatEditingBanner onCancel={cancelEditingMessage} /> : null}
             <AgentChatComposer
               onChange={setInput}
               onStop={() => { void stop() }}
@@ -527,7 +441,7 @@ function ChatConversation({
               variant="conversation"
             />
             {error ? <p className="mx-auto mt-2 max-w-[821px] px-4 text-xs text-linear-danger">Bifrost could not complete that request.</p> : null}
-            {historyError ? <p className="mx-auto mt-2 max-w-[821px] px-4 text-xs text-linear-danger">This conversation could not be saved to chat history.</p> : null}
+            {conversationRecord.historyError ? <p className="mx-auto mt-2 max-w-[821px] px-4 text-xs text-linear-danger">This conversation could not be saved to chat history.</p> : null}
           </div>
         </>
       )}
@@ -571,18 +485,6 @@ function conversationMarkdown(title: string, messages: readonly UIMessage[]): st
     .filter((section): section is string => section !== undefined)
     .join("\n\n")
   return `# ${title}\n\n${transcript}\n`
-}
-
-function messageText(message: UIMessage): string {
-  return message.parts
-    .filter((part) => part.type === "text")
-    .map((part) => part.text)
-    .join("")
-}
-
-function firstUserMessageText(messages: readonly UIMessage[]): string {
-  const firstUserMessage = messages.find((message) => message.role === "user")
-  return firstUserMessage ? messageText(firstUserMessage).trim() : ""
 }
 
 function ToolActivity({ part }: { part: ChatToolPart }): React.JSX.Element {

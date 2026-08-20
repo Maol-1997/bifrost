@@ -67,10 +67,50 @@ function removeSelections(selected: ReadonlySet<string>, tools: readonly AdminTo
   return next;
 }
 
-function selectionState(tools: readonly AdminTool[], selected: ReadonlySet<string>): CheckboxState {
+function getSelectionState(tools: readonly AdminTool[], selected: ReadonlySet<string>): CheckboxState {
   const selectedCount = tools.filter((tool) => selected.has(tool.name)).length;
   return selectedCount === 0 ? false : selectedCount === tools.length ? true : 'indeterminate';
 }
+
+type ToolSelectionController = {
+  clear: () => void;
+  deselect: (toolName: string) => void;
+  deselectAll: (tools: readonly AdminTool[]) => void;
+  deselectNames: (toolNames: readonly string[]) => void;
+  isSelected: (toolName: string) => boolean;
+  select: (toolName: string) => void;
+  selectAll: (tools: readonly AdminTool[]) => void;
+  selectedCount: number;
+  stateFor: (tools: readonly AdminTool[]) => CheckboxState;
+};
+
+function useToolSelection(): ToolSelectionController {
+  const [selectedToolNames, setSelectedToolNames] = useState<Set<string>>(() => new Set());
+
+  return {
+    clear: () => { setSelectedToolNames(new Set()); },
+    deselect: (toolName) => { setSelectedToolNames((current) => removeSelection(current, toolName)); },
+    deselectAll: (tools) => { setSelectedToolNames((current) => removeSelections(current, tools)); },
+    deselectNames: (toolNames) => {
+      setSelectedToolNames((current) => {
+        const next = new Set(current);
+        for (const toolName of toolNames) next.delete(toolName);
+        return next;
+      });
+    },
+    isSelected: (toolName) => selectedToolNames.has(toolName),
+    select: (toolName) => { setSelectedToolNames((current) => addSelection(current, toolName)); },
+    selectAll: (tools) => { setSelectedToolNames((current) => addSelections(current, tools)); },
+    selectedCount: selectedToolNames.size,
+    stateFor: (tools) => getSelectionState(tools, selectedToolNames),
+  };
+}
+
+type ToolAdministrationController = {
+  changePolicy: (change: ToolPolicyChange) => void;
+  disabled: boolean;
+  selection: ToolSelectionController;
+};
 
 function PolicyMenu({ ariaLabel, disabled, triggerLabel, value, className, onChange }: { ariaLabel: string; disabled: boolean; triggerLabel: string; value?: ToolPolicyState; className?: string; onChange: (state: ToolPolicyState) => void }): React.JSX.Element {
   return (
@@ -98,13 +138,14 @@ function ContractBlock({ label, value }: { label: string; value: string }): Reac
   );
 }
 
-function ToolRow({ tool, providerId, selected, disabled, onSelect, onDeselect, onChange }: { tool: AdminTool; providerId: ConnectableProviderId; selected: boolean; disabled: boolean; onSelect: (toolName: string) => void; onDeselect: (toolName: string) => void; onChange: (change: ToolPolicyChange) => void }): React.JSX.Element {
+function ToolRow({ tool, providerId, controller }: { tool: AdminTool; providerId: ConnectableProviderId; controller: ToolAdministrationController }): React.JSX.Element {
   const currentPolicy = POLICY_OPTIONS.find((option) => option.value === tool.state);
+  const { disabled, selection } = controller;
   return (
     <SettingsRow className="block h-auto min-h-[65px] p-0">
       <div className="grid grid-cols-[44px_minmax(0,1fr)] items-start gap-x-3 px-4 py-4 sm:grid-cols-[44px_minmax(0,1fr)_188px]">
         <label className="flex size-11 cursor-pointer items-start justify-center pt-0.5">
-          <Checkbox aria-label={`Select ${tool.title}`} checked={selected} disabled={disabled} onCheckedChange={(checked) => { if (checked) onSelect(tool.name); else onDeselect(tool.name); }} />
+          <Checkbox aria-label={`Select ${tool.title}`} checked={selection.isSelected(tool.name)} disabled={disabled} onCheckedChange={(checked) => { if (checked) selection.select(tool.name); else selection.deselect(tool.name); }} />
         </label>
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2"><span className="text-[13px] font-medium text-linear-bright">{tool.title}</span>{tool.needsReview ? <span className="rounded-full bg-danger/10 px-2 py-0.5 text-[10.5px] font-semibold text-danger">Review required</span> : null}</div>
@@ -113,7 +154,7 @@ function ToolRow({ tool, providerId, selected, disabled, onSelect, onDeselect, o
         </div>
         <div className="col-start-2 mt-3 min-w-0 text-[11px] font-medium text-app-text-tertiary sm:col-start-3 sm:row-start-1 sm:mt-0">
           <div>Policy</div>
-          <PolicyMenu ariaLabel={`Policy for ${tool.title}`} disabled={disabled} triggerLabel={currentPolicy?.label ?? tool.state} value={tool.state} className="mt-1 w-full" onChange={(state) => { if (state !== tool.state) onChange({ providerId, toolName: tool.name, fingerprint: tool.fingerprint, state }); }} />
+          <PolicyMenu ariaLabel={`Policy for ${tool.title}`} disabled={disabled} triggerLabel={currentPolicy?.label ?? tool.state} value={tool.state} className="mt-1 w-full" onChange={(state) => { if (state !== tool.state) controller.changePolicy({ providerId, toolName: tool.name, fingerprint: tool.fingerprint, state }); }} />
         </div>
       </div>
       <details className="group text-[11.5px] text-app-text-tertiary open:border-t-[0.5px] open:border-linear-settings-divider">
@@ -132,57 +173,59 @@ function ToolRow({ tool, providerId, selected, disabled, onSelect, onDeselect, o
   );
 }
 
-type SelectionHandlers = { selectedToolNames: ReadonlySet<string>; disabled: boolean; onSelect: (name: string) => void; onDeselect: (name: string) => void; onSelectAll: (tools: readonly AdminTool[]) => void; onDeselectAll: (tools: readonly AdminTool[]) => void; onChange: (change: ToolPolicyChange) => void };
+type ToolGroupModel = { mutability: ToolMutability; tools: readonly AdminTool[]; providerId: ConnectableProviderId };
 
-function ToolGroup({ mutability, tools, providerId, selectedToolNames, disabled, onSelect, onDeselect, onSelectAll, onDeselectAll, onChange }: SelectionHandlers & { mutability: ToolMutability; tools: readonly AdminTool[]; providerId: ConnectableProviderId }): React.JSX.Element | null {
+function ToolGroup({ group, controller }: { group: ToolGroupModel; controller: ToolAdministrationController }): React.JSX.Element | null {
+  const { mutability, tools, providerId } = group;
   if (tools.length === 0) return null;
   const isRead = mutability === 'read';
-  const selectedState = selectionState(tools, selectedToolNames);
+  const selectedState = controller.selection.stateFor(tools);
   return (
     <section className="mt-3">
       <div className="flex items-center justify-between px-1">
         <div className="flex items-center gap-3">
           <h3 className={isRead ? 'text-[11px] font-semibold uppercase tracking-[.07em] text-success' : 'text-[11px] font-semibold uppercase tracking-[.07em] text-warning'}>{isRead ? 'Read' : 'Write'}</h3>
-          <label className="flex min-h-11 cursor-pointer items-center gap-2 text-[11.5px] text-app-text-tertiary"><Checkbox aria-label={`Select all ${isRead ? 'read' : 'write'} tools`} checked={selectedState} disabled={disabled} onCheckedChange={(checked) => { if (checked) onSelectAll(tools); else onDeselectAll(tools); }} />Select all</label>
+          <label className="flex min-h-11 cursor-pointer items-center gap-2 text-[11.5px] text-app-text-tertiary"><Checkbox aria-label={`Select all ${isRead ? 'read' : 'write'} tools`} checked={selectedState} disabled={controller.disabled} onCheckedChange={(checked) => { if (checked) controller.selection.selectAll(tools); else controller.selection.deselectAll(tools); }} />Select all</label>
         </div>
         <span className="text-[11px] tabular-nums text-app-text-quaternary">{tools.length}</span>
       </div>
-      <SectionCard className="mt-2 overflow-hidden">{tools.map((tool) => <ToolRow key={tool.name} tool={tool} providerId={providerId} selected={selectedToolNames.has(tool.name)} disabled={disabled} onSelect={onSelect} onDeselect={onDeselect} onChange={onChange} />)}</SectionCard>
+      <SectionCard className="mt-2 overflow-hidden">{tools.map((tool) => <ToolRow key={tool.name} tool={tool} providerId={providerId} controller={controller} />)}</SectionCard>
     </section>
   );
 }
 
-function ProviderTools({ provider, normalizedSearch, selectedToolNames, disabled, onSelect, onDeselect, onSelectAll, onDeselectAll, onChange }: SelectionHandlers & { provider: AdminToolProvider; normalizedSearch: string }): React.JSX.Element {
+function ProviderTools({ provider, normalizedSearch, controller }: { provider: AdminToolProvider; normalizedSearch: string; controller: ToolAdministrationController }): React.JSX.Element {
   const matchingTools = provider.tools.filter((tool) => matchesSearch(tool, normalizedSearch));
   const sortedTools = [...matchingTools].sort(compareTools);
   const readTools = sortedTools.filter((tool) => tool.mutability === 'read');
   const writeTools = sortedTools.filter((tool) => tool.mutability === 'write');
-  const allSelectedState = matchingTools.length === 0 ? false : selectionState(matchingTools, selectedToolNames);
+  const allSelectedState = matchingTools.length === 0 ? false : controller.selection.stateFor(matchingTools);
   return (
     <section className="mt-7">
       <div className="flex min-h-11 items-center justify-between gap-3">
         <h2 className="text-[13.5px] font-semibold">{providerName(provider.providerId)}</h2>
         <div className="flex items-center gap-3">
-          {provider.status === 'ready' && matchingTools.length > 0 ? <label className="flex min-h-11 cursor-pointer items-center gap-2 text-[11.5px] text-app-text-tertiary"><Checkbox aria-label="Select all visible tools" checked={allSelectedState} disabled={disabled} onCheckedChange={(checked) => { if (checked) onSelectAll(matchingTools); else onDeselectAll(matchingTools); }} />Select all</label> : null}
+          {provider.status === 'ready' && matchingTools.length > 0 ? <label className="flex min-h-11 cursor-pointer items-center gap-2 text-[11.5px] text-app-text-tertiary"><Checkbox aria-label="Select all visible tools" checked={allSelectedState} disabled={controller.disabled} onCheckedChange={(checked) => { if (checked) controller.selection.selectAll(matchingTools); else controller.selection.deselectAll(matchingTools); }} />Select all</label> : null}
           <span className="text-xs text-app-text-quaternary">{provider.status === 'ready' ? `${matchingTools.length} tools` : null}</span>
         </div>
       </div>
       {provider.status === 'not-connected' ? <p className="mt-2 rounded-[9px] border-[0.5px] border-app-border-pane p-3.5 text-[12.5px] text-app-text-tertiary">Connect your admin account to {providerName(provider.providerId)} in <Link className="text-brand hover:text-brand-hover" to={APP_ROUTES.integrations}>Integrations</Link> to review its official tools.</p> : null}
       {provider.status === 'error' ? <p role="alert" className="mt-2 rounded-[9px] border-[0.5px] border-warning/35 bg-warning/7 p-3.5 text-[12.5px] text-app-text-secondary">The official MCP endpoint could not be loaded. Reconnect the provider if this continues.</p> : null}
       {provider.status === 'ready' && matchingTools.length === 0 ? <p className="mt-2 rounded-[9px] border-[0.5px] border-app-border-pane p-3.5 text-[12.5px] text-app-text-tertiary">No tools match this search.</p> : null}
-      {provider.status === 'ready' ? <ToolGroup mutability="read" tools={readTools} providerId={provider.providerId} selectedToolNames={selectedToolNames} disabled={disabled} onSelect={onSelect} onDeselect={onDeselect} onSelectAll={onSelectAll} onDeselectAll={onDeselectAll} onChange={onChange} /> : null}
-      {provider.status === 'ready' ? <ToolGroup mutability="write" tools={writeTools} providerId={provider.providerId} selectedToolNames={selectedToolNames} disabled={disabled} onSelect={onSelect} onDeselect={onDeselect} onSelectAll={onSelectAll} onDeselectAll={onDeselectAll} onChange={onChange} /> : null}
+      {provider.status === 'ready' ? <ToolGroup group={{ mutability: 'read', tools: readTools, providerId: provider.providerId }} controller={controller} /> : null}
+      {provider.status === 'ready' ? <ToolGroup group={{ mutability: 'write', tools: writeTools, providerId: provider.providerId }} controller={controller} /> : null}
     </section>
   );
 }
 
-function BatchActions({ selectedCount, disabled, onClear, onChange }: { selectedCount: number; disabled: boolean; onClear: () => void; onChange: (state: ToolPolicyState) => void }): React.JSX.Element {
-  return <div aria-label="Batch actions" className="flex min-h-11 items-center justify-between gap-3"><div aria-live="polite" className="text-[12.5px] font-medium tabular-nums">{selectedCount} selected</div><div className="flex items-center gap-1.5"><Button type="button" variant="ghost" size="large" disabled={disabled} onClick={onClear}>Clear</Button><PolicyMenu ariaLabel={`Set policy for ${selectedCount} selected tools`} disabled={disabled} triggerLabel={disabled ? 'Applying…' : 'Set policy'} className="w-40" onChange={onChange} /></div></div>;
+function BatchActions({ controller, onChange }: { controller: ToolAdministrationController; onChange: (state: ToolPolicyState) => void }): React.JSX.Element {
+  const { disabled, selection } = controller;
+  return <div aria-label="Batch actions" className="flex min-h-11 items-center justify-between gap-3"><div aria-live="polite" className="text-[12.5px] font-medium tabular-nums">{selection.selectedCount} selected</div><div className="flex items-center gap-1.5"><Button type="button" variant="ghost" size="large" disabled={disabled} onClick={selection.clear}>Clear</Button><PolicyMenu ariaLabel={`Set policy for ${selection.selectedCount} selected tools`} disabled={disabled} triggerLabel={disabled ? 'Applying…' : 'Set policy'} className="w-40" onChange={onChange} /></div></div>;
 }
 
 function AdminProviderTools({ providerId }: { providerId: ConnectableProviderId }): React.JSX.Element {
   const [search, setSearch] = useState('');
-  const [selectedToolNames, setSelectedToolNames] = useState<Set<string>>(() => new Set());
+  const selection = useToolSelection();
   const queryClient = useQueryClient();
   const queryOptions = adminToolsQueryOptions(providerId);
   const toolsQuery = useQuery(queryOptions);
@@ -192,7 +235,7 @@ function AdminProviderTools({ providerId }: { providerId: ConnectableProviderId 
     mutationFn: () => refreshAdminProviderTools(providerId),
     onSuccess: (result) => {
       queryClient.setQueryData(queryOptions.queryKey, result);
-      setSelectedToolNames(new Set());
+      selection.clear();
     },
   });
   const policyMutation = useMutation({
@@ -200,22 +243,27 @@ function AdminProviderTools({ providerId }: { providerId: ConnectableProviderId 
     onSuccess: (cache, change) => {
       const stateByName = new Map(change.tools.map((tool) => [tool.toolName, tool.state]));
       queryClient.setQueryData<CachedResult<AdminToolProvider>>(queryOptions.queryKey, (result) => result && ({ cache, data: { ...result.data, tools: result.data.tools.map((tool) => { const state = stateByName.get(tool.name); return state === undefined ? tool : { ...tool, state, needsReview: false }; }) } }));
-      setSelectedToolNames((current) => { const next = new Set(current); for (const tool of change.tools) next.delete(tool.toolName); return next; });
+      selection.deselectNames(change.tools.map((tool) => tool.toolName));
     },
   });
   const changeOne = (change: ToolPolicyChange) => { policyMutation.mutate({ providerId: change.providerId, tools: [{ toolName: change.toolName, fingerprint: change.fingerprint, state: change.state }] }); };
   const changeSelected = (state: ToolPolicyState) => {
     const provider = toolsQuery.data?.data;
     if (!provider) return;
-    const tools: ToolPolicyBatchChange['tools'] = provider.tools.filter((tool) => selectedToolNames.has(tool.name)).map((tool) => ({ toolName: tool.name, fingerprint: tool.fingerprint, state }));
+    const tools: ToolPolicyBatchChange['tools'] = provider.tools.filter((tool) => selection.isSelected(tool.name)).map((tool) => ({ toolName: tool.name, fingerprint: tool.fingerprint, state }));
     if (tools.length !== 0) policyMutation.mutate({ providerId, tools });
+  };
+  const controller: ToolAdministrationController = {
+    changePolicy: changeOne,
+    disabled: policyMutation.isPending,
+    selection,
   };
   return (
     <section>
       <PageHead title={`${providerName(providerId)} tools`} subtitle={`Review tools discovered from ${providerName(providerId)}'s official MCP server. New or changed contracts stay blocked until you approve their current fingerprint.`} />
       <div className="mt-4 min-h-11">
-        {selectedToolNames.size > 0
-          ? <BatchActions selectedCount={selectedToolNames.size} disabled={policyMutation.isPending} onClear={() => { setSelectedToolNames(new Set()); }} onChange={changeSelected} />
+        {selection.selectedCount > 0
+          ? <BatchActions controller={controller} onChange={changeSelected} />
           : <div className="flex min-h-11 items-center justify-end"><Button type="button" variant="outline" size="large" disabled={refreshMutation.isPending} className="min-w-28" onClick={() => { refreshMutation.mutate(); }}>{refreshMutation.isPending ? 'Refreshing…' : 'Refresh tools'}</Button></div>}
       </div>
       <label htmlFor="tool-search" className="mt-6 block text-[11px] font-medium text-app-text-tertiary">Search tools</label>
@@ -224,7 +272,7 @@ function AdminProviderTools({ providerId }: { providerId: ConnectableProviderId 
       {toolsQuery.isError ? <ErrorState title="We couldn't load tool administration" body="You may not have administrator access, or provider discovery failed before the catalog could load." onRetry={() => { void toolsQuery.refetch(); }} /> : null}
       {policyMutation.isError ? <p role="alert" className="mt-4 text-[12.5px] text-danger">No policies were saved. A selected tool may have changed, refresh and review it again.</p> : null}
       {refreshMutation.isError ? <p role="alert" className="mt-4 text-[12.5px] text-danger">The official MCP endpoint could not be refreshed. Try again.</p> : null}
-      {toolsQuery.data ? <ProviderTools provider={toolsQuery.data.data} normalizedSearch={normalizedSearch} selectedToolNames={selectedToolNames} disabled={policyMutation.isPending} onSelect={(name) => { setSelectedToolNames((current) => addSelection(current, name)); }} onDeselect={(name) => { setSelectedToolNames((current) => removeSelection(current, name)); }} onSelectAll={(tools) => { setSelectedToolNames((current) => addSelections(current, tools)); }} onDeselectAll={(tools) => { setSelectedToolNames((current) => removeSelections(current, tools)); }} onChange={changeOne} /> : null}
+      {toolsQuery.data ? <ProviderTools provider={toolsQuery.data.data} normalizedSearch={normalizedSearch} controller={controller} /> : null}
     </section>
   );
 }

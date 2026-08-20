@@ -1,3 +1,4 @@
+import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import { createRemoteJWKSet, jwtVerify } from 'jose';
 import {
   AuthorizationResponseError,
@@ -19,8 +20,8 @@ import {
 import { z } from 'zod';
 import { WEB_CLIENT_ID } from './clients/describe.js';
 import type { Config } from './config.js';
-import { Coordinator } from './coordination.js';
-import { Database, type StoredCredential } from './db.js';
+import type { Coordinator } from './coordination.js';
+import type { Database, StoredCredential } from './db.js';
 import { AgentFacingError } from './errors.js';
 import { errorSummary, logger } from './logger.js';
 import { PROVIDER_REGISTRY, SUPPORTED_APPS } from './providers/registry.js';
@@ -29,6 +30,7 @@ import type { ProviderDefinition, ProviderId } from './providers/types.js';
 import { emailDomain, isEmailAllowed } from './security/access.js';
 
 const OAUTH_STATE_TTL_SECONDS = 600;
+const GOOGLE_BROWSER_NONCE_BYTES = 32;
 const EXPIRY_SKEW_MS = 60_000;
 const ACCOUNT_LABEL_TIMEOUT_MS = 5_000;
 /** Shorter than the refresh lock lease, so a hung exchange releases the lock before it expires. */
@@ -49,18 +51,67 @@ const tokenResponseSchema = z.object({
   }).optional(),
   error: z.string().optional(),
 }).loose();
+const returnToSchema = z.string().refine(isSafeReturnTo);
+
+type ProviderTokenResponse = z.infer<typeof tokenResponseSchema>;
+type OAuthDatabase = Pick<Database,
+  'createSession' | 'getCredential' | 'saveCredential' | 'setAccountLabel' | 'upsertUser'
+>;
+type OAuthCoordinator = Pick<Coordinator, 'setEphemeral' | 'takeEphemeral' | 'withLock'>;
+
+type ProviderOAuthDependencies = {
+  authorizationCodeGrant: (request: {
+    configuration: Configuration;
+    callbackUrl: URL;
+    verifier: string;
+    state: string;
+    tokenEndpointParameters: Record<string, string> | undefined;
+  }) => Promise<unknown>;
+  refreshTokenGrant: (request: {
+    configuration: Configuration;
+    refreshToken: string;
+    tokenEndpointParameters: Record<string, string> | undefined;
+  }) => Promise<unknown>;
+  readAccountLabel: (request: {
+    reader: NonNullable<ProviderDefinition['readAccountLabel']>;
+    accessToken: string;
+    signal: AbortSignal;
+  }) => Promise<string>;
+};
+
+const defaultProviderOAuthDependencies: ProviderOAuthDependencies = {
+  authorizationCodeGrant: async (request) => await authorizationCodeGrant(
+    request.configuration,
+    request.callbackUrl,
+    { pkceCodeVerifier: request.verifier, expectedState: request.state },
+    request.tokenEndpointParameters,
+  ),
+  refreshTokenGrant: async (request) => await refreshTokenGrant(
+    request.configuration,
+    request.refreshToken,
+    request.tokenEndpointParameters,
+  ),
+  readAccountLabel: async (request) => await request.reader(request.accessToken, request.signal),
+};
 
 const oauthStateSchema = z.object({
   userId: z.uuid().optional(),
   providerId: z.enum(SUPPORTED_APPS).optional(),
   oauthClientId: z.string().min(1).optional(),
+  browserNonceHash: z.string().regex(/^[A-Za-z0-9_-]{43}$/).optional(),
   verifier: z.string().min(43),
-  returnTo: z.string().startsWith('/'),
+  returnTo: returnToSchema,
 });
 
 type ProviderOAuthClient = {
   configuration: Configuration;
   oauthClientId?: string;
+};
+
+export type GoogleAuthorizationStart = {
+  location: string;
+  browserNonce: string;
+  expiresInSeconds: number;
 };
 
 /** Signed in with Google successfully, but this account is not on the allowlist. */
@@ -89,28 +140,38 @@ class ReconnectRequiredError extends AgentFacingError {
 export class OAuthService {
   constructor(
     private readonly config: Config,
-    private readonly database: Database,
-    private readonly coordinator: Coordinator,
+    private readonly database: OAuthDatabase,
+    private readonly coordinator: OAuthCoordinator,
+    private readonly providerOAuth: ProviderOAuthDependencies = defaultProviderOAuthDependencies,
   ) {}
 
-  /**
-   * @param returnTo Local path to land on afterwards. Validated as a path on the
-   * way back out of `takeState`, so a caller cannot turn sign-in into a redirect
-   * to somebody else's site.
-   */
-  async startGoogleAuthorization(returnTo: string): Promise<string> {
+  async startGoogleAuthorization(returnTo: string): Promise<GoogleAuthorizationStart> {
     const clientId = this.requiredConfig('GOOGLE_CLIENT_ID');
+    const safeReturnTo = returnToSchema.parse(returnTo);
     const { state, verifier, challenge } = await createPkce();
-    await this.coordinator.setEphemeral(`oauth:state:${state}`, JSON.stringify({ verifier, returnTo }), OAUTH_STATE_TTL_SECONDS);
-    return buildAuthorizationUrl(googleConfiguration(clientId), {
+    const browserNonce = randomBytes(GOOGLE_BROWSER_NONCE_BYTES).toString('base64url');
+    await this.coordinator.setEphemeral(`oauth:state:${state}`, JSON.stringify({
+      browserNonceHash: hashBrowserNonce(browserNonce),
+      verifier,
+      returnTo: safeReturnTo,
+    }), OAUTH_STATE_TTL_SECONDS);
+    const location = buildAuthorizationUrl(googleConfiguration(clientId), {
       redirect_uri: `${this.config.PUBLIC_URL}/auth/google/callback`,
       response_type: 'code', scope: 'openid email profile', state,
       code_challenge: challenge, code_challenge_method: 'S256', prompt: 'select_account',
     }).href;
+    return { location, browserNonce, expiresInSeconds: OAUTH_STATE_TTL_SECONDS };
   }
 
-  async finishGoogle(code: string, state: string): Promise<{ sessionToken: string; userId: string; returnTo: string }> {
+  async finishGoogle(
+    code: string,
+    state: string,
+    browserNonce: string | undefined,
+  ): Promise<{ sessionToken: string; userId: string; returnTo: string }> {
     const storedState = await this.takeState(state);
+    if (!storedState.browserNonceHash || !browserNonceMatches(browserNonce, storedState.browserNonceHash)) {
+      throw new Error('Google sign-in browser binding is invalid or expired');
+    }
     const response = await fetch('https://oauth2.googleapis.com/token', {
       method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       signal: AbortSignal.timeout(TOKEN_EXCHANGE_TIMEOUT_MS),
@@ -189,7 +250,11 @@ export class OAuthService {
   private async recordAccountLabel(userId: string, provider: ProviderDefinition, accessToken: string): Promise<void> {
     if (!provider.readAccountLabel) return;
     try {
-      const label = await provider.readAccountLabel(accessToken, AbortSignal.timeout(ACCOUNT_LABEL_TIMEOUT_MS));
+      const label = await this.providerOAuth.readAccountLabel({
+        reader: provider.readAccountLabel,
+        accessToken,
+        signal: AbortSignal.timeout(ACCOUNT_LABEL_TIMEOUT_MS),
+      });
       await this.database.setAccountLabel(userId, provider.id, label);
     } catch (error) {
       logger.warn({ ...errorSummary(error), providerId: provider.id }, 'Could not read the connected account handle');
@@ -206,7 +271,7 @@ export class OAuthService {
       if (!latest.expiresAt || latest.expiresAt.getTime() > Date.now() + EXPIRY_SKEW_MS) return latest.accessToken;
       if (!latest.refreshToken) throw new ReconnectRequiredError(providerId);
       const provider = findProvider(providerId);
-      let exchanged: z.infer<typeof tokenResponseSchema>;
+      let exchanged: ProviderTokenResponse;
       try {
         exchanged = await this.refreshProviderToken(provider, latest.refreshToken, latest.oauthClientId);
       } catch (error) {
@@ -234,14 +299,15 @@ export class OAuthService {
       verifier: string;
       state: string;
     },
-  ): Promise<z.infer<typeof tokenResponseSchema>> {
+  ): Promise<ProviderTokenResponse> {
     try {
-      const tokens = await authorizationCodeGrant(
-        request.configuration,
-        request.callbackUrl,
-        { pkceCodeVerifier: request.verifier, expectedState: request.state },
-        this.tokenEndpointParameters(request.provider),
-      );
+      const tokens = await this.providerOAuth.authorizationCodeGrant({
+        configuration: request.configuration,
+        callbackUrl: request.callbackUrl,
+        verifier: request.verifier,
+        state: request.state,
+        tokenEndpointParameters: this.tokenEndpointParameters(request.provider),
+      });
       return tokenResponseSchema.parse(tokens);
     } catch (error) {
       if (isProviderRejection(error)) throw new TokenExchangeRejectedError(request.provider.displayName);
@@ -253,13 +319,13 @@ export class OAuthService {
     provider: ProviderDefinition,
     refreshToken: string,
     oauthClientId: string | undefined,
-  ): Promise<z.infer<typeof tokenResponseSchema>> {
+  ): Promise<ProviderTokenResponse> {
     try {
-      const tokens = await refreshTokenGrant(
-        this.providerConfiguration(provider, oauthClientId),
+      const tokens = await this.providerOAuth.refreshTokenGrant({
+        configuration: this.providerConfiguration(provider, oauthClientId),
         refreshToken,
-        this.tokenEndpointParameters(provider),
-      );
+        tokenEndpointParameters: this.tokenEndpointParameters(provider),
+      });
       return tokenResponseSchema.parse(tokens);
     } catch (error) {
       if (isProviderRejection(error)) throw new TokenExchangeRejectedError(provider.displayName);
@@ -381,6 +447,27 @@ function findProvider(providerId: ProviderId): ProviderDefinition {
   const provider = PROVIDER_REGISTRY.find((entry) => entry.id === providerId);
   if (!provider) throw new Error(`Unsupported provider: ${providerId}`);
   return provider;
+}
+
+function hashBrowserNonce(nonce: string): string {
+  return createHash('sha256').update(nonce).digest('base64url');
+}
+
+function browserNonceMatches(browserNonce: string | undefined, expectedHash: string): boolean {
+  if (!browserNonce) return false;
+  const actual = createHash('sha256').update(browserNonce).digest();
+  const expected = Buffer.from(expectedHash, 'base64url');
+  return actual.length === expected.length && timingSafeEqual(actual, expected);
+}
+
+export function isSafeReturnTo(returnTo: string): boolean {
+  if (!returnTo.startsWith('/') || returnTo.startsWith('//')) return false;
+  if (returnTo.includes('\\') || /%5c/i.test(returnTo) || /^\/%2f/i.test(returnTo)) return false;
+  try {
+    return new URL(returnTo, 'https://bifrost.invalid').origin === 'https://bifrost.invalid';
+  } catch {
+    return false;
+  }
 }
 
 function normalizeCredential(

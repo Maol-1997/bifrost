@@ -4,8 +4,12 @@ import type { AdminToolProvider, BifrostApi, ConnectableProviderId, ConnectedCli
 const DAY_MS = 86_400_000;
 const HOUR_MS = 3_600_000;
 const mockCacheHint: QueryCacheHint = { state: 'fresh', freshForMs: HOUR_MS, nextCheckInMs: HOUR_MS };
-function daysAgo(days: number): string {
+function daysBeforeNow(days: number): string {
   return new Date(Date.now() - days * DAY_MS).toISOString();
+}
+
+function daysAfterNow(days: number): string {
+  return new Date(Date.now() + days * DAY_MS).toISOString();
 }
 
 /**
@@ -79,12 +83,11 @@ const mockAdminProviders = new Map<ConnectableProviderId, AdminToolProvider>(moc
     })),
   } satisfies AdminToolProvider]));
 let mockClients: ConnectedClient[] = [
-  { id: 'web', kind: 'browser', name: 'Bifrost web', monogram: 'BW', isCurrent: true, firstConnectedAt: daysAgo(65), lastUsedAt: daysAgo(0), expiresAt: daysAgo(-29), health: 'healthy' },
-  { id: 'cc', kind: 'agent', name: 'Claude Code', monogram: '>_', logo: 'claude-code', isCurrent: false, firstConnectedAt: daysAgo(65), lastUsedAt: daysAgo(0.0014), health: 'healthy' },
-  { id: 'cur', kind: 'agent', name: 'Cursor', monogram: 'Cu', logo: 'cursor', isCurrent: false, firstConnectedAt: daysAgo(110), lastUsedAt: daysAgo(12), health: 'healthy' },
+  { id: 'web', kind: 'browser', name: 'Bifrost web', monogram: 'BW', isCurrent: true, firstConnectedAt: daysBeforeNow(65), lastUsedAt: daysBeforeNow(0), expiresAt: daysAfterNow(29), health: 'healthy' },
+  { id: 'cc', kind: 'agent', name: 'Claude Code', monogram: '>_', logo: 'claude-code', isCurrent: false, firstConnectedAt: daysBeforeNow(65), lastUsedAt: daysBeforeNow(0.0014), health: 'healthy' },
+  { id: 'cur', kind: 'agent', name: 'Cursor', monogram: 'Cu', logo: 'cursor', isCurrent: false, firstConnectedAt: daysBeforeNow(110), lastUsedAt: daysBeforeNow(12), health: 'healthy' },
 ];
 
-/** The design preview: same screens, in-memory state, no server. */
 export const mockApi: BifrostApi = {
   getProviders: async () => ({ data: structuredClone(mockProviders), cache: mockCacheHint }),
   startProviderConnection: async (providerId) => {
@@ -114,7 +117,7 @@ export const mockApi: BifrostApi = {
   },
   getConnectedClients: async () => structuredClone(mockClients),
   renewClient: async (client) => {
-    mockClients = mockClients.map((entry) => entry.id === client.id ? { ...entry, health: 'healthy', expiresAt: daysAgo(-30) } : entry);
+    mockClients = mockClients.map((entry) => entry.id === client.id ? { ...entry, health: 'healthy', expiresAt: daysAfterNow(30) } : entry);
   },
   revokeClient: async (client) => {
     mockClients = mockClients.filter((entry) => entry.id !== client.id);

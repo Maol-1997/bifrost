@@ -1,4 +1,5 @@
 import type { InferResponseType } from 'hono/client';
+import { z } from 'zod';
 import { APP_ROUTES } from '@features/utils/routes';
 import { isConnectableProvider, providerCatalog } from './catalog';
 import { bifrostClient } from './client';
@@ -9,6 +10,22 @@ const getStatus = bifrostClient.api['status.json'].$get;
 const getConnections = bifrostClient.api['app-connections.json'].$get;
 type StatusResponse = InferResponseType<typeof getStatus, 200>;
 type ConnectionsResponse = InferResponseType<typeof getConnections, 200>;
+const protectedResourceMetadataSchema = z.object({ resource: z.string() });
+const PROTECTED_RESOURCE_ERROR = 'Bifrost address is unavailable';
+
+function protectedResourceUrl(metadata: unknown): string | undefined {
+  const result = protectedResourceMetadataSchema.safeParse(metadata);
+  if (!result.success) return undefined;
+
+  try {
+    const resourceUrl = new URL(result.data.resource);
+    return resourceUrl.protocol === 'https:' || resourceUrl.protocol === 'http:'
+      ? resourceUrl.href
+      : undefined;
+  } catch {
+    return undefined;
+  }
+}
 
 /**
  * Server facts win in this order: an unmounted provider is unavailable no
@@ -24,7 +41,6 @@ function deriveConnectionStatus(
   return 'not-connected';
 }
 
-/** The real thing: every operation is a typed request to the Bifrost server. */
 export const liveApi: BifrostApi = {
   getProviders: async () => {
     const [status, connections] = await Promise.all([
@@ -122,7 +138,14 @@ export const liveApi: BifrostApi = {
   getMcpAddress: async () => {
     const response = await fetch('/.well-known/oauth-protected-resource/mcp');
     if (!response.ok) throw new Error(`Bifrost request failed with status ${response.status}`);
-    const document = await response.json() as { resource: string };
-    return document.resource;
+    let metadata: unknown;
+    try {
+      metadata = await response.json();
+    } catch {
+      throw new Error(PROTECTED_RESOURCE_ERROR);
+    }
+    const resource = protectedResourceUrl(metadata);
+    if (!resource) throw new Error(PROTECTED_RESOURCE_ERROR);
+    return resource;
   },
 };

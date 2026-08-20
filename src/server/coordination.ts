@@ -5,23 +5,40 @@ import { errorSummary, logger } from './logger.js';
 
 const DEFAULT_LOCK_MS = 30_000;
 const RATE_WINDOW_SECONDS = 60;
-/**
- * Upper bound on how long a lease outlives its holder if the process dies
- * mid-call. Deliberately longer than any tool call should take, because an
- * expired counter under-counts live work.
- */
+const RATE_WINDOW_MS = RATE_WINDOW_SECONDS * 1_000;
+// This must outlive expected tool calls so a dead worker cannot make live work
+// disappear from the shared count too early.
 const CONCURRENCY_LEASE_SECONDS = 120;
-/**
- * Only decrements a counter that still exists and deletes it at zero, so a
- * lease released after its key expired does not recreate it at -1 and hand out
- * one extra slot forever after.
- */
+const ACQUIRE_LEASE_SCRIPT = `
+local count = redis.call('incr', KEYS[1])
+redis.call('expire', KEYS[1], ARGV[1])
+return count`;
+// A late release after expiry must not recreate a negative counter and admit
+// an extra call.
 const RELEASE_LEASE_SCRIPT = `
 local current = redis.call('get', KEYS[1])
 if not current then return 0 end
 local remaining = redis.call('decr', KEYS[1])
 if remaining <= 0 then redis.call('del', KEYS[1]) end
 return remaining`;
+const RELEASE_LOCK_SCRIPT = `
+if redis.call('get', KEYS[1]) == ARGV[1] then
+  return redis.call('del', KEYS[1])
+end
+return 0`;
+
+type RateLimitRequest = {
+  provider: string;
+  userId: string;
+  maximumStarts: number;
+};
+
+type ConcurrencyLeaseRequest<T> = {
+  provider: string;
+  userId: string;
+  maximumInFlight: number;
+  operation: () => Promise<T>;
+};
 
 export class Coordinator {
   private redis: RedisClientType | undefined;
@@ -54,50 +71,55 @@ export class Coordinator {
     return this.withLocalLock(key, operation);
   }
 
-  async enforceRateLimit(provider: string, maximumStarts: number): Promise<void> {
-    const key = `rate:${provider}:${Math.floor(Date.now() / (RATE_WINDOW_SECONDS * 1000))}`;
+  async enforceRateLimit(request: RateLimitRequest): Promise<void> {
+    const window = Math.floor(Date.now() / RATE_WINDOW_MS);
+    const scope = tenantProviderScope(request);
+    const key = `rate:${scope}:${window}`;
     if (this.redis) {
       const count = await this.redis.incr(key);
       if (count === 1) await this.redis.expire(key, RATE_WINDOW_SECONDS);
-      if (count > maximumStarts) throw rateLimitReached(provider);
+      if (count > request.maximumStarts) throw rateLimitReached(request.provider);
       return;
     }
-    const now = Date.now();
-    const state = this.localRates.get(provider);
-    const current = !state || state.resetAt <= now ? { count: 0, resetAt: now + RATE_WINDOW_SECONDS * 1000 } : state;
+    const state = this.localRates.get(scope);
+    const current = !state || state.resetAt <= Date.now()
+      ? { count: 0, resetAt: (window + 1) * RATE_WINDOW_MS }
+      : state;
     current.count += 1;
-    this.localRates.set(provider, current);
-    if (current.count > maximumStarts) throw rateLimitReached(provider);
+    this.localRates.set(scope, current);
+    if (current.count > request.maximumStarts) throw rateLimitReached(request.provider);
   }
 
-  async withConcurrencyLease<T>(provider: string, maximumInFlight: number, operation: () => Promise<T>): Promise<T> {
-    const leaseKey = `concurrency:${provider}`;
+  async withConcurrencyLease<T>(request: ConcurrencyLeaseRequest<T>): Promise<T> {
+    const scope = tenantProviderScope(request);
+    const leaseKey = `concurrency:${scope}`;
     if (this.redis) {
       const redis = this.redis;
-      const count = await redis.incr(leaseKey);
-      await redis.expire(leaseKey, CONCURRENCY_LEASE_SECONDS);
-      if (count > maximumInFlight) {
+      const count = await redis.eval(ACQUIRE_LEASE_SCRIPT, {
+        keys: [leaseKey],
+        arguments: [String(CONCURRENCY_LEASE_SECONDS)],
+      });
+      if (typeof count !== 'number') throw new Error('Redis returned an invalid concurrency lease count');
+      if (count > request.maximumInFlight) {
         await redis.eval(RELEASE_LEASE_SCRIPT, { keys: [leaseKey] });
-        throw concurrencyLimitReached(provider);
+        throw concurrencyLimitReached(request.provider);
       }
       try {
-        return await operation();
+        return await request.operation();
       } finally {
         await redis.eval(RELEASE_LEASE_SCRIPT, { keys: [leaseKey] });
       }
     }
-    const inFlight = this.localConcurrency.get(provider) ?? 0;
-    if (inFlight >= maximumInFlight) throw concurrencyLimitReached(provider);
-    this.localConcurrency.set(provider, inFlight + 1);
+    const inFlight = this.localConcurrency.get(scope) ?? 0;
+    if (inFlight >= request.maximumInFlight) throw concurrencyLimitReached(request.provider);
+    this.localConcurrency.set(scope, inFlight + 1);
     try {
-      return await operation();
+      return await request.operation();
     } finally {
-      // Decrement the live count rather than restore the one captured at entry:
-      // leases finish in any order, and restoring would resurrect slots that
-      // a later starter had already taken.
-      const remaining = (this.localConcurrency.get(provider) ?? 1) - 1;
-      if (remaining <= 0) this.localConcurrency.delete(provider);
-      else this.localConcurrency.set(provider, remaining);
+      // Restoring the entry count would lose leases that started after it.
+      const remaining = (this.localConcurrency.get(scope) ?? 1) - 1;
+      if (remaining <= 0) this.localConcurrency.delete(scope);
+      else this.localConcurrency.set(scope, remaining);
     }
   }
 
@@ -133,8 +155,7 @@ export class Coordinator {
     try {
       return await operation();
     } finally {
-      const releaseScript = `if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('del', KEYS[1]) else return 0 end`;
-      await this.redis?.eval(releaseScript, { keys: [lockKey], arguments: [owner] });
+      await this.redis?.eval(RELEASE_LOCK_SCRIPT, { keys: [lockKey], arguments: [owner] });
     }
   }
 
@@ -152,6 +173,10 @@ export class Coordinator {
       if (this.localLocks.get(key) === queued) this.localLocks.delete(key);
     }
   }
+}
+
+function tenantProviderScope(request: { provider: string; userId: string }): string {
+  return `${request.provider}:${request.userId}`;
 }
 
 function rateLimitReached(provider: string): AgentFacingError {

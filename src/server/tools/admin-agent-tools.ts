@@ -2,7 +2,7 @@ import type { OpenAIToolOptions } from '@ai-sdk/openai';
 import { tool, type ToolSet } from 'ai';
 import { z } from 'zod';
 import type { AppDependencies } from '../http/context.js';
-import type { HumanIdentity } from '../mcp.js';
+import type { BrowserIdentity } from '../mcp.js';
 import { PROVIDER_REGISTRY, SUPPORTED_APPS } from '../providers/registry.js';
 import type { ProviderId } from '../providers/types.js';
 import { isAdministrator } from '../security/access.js';
@@ -12,7 +12,7 @@ import {
   TOOL_POLICY_STATES,
   type StoredToolPolicy,
 } from './catalog.js';
-import { discoverProviderTools, discoverProviderToolsFresh } from './discovery.js';
+import { discoverProviderTools, discoverProviderToolsFresh, mcpToolNameSchema } from './discovery.js';
 
 const ADMIN_TOOL_NAMESPACE = {
   name: 'bifrost_admin',
@@ -23,7 +23,6 @@ const ADMIN_TOOL_OPTIONS = {
   namespace: ADMIN_TOOL_NAMESPACE,
 } satisfies OpenAIToolOptions;
 const providerIdSchema = z.enum(SUPPORTED_APPS).describe('The MCP provider to inspect or administer.');
-const toolNameSchema = z.string().regex(/^[A-Za-z0-9_.-]{1,128}$/);
 const policyStateSchema = z.enum(TOOL_POLICY_STATES);
 const listProviderToolsSchema = z.object({
   providerId: providerIdSchema,
@@ -34,7 +33,7 @@ const listProviderToolsSchema = z.object({
 const setToolPoliciesSchema = z.object({
   providerId: providerIdSchema,
   changes: z.array(z.object({
-    toolName: toolNameSchema,
+    toolName: mcpToolNameSchema,
     fingerprint: z.string().regex(/^[a-f0-9]{64}$/).describe('The fingerprint returned by list_mcp_tools.'),
     state: policyStateSchema.describe('blocked disables the tool; allowed_default_off permits it off by default; allowed_default_on permits it on by default.'),
   })).min(1).max(250),
@@ -42,7 +41,7 @@ const setToolPoliciesSchema = z.object({
 
 type AdminAgentToolRequest = {
   dependencies: AppDependencies;
-  identity: HumanIdentity;
+  identity: BrowserIdentity;
   signal: AbortSignal;
 };
 
@@ -199,7 +198,6 @@ function countChanges(changes: readonly { state: z.infer<typeof policyStateSchem
 }
 
 async function hasAdministratorAccess(request: AdminAgentToolRequest): Promise<boolean> {
-  if (request.identity.kind !== 'browser') return false;
   const user = await request.dependencies.database.getUser(request.identity.userId);
   return user !== undefined && isAdministrator(user.email, request.dependencies.config.adminEmails);
 }

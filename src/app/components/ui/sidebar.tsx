@@ -1,9 +1,7 @@
 import * as React from "react"
 import { Slot } from "@radix-ui/react-slot"
 import { animated, useSpring } from "@react-spring/web"
-import { ChevronLeft } from "lucide-react"
 
-import { SearchInput } from "./input"
 import { cn } from "@app/lib/cn"
 
 const SIDEBAR_DESKTOP_QUERY = "(min-width: 1025px)"
@@ -210,33 +208,6 @@ const SidebarMobileHeader = React.forwardRef<
 ))
 SidebarMobileHeader.displayName = "SidebarMobileHeader"
 
-const SidebarMobileBackLink = React.forwardRef<
-  HTMLAnchorElement,
-  React.ComponentPropsWithoutRef<"a">
->(({ className, children, ...props }, ref) => (
-  <a
-    ref={ref}
-    className={cn(
-      "flex h-[23px] cursor-default items-center gap-2 text-base font-normal text-linear-bright outline-none focus-visible:underline",
-      className,
-    )}
-    {...props}
-  >
-    <svg
-      width="11"
-      height="18"
-      viewBox="0 0 11 18"
-      fill="currentColor"
-      className="text-linear-inline-placeholder"
-      aria-hidden="true"
-    >
-      <path d="M3.68293 8.63202L3.30966 8.99195L3.68293 9.35188L10.1643 15.6015C10.6051 16.0265 10.6028 16.7325 10.162 17.1712C9.70399 17.6104 8.96011 17.6096 8.5031 17.1689L0.83567 9.77564C0.388109 9.34408 0.388109 8.65592 0.83567 8.22436L8.5031 0.83107C8.96089 0.389643 9.70653 0.389643 10.1643 0.83107C10.6119 1.26263 10.6119 1.95079 10.1643 2.38235L3.68293 8.63202Z" />
-    </svg>
-    {children}
-  </a>
-))
-SidebarMobileBackLink.displayName = "SidebarMobileBackLink"
-
 const SidebarHeader = React.forwardRef<
   HTMLDivElement,
   React.ComponentPropsWithoutRef<"div">
@@ -248,42 +219,6 @@ const SidebarHeader = React.forwardRef<
   />
 ))
 SidebarHeader.displayName = "SidebarHeader"
-
-const SidebarBackLink = React.forwardRef<
-  HTMLAnchorElement,
-  React.ComponentPropsWithoutRef<"a">
->(({ className, children, ...props }, ref) => (
-  <a
-    ref={ref}
-    className={cn(
-      "ml-4 flex h-7 w-fit cursor-default items-center gap-1 rounded-full border-[0.5px] border-transparent py-0 pl-1.5 pr-3 text-[13px] font-medium [line-height:normal] text-linear-muted outline-none transition-colors duration-150 ease-[ease] hover:bg-linear-muted-hover hover:text-linear-bright focus-visible:border-linear-menu-border focus-visible:text-linear-bright motion-reduce:transition-none",
-      className,
-    )}
-    {...props}
-  >
-    <ChevronLeft className="size-3.5 shrink-0" aria-hidden="true" />
-    {children}
-  </a>
-))
-SidebarBackLink.displayName = "SidebarBackLink"
-
-type SidebarSearchProps = React.ComponentPropsWithoutRef<typeof SearchInput>
-
-const SidebarSearch = React.forwardRef<
-  React.ComponentRef<typeof SearchInput>,
-  SidebarSearchProps
->(({ className, containerClassName, ...props }, ref) => (
-  <SearchInput
-    ref={ref}
-    className={cn("w-[305px] min-[1025px]:w-[220px]", className)}
-    containerClassName={cn(
-      "mx-[12.5px] mt-3 w-[305px] min-[1025px]:mx-3 min-[1025px]:w-[220px]",
-      containerClassName,
-    )}
-    {...props}
-  />
-))
-SidebarSearch.displayName = "SidebarSearch"
 
 const SidebarContent = React.forwardRef<
   HTMLDivElement,
@@ -304,21 +239,6 @@ const SidebarGroup = React.forwardRef<
   <div ref={ref} className={cn("mb-4", className)} {...props} />
 ))
 SidebarGroup.displayName = "SidebarGroup"
-
-const SidebarGroupLabel = React.forwardRef<
-  HTMLHeadingElement,
-  React.ComponentPropsWithoutRef<"h2">
->(({ className, ...props }, ref) => (
-  <h2
-    ref={ref}
-    className={cn(
-      "mx-[12.5px] mb-1.5 flex h-[15.5px] items-center pl-2.5 text-[13px] font-medium [line-height:normal] text-linear-muted min-[1025px]:mx-3",
-      className,
-    )}
-    {...props}
-  />
-))
-SidebarGroupLabel.displayName = "SidebarGroupLabel"
 
 type SidebarCollapsibleProps = React.ComponentPropsWithoutRef<"div"> & {
   defaultOpen?: boolean
@@ -485,42 +405,6 @@ const SidebarCollapsibleContent = React.forwardRef<
 })
 SidebarCollapsibleContent.displayName = "SidebarCollapsibleContent"
 
-function SidebarPlusIcon(props: React.ComponentPropsWithoutRef<"svg">) {
-  return (
-    <svg
-      width="16"
-      height="16"
-      viewBox="0 0 16 16"
-      aria-hidden="true"
-      focusable="false"
-      {...props}
-    >
-      <path
-        fill="currentColor"
-        d="M8.75 4C8.75 3.58579 8.41421 3.25 8 3.25C7.58579 3.25 7.25 3.58579 7.25 4V7.25H4C3.58579 7.25 3.25 7.58579 3.25 8C3.25 8.41421 3.58579 8.75 4 8.75H7.25V12C7.25 12.4142 7.58579 12.75 8 12.75C8.41421 12.75 8.75 12.4142 8.75 12V8.75H12C12.4142 8.75 12.75 8.41421 12.75 8C12.75 7.58579 12.4142 7.25 12 7.25H8.75V4Z"
-      />
-    </svg>
-  )
-}
-
-const SidebarSectionAction = React.forwardRef<
-  HTMLButtonElement,
-  React.ComponentPropsWithoutRef<"button">
->(({ children, className, ...props }, ref) => (
-  <button
-    ref={ref}
-    className={cn(
-      "mr-0.5 flex size-6 shrink-0 cursor-default items-center justify-center rounded-full border-0 bg-transparent px-0.5 text-linear-search-placeholder opacity-0 outline-none transition-[background-color,color,opacity] duration-150 ease-[ease] group-hover/sidebar-trigger:opacity-100 focus-visible:bg-linear-muted-hover focus-visible:text-linear-bright focus-visible:opacity-100 motion-reduce:transition-none [&>svg]:size-4",
-      className,
-    )}
-    type="button"
-    {...props}
-  >
-    {children ?? <SidebarPlusIcon />}
-  </button>
-))
-SidebarSectionAction.displayName = "SidebarSectionAction"
-
 type SidebarNestedLinkProps = React.ComponentPropsWithoutRef<"a"> & {
   active?: boolean
   asChild?: boolean
@@ -580,20 +464,15 @@ SidebarLink.displayName = "SidebarLink"
 export {
   Sidebar,
   SidebarBackdrop,
-  SidebarBackLink,
   SidebarContent,
   SidebarCollapsible,
   SidebarCollapsibleContent,
   SidebarCollapsibleTrigger,
   SidebarGroup,
-  SidebarGroupLabel,
   SidebarHeader,
   SidebarLink,
-  SidebarMobileBackLink,
   SidebarMobileHeader,
   SidebarNestedLink,
-  SidebarSearch,
-  SidebarSectionAction,
   SidebarSpacer,
   SidebarTrigger,
   type SidebarBackdropProps,
@@ -602,6 +481,5 @@ export {
   type SidebarLinkProps,
   type SidebarNestedLinkProps,
   type SidebarProps,
-  type SidebarSearchProps,
   type SidebarSpacerProps,
 }
