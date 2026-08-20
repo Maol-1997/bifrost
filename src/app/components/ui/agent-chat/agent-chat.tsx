@@ -379,12 +379,12 @@ function AgentChatEmptyState({ children, className }: AgentChatEmptyStateProps) 
     <div className="relative min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
       <div
         className={cn(
-          "relative z-[1] mx-auto flex min-h-full w-full -translate-y-[11px] flex-col justify-center",
+          "relative z-1 mx-auto flex min-h-full w-full -translate-y-2.75 flex-col justify-center",
           className,
         )}
       >
         <div className="relative flex w-full flex-col">
-          <AgentChatLogo className="pointer-events-none absolute left-1/2 top-0 -translate-x-1/2 translate-y-[-65%]" />
+          <AgentChatLogo className="pointer-events-none absolute left-1/2 top-0 -translate-x-1/2 translate-y-[-85%]" />
           {children}
         </div>
       </div>

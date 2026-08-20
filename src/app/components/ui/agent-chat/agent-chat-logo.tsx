@@ -23,7 +23,7 @@ function AgentChatLogo({ className }: AgentChatLogoProps) {
   return (
     <svg
       aria-hidden="true"
-      className={cn("size-[336px] shrink-0", className)}
+      className={cn("size-84 shrink-0", className)}
       fill="transparent"
       height="336"
       viewBox="0 0 336 336"
