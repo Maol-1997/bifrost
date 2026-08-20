@@ -6,10 +6,10 @@ import {
 import {
   createAgentUIStreamResponse,
   dynamicTool,
-  generateText,
   jsonSchema,
   safeValidateUIMessages,
   stepCountIs,
+  streamText,
   ToolLoopAgent,
   type ToolSet,
 } from 'ai';
@@ -50,7 +50,7 @@ export async function createBifrostChatTitle(request: {
   }
 
   const openai = createChatProvider(config.OPENAI_API_KEY, config.OPENAI_BASE_URL);
-  const result = await generateText({
+  const result = streamText({
     model: openai.responses(config.OPENAI_MODEL),
     instructions: CHAT_TITLE_INSTRUCTIONS,
     prompt: request.firstMessage,
@@ -59,7 +59,7 @@ export async function createBifrostChatTitle(request: {
       openai: titleProviderOptions(),
     },
   });
-  return normalizeChatTitle(result.text);
+  return normalizeChatTitle(await result.text);
 }
 
 export async function createBifrostChatResponse(request: {
@@ -136,7 +136,7 @@ function responseProviderOptions(
 
 function titleProviderOptions(): OpenAIResponsesProviderOptions {
   return {
-    reasoningEffort: 'minimal',
+    reasoningEffort: 'none',
     store: false,
   };
 }

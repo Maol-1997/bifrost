@@ -76,6 +76,11 @@ function ChatHistory({ active, owner }: { active: boolean; owner: string }): Rea
   const [conversations, setConversations] = useState<StoredConversation[]>()
   const [activeConversation, setActiveConversation] = useState<StoredConversation>()
   const [floatingConversation, setFloatingConversation] = useState<FloatingConversation>()
+  const conversationsRef = useRef(conversations)
+  const activeConversationRef = useRef(activeConversation)
+  conversationsRef.current = conversations
+  activeConversationRef.current = activeConversation
+  const historyReady = conversations !== undefined
   const requestedConversationId = active
     ? new URLSearchParams(location.search).get(CHAT_ID_QUERY_PARAMETER)
     : undefined
@@ -95,28 +100,28 @@ function ChatHistory({ active, owner }: { active: boolean; owner: string }): Rea
   }, [owner])
 
   useEffect(() => {
-    if (!active || !conversations) return
+    const storedConversations = conversationsRef.current
+    if (!active || !storedConversations) return
     if (!requestedConversationId) {
-      setActiveConversation((current) => shouldCreateNewConversation(current, conversations)
+      setActiveConversation((current) => shouldCreateNewConversation(current, storedConversations)
         ? createEmptyConversation(owner)
         : current)
       return
     }
-    if (activeConversation?.id === requestedConversationId) return
+    if (activeConversationRef.current?.id === requestedConversationId) return
 
-    const selected = conversations.find((conversation) => conversation.id === requestedConversationId)
+    const selected = storedConversations.find((conversation) => conversation.id === requestedConversationId)
     if (selected) {
-      setActiveConversation(selected)
+      setActiveConversation((current) => current?.id === selected.id ? current : selected)
       setFloatingConversation((current) => current?.conversation.id === selected.id ? undefined : current)
       return
     }
 
     setActiveConversation(createEmptyConversation(owner))
-    void navigate(APP_ROUTES.chat, { flushSync: true, replace: true })
+    void navigate(APP_ROUTES.chat, { replace: true })
   }, [
     active,
-    activeConversation?.id,
-    conversations,
+    historyReady,
     navigate,
     owner,
     requestedConversationId,
@@ -125,16 +130,15 @@ function ChatHistory({ active, owner }: { active: boolean; owner: string }): Rea
   function openConversationUrl(conversationId: string): void {
     void navigate(
       `${APP_ROUTES.chat}?${CHAT_ID_QUERY_PARAMETER}=${encodeURIComponent(conversationId)}`,
-      { flushSync: true },
     )
   }
 
   function openNewChatUrl(): void {
-    void navigate(APP_ROUTES.chat, { flushSync: true })
+    void navigate(APP_ROUTES.chat)
   }
 
   function replaceWithNewChatUrl(): void {
-    void navigate(APP_ROUTES.chat, { flushSync: true, replace: true })
+    void navigate(APP_ROUTES.chat, { replace: true })
   }
 
   function selectConversation(id: string): void {
@@ -147,7 +151,7 @@ function ChatHistory({ active, owner }: { active: boolean; owner: string }): Rea
 
   const startConversation = useCallback((): void => {
     setActiveConversation(createEmptyConversation(owner))
-    void navigate(APP_ROUTES.chat, { flushSync: true })
+    void navigate(APP_ROUTES.chat)
   }, [navigate, owner])
 
   const updateConversation = useCallback((conversation: StoredConversation): void => {
@@ -186,27 +190,31 @@ function ChatHistory({ active, owner }: { active: boolean; owner: string }): Rea
   }
 
   async function removeConversation(conversation: StoredConversation): Promise<void> {
+    const remainingConversations = (conversations ?? []).filter((entry) => entry.id !== conversation.id)
+    const deletedActiveConversation = activeConversation?.id === conversation.id
+    const deletedFloatingConversation = floatingConversation?.conversation.id === conversation.id
+      ? floatingConversation
+      : undefined
+
+    setConversations(remainingConversations)
+    if (deletedActiveConversation) {
+      setActiveConversation(createEmptyConversation(owner))
+      replaceWithNewChatUrl()
+    }
+    setFloatingConversation((current) => current?.conversation.id === conversation.id ? undefined : current)
+
     try {
       await deleteConversation(conversation.id)
-      const remainingConversations = (conversations ?? []).filter((entry) => entry.id !== conversation.id)
-      setConversations(remainingConversations)
-      const deletedActiveConversation = activeConversation?.id === conversation.id
-      if (deletedActiveConversation) {
-        setActiveConversation(createEmptyConversation(owner))
-        replaceWithNewChatUrl()
-      }
-      setFloatingConversation((current) => current?.conversation.id === conversation.id ? undefined : current)
-      toast("Chat deleted", {
-        action: {
-          label: "Undo",
-          onClick: () => {
-            void saveConversation(conversation)
-              .then(() => updateConversation(conversation))
-              .catch(() => toast.error("Chat could not be restored"))
-          },
-        },
-      })
     } catch (error) {
+      setConversations((current = []) => [
+        conversation,
+        ...current.filter((entry) => entry.id !== conversation.id),
+      ].sort((left, right) => right.updatedAt - left.updatedAt))
+      if (deletedActiveConversation) {
+        setActiveConversation(conversation)
+        openConversationUrl(conversation.id)
+      }
+      if (deletedFloatingConversation) setFloatingConversation(deletedFloatingConversation)
       toast.error("Chat could not be deleted")
       throw error
     }
