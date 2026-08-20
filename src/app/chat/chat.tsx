@@ -455,7 +455,7 @@ function ChatConversation({
       }}
       title={conversationRecord.title}
     >
-      {messages.length === 0 ? (
+      {messages.length === 0 && !isMiniChat ? (
         <AgentChatEmptyState>
           <BifrostNewChatContent
             input={input}
@@ -467,26 +467,28 @@ function ChatConversation({
         </AgentChatEmptyState>
       ) : (
         <>
-          <AgentChatMessages
-            preserveInitialTimestamp={isMiniChat}
-            {...(isMiniChat ? { timestamp: conversationTimestamp(conversation.createdAt) } : {})}
-          >
-            {messageEditing.visibleMessages.map((message, index) => (
-              <ChatMessage
-                key={message.id}
-                message={message}
-                onCopy={() => copyMessage(message)}
-                onEdit={() => beginEditingMessage(message)}
-                showAssistantActions={isMiniChat}
-                streaming={isWorking && index === messageEditing.visibleMessages.length - 1 && message.role === "assistant"}
-              />
-            ))}
-            {status === "submitted" && !messageEditing.editingMessageId ? (
-              <AgentChatMessage actions={false} role="assistant">
-                <span className="animate-design-blink text-linear-muted">Thinking…</span>
-              </AgentChatMessage>
-            ) : null}
-          </AgentChatMessages>
+          {messages.length === 0 ? <div className="min-h-0 flex-1" /> : (
+            <AgentChatMessages
+              preserveInitialTimestamp={isMiniChat}
+              {...(isMiniChat ? { timestamp: conversationTimestamp(conversation.createdAt) } : {})}
+            >
+              {messageEditing.visibleMessages.map((message, index) => (
+                <ChatMessage
+                  key={message.id}
+                  message={message}
+                  onCopy={() => copyMessage(message)}
+                  onEdit={() => beginEditingMessage(message)}
+                  showAssistantActions={isMiniChat}
+                  streaming={isWorking && index === messageEditing.visibleMessages.length - 1 && message.role === "assistant"}
+                />
+              ))}
+              {status === "submitted" && !messageEditing.editingMessageId ? (
+                <AgentChatMessage actions={false} role="assistant">
+                  <span className="animate-design-blink text-linear-muted">Thinking…</span>
+                </AgentChatMessage>
+              ) : null}
+            </AgentChatMessages>
+          )}
           <div
             className={cn("shrink-0", isMiniChat ? "px-2 pb-1" : "pb-4 pt-2")}
             data-agent-chat-composer-area=""
@@ -497,6 +499,7 @@ function ChatConversation({
               onChange={setInput}
               onStop={() => { void stop() }}
               onSubmit={submit}
+              {...(messages.length === 0 ? { placeholder: "Ask Bifrost…" } : {})}
               size={isMiniChat ? "mini" : "default"}
               submitting={isWorking}
               value={input}

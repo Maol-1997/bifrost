@@ -71,7 +71,7 @@ const MiniHeaderButton = React.forwardRef<
 ))
 MiniHeaderButton.displayName = "MiniHeaderButton"
 
-function MiniChatOptions({ actions }: { actions?: AgentChatMiniActions }) {
+function MiniChatOptions({ actions }: { actions: AgentChatMiniActions }) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -81,16 +81,14 @@ function MiniChatOptions({ actions }: { actions?: AgentChatMiniActions }) {
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-44 min-w-44" sideOffset={4}>
         <DropdownMenuItem
-          disabled={!actions}
-          {...(actions ? { onSelect: actions.onCopyAsMarkdown } : {})}
+          onSelect={actions.onCopyAsMarkdown}
         >
           <Copy className="size-4" aria-hidden="true" />
           Copy as markdown
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem
-          disabled={!actions}
-          {...(actions ? { onSelect: actions.onDelete } : {})}
+          onSelect={actions.onDelete}
         >
           <Trash2 className="size-4" aria-hidden="true" />
           Delete
@@ -134,7 +132,7 @@ const AgentChatMini = React.forwardRef<HTMLElement, AgentChatMiniProps>(
               <span className="truncate pl-1.5 text-[13px] font-medium text-linear-bright">
                 {title}
               </span>
-              <MiniChatOptions {...(actions ? { actions } : {})} />
+              {actions ? <MiniChatOptions actions={actions} /> : null}
             </div>
             <div className="flex items-center gap-0.5">
               <MiniHeaderButton label="Minimize chat" onClick={controls.onMinimize}>
