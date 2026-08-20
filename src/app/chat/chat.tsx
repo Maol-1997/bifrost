@@ -1,10 +1,19 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useChat } from "@ai-sdk/react"
 import { useQuery } from "@tanstack/react-query"
-import { DefaultChatTransport, type DynamicToolUIPart, type UIMessage } from "ai"
+import {
+  DefaultChatTransport,
+  getToolName,
+  isToolUIPart,
+  type DynamicToolUIPart,
+  type ToolUIPart,
+  type UIMessage,
+} from "ai"
 import { useLocation, useNavigate } from "react-router-dom"
 import { toast } from "sonner"
 
+import { BifrostNewChatContent, BifrostNewChatLoadingState } from "@app/components/bifrost-new-chat"
+import { BifrostMark } from "@app/components/ui/bifrost-mark"
 import {
   AgentChat,
   AgentChatComposer,
@@ -12,11 +21,9 @@ import {
   AgentChatEmptyState,
   AgentChatMessage,
   AgentChatMessages,
-  AgentChatSuggestions,
   AgentMarkdown,
   type AgentHistoryItem,
   type AgentChatPlacement,
-  type AgentSuggestion,
 } from "@app/components/ui/agent-chat"
 import { ProviderIcon } from "@app/components/ui/provider-icon"
 import { generateChatTitle, getChatConfig, isConnectableProvider } from "@app/api/bifrost"
@@ -34,15 +41,10 @@ import {
 
 const SAVE_DELAY_MS = 250
 const CHAT_ID_QUERY_PARAMETER = "id"
-const suggestions: AgentSuggestion[] = [
-  { id: "github", icon: "project", title: "Review recent work", description: "Summarize my open pull requests and what needs attention." },
-  { id: "sentry", icon: "research", title: "Investigate errors", description: "Find the most important unresolved Sentry issues." },
-  { id: "linear", icon: "team", title: "Check project status", description: "Summarize what is moving and blocked in Linear." },
-]
 
 type ChatProps = {
   active?: boolean
-  owner: string
+  owner?: string
 }
 
 type FloatingConversation = {
@@ -50,9 +52,15 @@ type FloatingConversation = {
   placement: Exclude<AgentChatPlacement, "page">
 }
 
+type ChatToolPart = DynamicToolUIPart | ToolUIPart
+type ChatToolSource =
+  | { kind: "bifrost" }
+  | { kind: "provider"; providerId: ProviderId }
+  | { kind: "unknown" }
+
 export default function Chat({ active = true, owner }: ChatProps): React.JSX.Element | null {
   const { data: config } = useQuery({ queryKey: ["chat-config"], queryFn: getChatConfig })
-  if (!config) return active ? <div className="h-full min-h-[540px] bg-linear-canvas" /> : null
+  if (!config || !owner) return active ? <BifrostNewChatLoadingState /> : null
   if (!config.configured) {
     if (!active) return null
 
@@ -221,7 +229,7 @@ function ChatHistory({ active, owner }: { active: boolean; owner: string }): Rea
   }
 
   if (!activeConversation || !conversations) {
-    return active ? <div className="h-full min-h-[540px] bg-linear-canvas" /> : null
+    return active ? <BifrostNewChatLoadingState /> : null
   }
 
   return (
@@ -435,13 +443,13 @@ function ChatConversation({
     >
       {messages.length === 0 ? (
         <AgentChatEmptyState>
-          <AgentChatComposer
+          <BifrostNewChatContent
+            input={input}
             onChange={setInput}
+            onStop={() => { void stop() }}
             onSubmit={submit}
             submitting={isWorking}
-            value={input}
           />
-          <AgentChatSuggestions onSelect={(suggestion) => submit(suggestionPrompt(suggestion))} suggestions={suggestions} />
         </AgentChatEmptyState>
       ) : (
         <>
@@ -462,6 +470,7 @@ function ChatConversation({
           <div className="shrink-0 pb-4 pt-2">
             <AgentChatComposer
               onChange={setInput}
+              onStop={() => { void stop() }}
               onSubmit={submit}
               submitting={isWorking}
               value={input}
@@ -478,7 +487,7 @@ function ChatConversation({
 
 function ChatMessage({ message, streaming }: { message: UIMessage; streaming: boolean }): React.JSX.Element {
   const text = messageText(message)
-  const toolParts = message.parts.filter((part): part is DynamicToolUIPart => part.type === "dynamic-tool")
+  const toolParts = message.parts.filter(isToolUIPart)
 
   return (
     <AgentChatMessage actions={false} role={message.role === "user" ? "user" : "assistant"}>
@@ -512,16 +521,20 @@ function firstUserMessageText(messages: readonly UIMessage[]): string {
   return firstUserMessage ? messageText(firstUserMessage).trim() : ""
 }
 
-function ToolActivity({ part }: { part: DynamicToolUIPart }): React.JSX.Element {
+function ToolActivity({ part }: { part: ChatToolPart }): React.JSX.Element {
   const finished = part.state === "output-available" || part.state === "output-error" || part.state === "output-denied"
-  const providerId = toolProviderId(part)
-  const title = toolDisplayTitle(part, providerId)
+  const source = toolSource(part)
+  const title = toolDisplayTitle(part, source)
 
   return (
     <div className="mb-2 flex items-center gap-2 text-xs font-medium text-linear-agent-action">
-      {providerId ? (
+      {source.kind === "provider" ? (
         <span aria-hidden="true" className={finished ? "opacity-70" : "animate-design-pulse"}>
-          <ProviderIcon providerId={providerId} size="sidebar" />
+          <ProviderIcon providerId={source.providerId} size="sidebar" />
+        </span>
+      ) : source.kind === "bifrost" ? (
+        <span aria-hidden="true" className={finished ? "opacity-70" : "animate-design-pulse"}>
+          <BifrostMark className="size-4" />
         </span>
       ) : (
         <span aria-hidden="true" className={finished ? "size-1.5 rounded-full bg-linear-muted" : "size-1.5 animate-design-pulse rounded-full bg-linear-primary"} />
@@ -531,31 +544,35 @@ function ToolActivity({ part }: { part: DynamicToolUIPart }): React.JSX.Element 
   )
 }
 
-function toolDisplayTitle(part: DynamicToolUIPart, providerId: ProviderId | undefined): string {
+function toolDisplayTitle(part: ChatToolPart, source: ChatToolSource): string {
   const title = part.title?.trim()
   if (title) return title
-  return humanizeToolName(part.toolName, providerId)
+  return humanizeToolName(getToolName(part), source)
 }
 
-function toolProviderId(part: DynamicToolUIPart): ProviderId | undefined {
+function toolSource(part: ChatToolPart): ChatToolSource {
   const metadataProviderId = part.toolMetadata?.providerId
-  if (isProviderId(metadataProviderId)) return metadataProviderId
-  const nameProviderId = part.toolName.slice(0, part.toolName.indexOf("_"))
-  return isProviderId(nameProviderId) ? nameProviderId : undefined
+  if (isProviderId(metadataProviderId)) return { kind: "provider", providerId: metadataProviderId }
+  if (part.toolMetadata?.source === "bifrost-admin") return { kind: "bifrost" }
+
+  const toolName = getToolName(part)
+  if (toolName.startsWith("bifrost_")) return { kind: "bifrost" }
+  const nameProviderId = toolName.slice(0, toolName.indexOf("_"))
+  return isProviderId(nameProviderId)
+    ? { kind: "provider", providerId: nameProviderId }
+    : { kind: "unknown" }
 }
 
 function isProviderId(value: unknown): value is ProviderId {
   return typeof value === "string" && isConnectableProvider(value)
 }
 
-function humanizeToolName(toolName: string, providerId: ProviderId | undefined): string {
-  const unprefixedName = providerId ? toolName.slice(providerId.length + 1) : toolName
+function humanizeToolName(toolName: string, source: ChatToolSource): string {
+  const unprefixedName = source.kind === "provider"
+    ? toolName.slice(source.providerId.length + 1)
+    : toolName.replace(/^bifrost_(?:admin_)?/, "")
   const words = unprefixedName.replaceAll(/[_-]+/g, " ").trim().toLowerCase()
   return words ? `${words.charAt(0).toUpperCase()}${words.slice(1)}` : toolName
-}
-
-function suggestionPrompt(suggestion: AgentSuggestion): string {
-  return `${suggestion.title}. ${suggestion.description}`
 }
 
 function relativeAge(timestamp: number): string {

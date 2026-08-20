@@ -2,6 +2,7 @@ import { lazy, Suspense, useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Activity, Bot, MonitorSmartphone, Plug, type LucideIcon } from 'lucide-react';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
+import { BifrostNewChatLoadingState } from '@app/components/bifrost-new-chat';
 import { BifrostMark } from '@app/components/ui/bifrost-mark';
 import { Sidebar, SidebarBackdrop, SidebarContent, SidebarGroup, SidebarHeader, SidebarLink, SidebarMobileHeader, SidebarSpacer, SidebarTrigger } from '@app/components/ui/sidebar';
 import { cn } from '@app/lib/cn';
@@ -106,12 +107,10 @@ export function AppShell(): React.JSX.Element {
           <SidebarTrigger aria-label="Open navigation" aria-controls="bifrost-sidebar" aria-expanded={isSidebarOpen} onClick={() => { setIsSidebarOpen(true); }} />
           <span className="font-medium text-linear-bright">Bifrost</span>
         </SidebarMobileHeader>
-        {user && (chatActivated || isChat) ? (
-          <Suspense fallback={isChat ? <div className="min-h-0 w-full flex-1 bg-linear-canvas" /> : null}>
-            <Chat active={isChat} owner={user.email} />
+        {chatActivated || isChat ? (
+          <Suspense fallback={isChat ? <BifrostNewChatLoadingState /> : null}>
+            <Chat active={isChat} {...(user ? { owner: user.email } : {})} />
           </Suspense>
-        ) : isChat ? (
-          <div className="min-h-0 w-full flex-1 bg-linear-canvas" />
         ) : null}
         {!isChat ? (
           <div className={cn(

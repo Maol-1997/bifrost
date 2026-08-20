@@ -2,7 +2,7 @@ import * as React from "react"
 
 import { Tooltip, TooltipContent, TooltipTrigger } from "@app/components/ui/tooltip"
 import { cn } from "@app/lib/cn"
-import { SubmitIcon } from "./agent-chat-icons"
+import { StopIcon, SubmitIcon } from "./agent-chat-icons"
 
 type AgentChatComposerVariant = "conversation" | "empty"
 
@@ -11,6 +11,7 @@ type AgentChatComposerProps = Omit<
   "onChange" | "onSubmit" | "value"
 > & {
   onChange?: (value: string) => void
+  onStop?: () => void
   onSubmit?: (value: string) => void
   submitting?: boolean
   value?: string
@@ -58,6 +59,7 @@ function AgentChatComposer({
   className,
   onChange,
   onKeyDown,
+  onStop,
   onSubmit,
   placeholder,
   submitting = false,
@@ -66,6 +68,8 @@ function AgentChatComposer({
   ...props
 }: AgentChatComposerProps) {
   const textareaRef = React.useRef<HTMLTextAreaElement>(null)
+  const hasInput = Boolean(value.trim())
+  const actionDisabled = submitting ? !onStop : !hasInput
 
   React.useLayoutEffect(() => {
     if (textareaRef.current) {
@@ -74,10 +78,19 @@ function AgentChatComposer({
   }, [value])
 
   function submitMessage() {
+    if (submitting) return
     const trimmedValue = value.trim()
     if (trimmedValue) {
       onSubmit?.(trimmedValue)
     }
+  }
+
+  function runComposerAction() {
+    if (submitting) {
+      onStop?.()
+      return
+    }
+    submitMessage()
   }
 
   function handleKeyDown(event: React.KeyboardEvent<HTMLTextAreaElement>) {
@@ -134,17 +147,17 @@ function AgentChatComposer({
 
         <div className="flex h-6 items-center justify-end" data-agent-composer-toolbar="">
           <ComposerIconButton
-            aria-disabled={!value.trim() || submitting}
+            aria-disabled={actionDisabled}
             className={cn(
               "rounded-xl bg-linear-agent-submit-disabled",
-              value.trim() && !submitting &&
+              hasInput && !submitting &&
                 "bg-linear-primary text-linear-primary-foreground shadow-linear-control hover:bg-linear-primary-hover hover:text-linear-primary-foreground",
             )}
-            disabled={!value.trim() || submitting}
-            label="Send message"
-            onClick={submitMessage}
+            disabled={actionDisabled}
+            label={submitting ? "Stop response" : "Send message"}
+            onClick={runComposerAction}
           >
-            <SubmitIcon />
+            {submitting ? <StopIcon /> : <SubmitIcon />}
           </ComposerIconButton>
         </div>
       </div>
