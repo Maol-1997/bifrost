@@ -64,7 +64,7 @@ export function AppShell(): React.JSX.Element {
   }, [isSidebarOpen]);
 
   return (
-    <div className="flex h-dvh min-w-0 overflow-hidden bg-linear-canvas text-linear-foreground">
+    <div className="flex h-dvh min-w-0 overflow-hidden bg-linear-sidebar-background text-linear-foreground">
       <SidebarBackdrop open={isSidebarOpen} aria-label="Close navigation" onClick={() => { setIsSidebarOpen(false); }} />
       <Sidebar id="bifrost-sidebar" aria-label="Primary navigation" open={isSidebarOpen} onOpenChange={setIsSidebarOpen}>
         <SidebarHeader className="h-auto px-4 pb-5">
