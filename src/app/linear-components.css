@@ -429,6 +429,10 @@ button:not(:disabled),
   --linear-agent-composer-border-bottom: var(--linear-agent-composer-border-focus);
 }
 
+.agent-chat-mini .agent-chat-composer-shell[data-variant="conversation"]::before {
+  opacity: 0;
+}
+
 .agent-chat-mini .agent-chat-composer[data-size="mini"]::before {
   border-radius: 8px;
 }
