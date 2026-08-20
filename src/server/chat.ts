@@ -16,7 +16,7 @@ import {
 import type { AppDependencies } from './http/context.js';
 import type { BrowserIdentity } from './mcp.js';
 import type { ProviderId } from './providers/types.js';
-import { createAdminAgentTools } from './tools/admin-agent-tools.js';
+import { createAdminAgentContext } from './tools/admin-agent-tools.js';
 import type { DiscoveredTool } from './tools/catalog.js';
 import { executeUserTool, loadVisibleUserTools } from './tools/user-toolset.js';
 
@@ -78,13 +78,13 @@ export async function createBifrostChatResponse(request: {
     return Response.json({ error: 'Invalid chat messages' }, { status: 400 });
   }
 
-  const [visibleTools, adminTools] = await Promise.all([
+  const [visibleTools, adminContext] = await Promise.all([
     loadVisibleUserTools({
       userId: request.identity.userId,
       signal: request.signal,
       dependencies: request.dependencies,
     }),
-    createAdminAgentTools({
+    createAdminAgentContext({
       dependencies: request.dependencies,
       identity: request.identity,
       signal: request.signal,
@@ -99,14 +99,14 @@ export async function createBifrostChatResponse(request: {
   const openai = createChatProvider(config.OPENAI_API_KEY, config.OPENAI_BASE_URL);
   const agent = new ToolLoopAgent({
     model: openai.responses(config.OPENAI_MODEL),
-    instructions: AGENT_INSTRUCTIONS,
+    instructions: [AGENT_INSTRUCTIONS, adminContext.instructions].filter(Boolean).join('\n\n'),
     providerOptions: {
       openai: responseProviderOptions(config),
     },
     tools: {
       tool_search: openai.tools.toolSearch(),
       ...deferredTools,
-      ...adminTools,
+      ...adminContext.tools,
     },
     stopWhen: stepCountIs(MAX_AGENT_STEPS),
   });

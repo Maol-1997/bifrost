@@ -15,6 +15,20 @@
       "when": 1787104245913,
       "tag": "0001_lying_raider",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1787252977635,
+      "tag": "0002_slippery_squadron_sinister",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1787253742042,
+      "tag": "0003_wide_rage",
+      "breakpoints": true
     }
   ]
 }

@@ -8,7 +8,7 @@ import { describeClient } from '../clients/describe.js';
 import { errorSummary, logger } from '../logger.js';
 import { PROVIDER_REGISTRY, SUPPORTED_APPS } from '../providers/registry.js';
 import type { ProviderId } from '../providers/types.js';
-import { effectivePolicyState, isToolEnabled, toolPolicyReviewsMatchCurrentDefinitions, TOOL_POLICY_STATES } from '../tools/catalog.js';
+import { contractForToolPolicyReview, effectivePolicyState, isToolEnabled, toolContractReview, toolPolicyReviewsMatchCurrentDefinitions, TOOL_POLICY_STATES } from '../tools/catalog.js';
 import { discoverConnectedTools, discoverProviderTools, discoverProviderToolsFresh, invalidateProviderToolDiscovery, mcpToolNameSchema } from '../tools/discovery.js';
 import { aggregateToolCacheHints, toolCacheHintFromError } from '../tools/discovery-cache.js';
 import { isAdministrator } from '../security/access.js';
@@ -290,7 +290,7 @@ async function adminProviderToolList(
         providerId,
         status: 'ready' as const,
         tools: discovery.tools.map((tool) => {
-          const storedPolicy = policies.get(tool.name);
+          const review = toolContractReview(tool, policies);
           return {
             name: tool.name,
             upstreamName: tool.upstreamName,
@@ -299,7 +299,8 @@ async function adminProviderToolList(
             mutability: tool.mutability,
             fingerprint: tool.fingerprint,
             state: effectivePolicyState(tool, policies),
-            needsReview: storedPolicy?.fingerprint !== tool.fingerprint,
+            needsReview: review.kind !== 'approved',
+            review,
             annotations: tool.annotations ?? {},
             inputSchema: tool.inputSchema,
             ...(tool.outputSchema ? { outputSchema: tool.outputSchema } : {}),
@@ -338,6 +339,7 @@ async function setDeploymentToolPolicies(
     providerId,
     toolName: policy.toolName,
     fingerprint: policy.fingerprint,
+    contract: contractForToolPolicyReview(discovery.tools, policy),
     state: policy.state,
     updatedByUserId: identity.userId,
   })));

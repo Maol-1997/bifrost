@@ -13,7 +13,7 @@ import {
 } from 'drizzle-orm/pg-core';
 import type { ProviderId } from '../providers/types.js';
 import type { EncryptedSecret } from '../security/secrets.js';
-import type { ToolPolicyState } from '../tools/catalog.js';
+import type { ToolContractSnapshot, ToolPolicyState } from '../tools/catalog.js';
 
 const timestampWithTimezone = (name: string) => timestamp(name, { withTimezone: true, mode: 'date' });
 
@@ -52,6 +52,13 @@ export const userProviderPreferences = pgTable('user_provider_preferences', {
   isHidden: boolean('is_hidden').default(false).notNull(),
 }, (table) => [primaryKey({ name: 'user_provider_preferences_pk', columns: [table.userId, table.providerId] })]);
 
+export const userProviderAgentNotes = pgTable('user_provider_agent_notes', {
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  providerId: text('provider_id').$type<ProviderId>().notNull(),
+  note: text().notNull(),
+  updatedAt: timestampWithTimezone('updated_at').defaultNow().notNull(),
+}, (table) => [primaryKey({ name: 'user_provider_agent_notes_pk', columns: [table.userId, table.providerId] })]);
+
 export const userToolPreferences = pgTable('user_tool_preferences', {
   userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   toolName: text('tool_name').notNull(),
@@ -62,6 +69,7 @@ export const deploymentToolPolicies = pgTable('deployment_tool_policies', {
   providerId: text('provider_id').$type<ProviderId>().notNull(),
   toolName: text('tool_name').notNull(),
   fingerprint: text().notNull(),
+  contract: jsonb().$type<ToolContractSnapshot>(),
   state: text().$type<ToolPolicyState>().notNull(),
   updatedByUserId: uuid('updated_by_user_id').references(() => users.id, { onDelete: 'set null' }),
   updatedAt: timestampWithTimezone('updated_at').defaultNow().notNull(),

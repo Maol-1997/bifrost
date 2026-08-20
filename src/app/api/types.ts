@@ -40,6 +40,15 @@ export type Provider = {
 
 export type ToolPolicyState = 'blocked' | 'allowed_default_off' | 'allowed_default_on';
 export type ToolCacheState = 'fresh' | 'revalidating' | 'refresh_failed';
+export type ToolContractChange =
+  | { kind: 'added'; path: string; after: unknown }
+  | { kind: 'removed'; path: string; before: unknown }
+  | { kind: 'changed'; path: string; before: unknown; after: unknown };
+export type ToolContractReview =
+  | { kind: 'approved' }
+  | { kind: 'new' }
+  | { kind: 'changed'; changes: null }
+  | { kind: 'changed'; changes: readonly ToolContractChange[]; truncated: boolean };
 
 export type QueryCacheHint = {
   state: ToolCacheState;
@@ -61,6 +70,7 @@ export type AdminTool = {
   fingerprint: string;
   state: ToolPolicyState;
   needsReview: boolean;
+  review: ToolContractReview;
   annotations: Readonly<Record<string, unknown>>;
   inputSchema: Readonly<Record<string, unknown>>;
   outputSchema?: Readonly<Record<string, unknown>> | undefined;

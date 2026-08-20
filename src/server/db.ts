@@ -11,13 +11,14 @@ import {
   oauthRefreshTokens,
   providerCredentials,
   sessions,
+  userProviderAgentNotes,
   userProviderPreferences,
   users,
   userToolPreferences,
 } from './database/schema.js';
 import type { ProviderId } from './providers/types.js';
 import { decryptSecret, encryptSecret } from './security/secrets.js';
-import type { StoredToolPolicy, ToolPolicyState } from './tools/catalog.js';
+import type { StoredToolPolicy, ToolContractSnapshot, ToolPolicyState } from './tools/catalog.js';
 
 const SESSION_BYTES = 32;
 const SESSION_TTL_DAYS = 30;
@@ -72,10 +73,16 @@ export type OAuthIdentity = {
   expiresAt: Date;
 };
 
+export type ProviderAgentNote = {
+  note: string;
+  updatedAt: Date;
+};
+
 type ToolPolicyWrite = {
   providerId: ProviderId;
   toolName: string;
   fingerprint: string;
+  contract: ToolContractSnapshot;
   state: ToolPolicyState;
   updatedByUserId: string;
 };
@@ -555,6 +562,34 @@ export class Database {
       });
   }
 
+  async providerAgentNotes(userId: string): Promise<ReadonlyMap<ProviderId, ProviderAgentNote>> {
+    const rows = await this.database
+      .select({
+        providerId: userProviderAgentNotes.providerId,
+        note: userProviderAgentNotes.note,
+        updatedAt: userProviderAgentNotes.updatedAt,
+      })
+      .from(userProviderAgentNotes)
+      .where(eq(userProviderAgentNotes.userId, userId));
+    return new Map(rows.map(({ providerId, ...note }) => [providerId, note]));
+  }
+
+  async setProviderAgentNote(userId: string, providerId: ProviderId, note: string): Promise<void> {
+    await this.database
+      .insert(userProviderAgentNotes)
+      .values({ userId, providerId, note })
+      .onConflictDoUpdate({
+        target: [userProviderAgentNotes.userId, userProviderAgentNotes.providerId],
+        set: { note, updatedAt: sql`now()` },
+      });
+  }
+
+  async clearProviderAgentNote(userId: string, providerId: ProviderId): Promise<void> {
+    await this.database
+      .delete(userProviderAgentNotes)
+      .where(and(eq(userProviderAgentNotes.userId, userId), eq(userProviderAgentNotes.providerId, providerId)));
+  }
+
   /**
    * The tools this user has overridden. Absence means the administrator's
    * current default applies.
@@ -588,10 +623,14 @@ export class Database {
       .select({
         toolName: deploymentToolPolicies.toolName,
         fingerprint: deploymentToolPolicies.fingerprint,
+        contract: deploymentToolPolicies.contract,
         state: deploymentToolPolicies.state,
       })
       .from(deploymentToolPolicies);
-    return new Map(rows.map((row) => [row.toolName, row]));
+    return new Map(rows.map(({ contract, ...row }) => [
+      row.toolName,
+      { ...row, ...(contract ? { contract } : {}) },
+    ]));
   }
 
   async setToolPolicies(requests: readonly ToolPolicyWrite[]): Promise<void> {
@@ -604,6 +643,7 @@ export class Database {
             target: [deploymentToolPolicies.providerId, deploymentToolPolicies.toolName],
             set: {
               fingerprint: request.fingerprint,
+              contract: request.contract,
               state: request.state,
               updatedByUserId: request.updatedByUserId,
               updatedAt: new Date(),

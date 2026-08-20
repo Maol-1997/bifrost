@@ -6,6 +6,7 @@ import {
   fingerprintToolDefinition,
   isToolEnabled,
   normalizeUpstreamTool,
+  toolContractReview,
   toolPolicyReviewsMatchCurrentDefinitions,
   type StoredToolPolicy,
 } from '../src/server/tools/catalog.js';
@@ -103,5 +104,91 @@ describe('deployment policy resolution', () => {
 
   it('rejects empty batches', () => {
     expect(toolPolicyReviewsMatchCurrentDefinitions([tool], [])).toBe(false);
+  });
+});
+
+describe('tool contract review', () => {
+  const approvedTool = normalizeUpstreamTool(provider, readTool);
+
+  it('classifies a tool with no stored policy as new', () => {
+    expect(toolContractReview(approvedTool, new Map())).toEqual({ kind: 'new' });
+  });
+
+  it('classifies a matching fingerprint as approved', () => {
+    expect(toolContractReview(
+      approvedTool,
+      policy(approvedTool.name, approvedTool.fingerprint, 'allowed_default_on'),
+    )).toEqual({ kind: 'approved' });
+  });
+
+  it('reports that an older changed policy has no comparable snapshot', () => {
+    expect(toolContractReview(
+      approvedTool,
+      policy(approvedTool.name, '0'.repeat(64), 'allowed_default_on'),
+    )).toEqual({ kind: 'changed', changes: null });
+  });
+
+  it('describes exact contract changes against the approved snapshot', () => {
+    const currentTool = normalizeUpstreamTool(provider, {
+      ...readTool,
+      description: 'Read an issue with optional comments.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          id: { type: 'string' },
+          includeComments: { type: 'boolean' },
+        },
+      },
+    });
+    const policies = new Map<string, StoredToolPolicy>([[approvedTool.name, {
+      toolName: approvedTool.name,
+      fingerprint: approvedTool.fingerprint,
+      contract: approvedTool.contract,
+      state: 'allowed_default_on',
+    }]]);
+
+    expect(toolContractReview(currentTool, policies)).toEqual({
+      kind: 'changed',
+      changes: [
+        {
+          kind: 'changed',
+          path: '/tool/description',
+          before: 'Read an issue.',
+          after: 'Read an issue with optional comments.',
+        },
+        {
+          kind: 'added',
+          path: '/tool/inputSchema/properties/includeComments',
+          after: { type: 'boolean' },
+        },
+      ],
+      truncated: false,
+    });
+  });
+
+  it('caps oversized contract diffs and reports truncation', () => {
+    const properties = Object.fromEntries(Array.from(
+      { length: 101 },
+      (_, index) => [`field${index.toString().padStart(3, '0')}`, { type: 'string' }],
+    ));
+    const previousTool = normalizeUpstreamTool(provider, {
+      ...readTool,
+      inputSchema: { type: 'object', properties: {} },
+    });
+    const currentTool = normalizeUpstreamTool(provider, {
+      ...readTool,
+      inputSchema: { type: 'object', properties },
+    });
+    const policies = new Map<string, StoredToolPolicy>([[previousTool.name, {
+      toolName: previousTool.name,
+      fingerprint: previousTool.fingerprint,
+      contract: previousTool.contract,
+      state: 'allowed_default_on',
+    }]]);
+    const review = toolContractReview(currentTool, policies);
+
+    expect(review.kind).toBe('changed');
+    expect(review.kind === 'changed' && review.changes?.length).toBe(100);
+    expect(review.kind === 'changed' && review.changes !== null && review.truncated).toBe(true);
   });
 });

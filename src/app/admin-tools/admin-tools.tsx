@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ChevronDown } from 'lucide-react';
 import { Link, Navigate, useParams } from 'react-router-dom';
-import { getProviderCatalog, isConnectableProvider, refreshAdminProviderTools, setToolPolicies, type AdminTool, type AdminToolProvider, type CachedResult, type ConnectableProviderId, type ToolMutability, type ToolPolicyBatchChange, type ToolPolicyChange, type ToolPolicyState } from '@app/api/bifrost';
+import { getProviderCatalog, isConnectableProvider, refreshAdminProviderTools, setToolPolicies, type AdminTool, type AdminToolProvider, type CachedResult, type ConnectableProviderId, type ToolContractChange, type ToolContractReview, type ToolMutability, type ToolPolicyBatchChange, type ToolPolicyChange, type ToolPolicyState } from '@app/api/bifrost';
 import { adminToolsQueryOptions } from '@app/api/query-options';
 import { Button } from '@app/components/ui/button';
 import { Checkbox, type CheckboxState } from '@app/components/ui/checkbox';
@@ -38,6 +38,7 @@ function matchesSearch(tool: AdminTool, normalizedSearch: string): boolean {
 }
 
 function compareTools(left: AdminTool, right: AdminTool): number {
+  if (left.needsReview !== right.needsReview) return left.needsReview ? -1 : 1;
   const leftBlocked = left.state === 'blocked';
   const rightBlocked = right.state === 'blocked';
   return leftBlocked !== rightBlocked ? leftBlocked ? -1 : 1 : left.title.localeCompare(right.title);
@@ -138,6 +139,71 @@ function ContractBlock({ label, value }: { label: string; value: string }): Reac
   );
 }
 
+function ReviewBadge({ review }: { review: ToolContractReview }): React.JSX.Element | null {
+  if (review.kind === 'approved') return null;
+  return (
+    <span className={cn(
+      'rounded-full px-2 py-0.5 text-[10.5px] font-semibold',
+      review.kind === 'new' ? 'bg-brand/10 text-brand-hover' : 'bg-warning/10 text-warning',
+    )}>
+      {review.kind === 'new' ? 'New tool' : 'Contract changed'}
+    </span>
+  );
+}
+
+function formatContractValue(value: unknown): string {
+  return JSON.stringify(value, null, 2);
+}
+
+function ContractChangeValue({ label, value }: { label: string; value: unknown }): React.JSX.Element {
+  return <ContractBlock label={label} value={formatContractValue(value)} />;
+}
+
+function ContractChangeRow({ change }: { change: ToolContractChange }): React.JSX.Element {
+  return (
+    <div className="rounded-[9px] border-[0.5px] border-app-border-pane p-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <code className="break-all font-mono text-[11px] text-linear-bright">{change.path}</code>
+        <span className="rounded-full bg-linear-card-hover px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[.04em] text-app-text-tertiary">{change.kind}</span>
+      </div>
+      <div className="mt-3 grid gap-3 sm:grid-cols-2">
+        {change.kind === 'added' ? null : <ContractChangeValue label="Previous" value={change.before} />}
+        {change.kind === 'removed' ? null : <ContractChangeValue label="Current" value={change.after} />}
+      </div>
+    </div>
+  );
+}
+
+function ContractReviewDetails({ review }: { review: ToolContractReview }): React.JSX.Element | null {
+  if (review.kind === 'approved') return null;
+  if (review.kind === 'new') {
+    return (
+      <div className="sm:col-span-2 rounded-[9px] border-[0.5px] border-brand/25 bg-brand/5 p-3 text-[11.5px] text-app-text-secondary">
+        <div className="font-semibold text-linear-bright">New tool</div>
+        <p className="mt-1">No previously approved contract exists for this tool.</p>
+      </div>
+    );
+  }
+  if (review.changes === null) {
+    return (
+      <div className="sm:col-span-2 rounded-[9px] border-[0.5px] border-warning/30 bg-warning/5 p-3 text-[11.5px] text-app-text-secondary">
+        <div className="font-semibold text-linear-bright">Contract changed</div>
+        <p className="mt-1">The previous approval predates contract snapshots, so its exact changes are unavailable. Approving this version enables detailed comparisons from now on.</p>
+      </div>
+    );
+  }
+  return (
+    <div className="sm:col-span-2">
+      <div className="mb-2 flex items-center justify-between gap-3">
+        <div className="font-semibold text-linear-bright">Changes since approval</div>
+        <span className="tabular-nums text-app-text-quaternary">{review.changes.length}{review.truncated ? '+' : ''} changes</span>
+      </div>
+      <div className="space-y-2">{review.changes.map((change) => <ContractChangeRow key={`${change.kind}:${change.path}`} change={change} />)}</div>
+      {review.truncated ? <p className="mt-2 text-warning">Only the first 100 changes are shown.</p> : null}
+    </div>
+  );
+}
+
 function ToolRow({ tool, providerId, controller }: { tool: AdminTool; providerId: ConnectableProviderId; controller: ToolAdministrationController }): React.JSX.Element {
   const currentPolicy = POLICY_OPTIONS.find((option) => option.value === tool.state);
   const { disabled, selection } = controller;
@@ -148,7 +214,7 @@ function ToolRow({ tool, providerId, controller }: { tool: AdminTool; providerId
           <Checkbox aria-label={`Select ${tool.title}`} checked={selection.isSelected(tool.name)} disabled={disabled} onCheckedChange={(checked) => { if (checked) selection.select(tool.name); else selection.deselect(tool.name); }} />
         </label>
         <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2"><span className="text-[13px] font-medium text-linear-bright">{tool.title}</span>{tool.needsReview ? <span className="rounded-full bg-danger/10 px-2 py-0.5 text-[10.5px] font-semibold text-danger">Review required</span> : null}</div>
+          <div className="flex flex-wrap items-center gap-2"><span className="text-[13px] font-medium text-linear-bright">{tool.title}</span><ReviewBadge review={tool.review} /></div>
           <ExpandableText label={tool.title} text={tool.description} />
           <code className="mt-1 block truncate font-mono text-[11px] text-app-text-quaternary" title={tool.name}>{tool.name}</code>
         </div>
@@ -163,6 +229,7 @@ function ToolRow({ tool, providerId, controller }: { tool: AdminTool; providerId
           Review contract and fingerprint
         </summary>
         <div className="grid gap-3 px-4 pb-4 sm:grid-cols-2">
+          <ContractReviewDetails review={tool.review} />
           <div className="sm:col-span-2"><ContractBlock label="Fingerprint" value={tool.fingerprint} /></div>
           <ContractBlock label="Annotations" value={JSON.stringify(tool.annotations, null, 2)} />
           <ContractBlock label="Input schema" value={JSON.stringify(tool.inputSchema, null, 2)} />
@@ -242,7 +309,7 @@ function AdminProviderTools({ providerId }: { providerId: ConnectableProviderId 
     mutationFn: setToolPolicies,
     onSuccess: (cache, change) => {
       const stateByName = new Map(change.tools.map((tool) => [tool.toolName, tool.state]));
-      queryClient.setQueryData<CachedResult<AdminToolProvider>>(queryOptions.queryKey, (result) => result && ({ cache, data: { ...result.data, tools: result.data.tools.map((tool) => { const state = stateByName.get(tool.name); return state === undefined ? tool : { ...tool, state, needsReview: false }; }) } }));
+      queryClient.setQueryData<CachedResult<AdminToolProvider>>(queryOptions.queryKey, (result) => result && ({ cache, data: { ...result.data, tools: result.data.tools.map((tool) => { const state = stateByName.get(tool.name); return state === undefined ? tool : { ...tool, state, needsReview: false, review: { kind: 'approved' } }; }) } }));
       selection.deselectNames(change.tools.map((tool) => tool.toolName));
     },
   });

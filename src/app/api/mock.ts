@@ -78,6 +78,7 @@ const mockAdminProviders = new Map<ConnectableProviderId, AdminToolProvider>(moc
       fingerprint: tool.name.padEnd(64, '0').slice(0, 64),
       state: (tool.isEnabled ? 'allowed_default_on' : 'blocked') as ToolPolicyState,
       needsReview: !tool.isEnabled,
+      review: tool.isEnabled ? { kind: 'approved' } : { kind: 'new' },
       annotations: tool.mutability === 'read' ? { readOnlyHint: true } : {},
       inputSchema: { type: 'object', properties: {} },
     })),
@@ -110,7 +111,7 @@ export const mockApi: BifrostApi = {
     mockAdminProviders.set(providerId, {
       ...provider,
       tools: provider.tools.map((tool) => stateByName.has(tool.name)
-        ? { ...tool, state: stateByName.get(tool.name)!, needsReview: false }
+        ? { ...tool, state: stateByName.get(tool.name)!, needsReview: false, review: { kind: 'approved' } }
         : tool),
     });
     return mockCacheHint;

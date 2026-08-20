@@ -4,8 +4,8 @@ import type { DiscoveredTool } from '../src/server/tools/catalog.js';
 import { visibleTools } from '../src/server/tools/filter.js';
 
 const tools: readonly DiscoveredTool[] = [
-  { providerId: 'github', upstreamName: 'read', name: 'github_read', title: 'Read', description: 'Read', mutability: 'read', fingerprint: 'a'.repeat(64), inputSchema: { type: 'object' } },
-  { providerId: 'slack', upstreamName: 'read', name: 'slack_read', title: 'Read', description: 'Read', mutability: 'read', fingerprint: 'b'.repeat(64), inputSchema: { type: 'object' } },
+  { providerId: 'github', upstreamName: 'read', name: 'github_read', title: 'Read', description: 'Read', mutability: 'read', fingerprint: 'a'.repeat(64), contract: { providerId: 'github', tool: { name: 'read' } }, inputSchema: { type: 'object' } },
+  { providerId: 'slack', upstreamName: 'read', name: 'slack_read', title: 'Read', description: 'Read', mutability: 'read', fingerprint: 'b'.repeat(64), contract: { providerId: 'slack', tool: { name: 'read' } }, inputSchema: { type: 'object' } },
 ];
 const mounted: readonly ProviderMount[] = [
   { providerId: 'github', isMounted: true }, { providerId: 'slack', isMounted: true },

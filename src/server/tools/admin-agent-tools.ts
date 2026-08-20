@@ -7,16 +7,19 @@ import { PROVIDER_REGISTRY, SUPPORTED_APPS } from '../providers/registry.js';
 import type { ProviderId } from '../providers/types.js';
 import { isAdministrator } from '../security/access.js';
 import {
+  contractForToolPolicyReview,
   effectivePolicyState,
+  toolContractReview,
   toolPolicyReviewsMatchCurrentDefinitions,
   TOOL_POLICY_STATES,
   type StoredToolPolicy,
 } from './catalog.js';
 import { discoverProviderTools, discoverProviderToolsFresh, mcpToolNameSchema } from './discovery.js';
+import { providerAgentNoteInstructions, providerAgentNoteSchema } from './provider-agent-notes.js';
 
 const ADMIN_TOOL_NAMESPACE = {
   name: 'bifrost_admin',
-  description: 'Administrative tools for reviewing MCP providers and changing deployment tool policies in Bifrost.',
+  description: 'Administrative tools for reviewing MCP providers, changing deployment tool policies, and maintaining one internal agent note per provider in Bifrost.',
 } as const;
 const ADMIN_TOOL_OPTIONS = {
   deferLoading: true,
@@ -24,11 +27,13 @@ const ADMIN_TOOL_OPTIONS = {
 } satisfies OpenAIToolOptions;
 const providerIdSchema = z.enum(SUPPORTED_APPS).describe('The MCP provider to inspect or administer.');
 const policyStateSchema = z.enum(TOOL_POLICY_STATES);
+const reviewKindSchema = z.enum(['approved', 'new', 'changed']);
 const listProviderToolsSchema = z.object({
   providerId: providerIdSchema,
   query: z.string().trim().min(1).max(100).optional().describe('Optional case-insensitive search over tool name, title, and description.'),
   mutability: z.enum(['read', 'write']).optional().describe('Optional filter for read-only or write-capable tools.'),
   states: z.array(policyStateSchema).min(1).optional().describe('Optional deployment policy states to include.'),
+  reviewKinds: z.array(reviewKindSchema).min(1).optional().describe('Optional review classification filter: approved, new, or changed.'),
 });
 const setToolPoliciesSchema = z.object({
   providerId: providerIdSchema,
@@ -38,6 +43,11 @@ const setToolPoliciesSchema = z.object({
     state: policyStateSchema.describe('blocked disables the tool; allowed_default_off permits it off by default; allowed_default_on permits it on by default.'),
   })).min(1).max(250),
 });
+const setProviderNoteSchema = z.object({
+  providerId: providerIdSchema,
+  note: providerAgentNoteSchema.describe('The complete replacement note. Preserve still-relevant context from the previous note and never include secrets.'),
+});
+const clearProviderNoteSchema = z.object({ providerId: providerIdSchema });
 
 type AdminAgentToolRequest = {
   dependencies: AppDependencies;
@@ -45,13 +55,26 @@ type AdminAgentToolRequest = {
   signal: AbortSignal;
 };
 
-export async function createAdminAgentTools(request: AdminAgentToolRequest): Promise<ToolSet> {
-  if (!await hasAdministratorAccess(request)) return {};
+export type AdminAgentContext = {
+  tools: ToolSet;
+  instructions: string;
+};
 
+export async function createAdminAgentContext(request: AdminAgentToolRequest): Promise<AdminAgentContext> {
+  if (!await hasAdministratorAccess(request)) return { tools: {}, instructions: '' };
+  const notes = await request.dependencies.database.providerAgentNotes(request.identity.userId);
+
+  return {
+    instructions: providerAgentNoteInstructions(notes),
+    tools: createAdminAgentTools(request),
+  };
+}
+
+function createAdminAgentTools(request: AdminAgentToolRequest): ToolSet {
   return {
     bifrost_admin_list_mcp_providers: tool({
       title: 'List MCP providers',
-      description: 'List every MCP provider managed by Bifrost, whether this admin account is connected, whether it is mounted, and counts for its stored deployment policies.',
+      description: 'List every MCP provider managed by Bifrost, its current agent note, whether this admin account is connected, whether it is mounted, and counts for its stored deployment policies.',
       inputSchema: z.object({}),
       providerOptions: { openai: ADMIN_TOOL_OPTIONS },
       metadata: { source: 'bifrost-admin' },
@@ -62,7 +85,7 @@ export async function createAdminAgentTools(request: AdminAgentToolRequest): Pro
     }),
     bifrost_admin_list_mcp_tools: tool({
       title: 'List MCP tools',
-      description: 'List tools discovered from one MCP provider with compact review metadata, current deployment policy, review status, and fingerprint. Use filters to narrow large providers. Returns fingerprints required for batch policy changes.',
+      description: 'List tools discovered from one MCP provider with current deployment policy, whether each tool is new or changed, exact contract changes when available, and fingerprint. Use filters to narrow large providers. Returns fingerprints required for batch policy changes.',
       inputSchema: listProviderToolsSchema,
       providerOptions: { openai: ADMIN_TOOL_OPTIONS },
       metadata: { source: 'bifrost-admin' },
@@ -90,18 +113,48 @@ export async function createAdminAgentTools(request: AdminAgentToolRequest): Pro
         });
       },
     }),
+    bifrost_admin_set_mcp_note: tool({
+      title: 'Set MCP note',
+      description: 'Save the complete internal note for one MCP provider. This replaces its previous note. Use it only for durable user preferences or provider-specific working context, never secrets.',
+      inputSchema: setProviderNoteSchema,
+      providerOptions: { openai: ADMIN_TOOL_OPTIONS },
+      metadata: { source: 'bifrost-admin' },
+      execute: async (input) => {
+        await assertAdministratorAccess(request);
+        await request.dependencies.database.setProviderAgentNote(
+          request.identity.userId,
+          input.providerId,
+          input.note,
+        );
+        return { providerId: input.providerId, note: input.note, status: 'saved' as const };
+      },
+    }),
+    bifrost_admin_clear_mcp_note: tool({
+      title: 'Clear MCP note',
+      description: 'Delete the internal note for one MCP provider when it is no longer useful.',
+      inputSchema: clearProviderNoteSchema,
+      providerOptions: { openai: ADMIN_TOOL_OPTIONS },
+      metadata: { source: 'bifrost-admin' },
+      execute: async (input) => {
+        await assertAdministratorAccess(request);
+        await request.dependencies.database.clearProviderAgentNote(request.identity.userId, input.providerId);
+        return { providerId: input.providerId, status: 'cleared' as const };
+      },
+    }),
   };
 }
 
 async function listMcpProviders(request: AdminAgentToolRequest) {
-  const [connectedProviders, policies] = await Promise.all([
+  const [connectedProviders, policies, notes] = await Promise.all([
     request.dependencies.database.connectedProviders(request.identity.userId),
     request.dependencies.database.toolPolicies(),
+    request.dependencies.database.providerAgentNotes(request.identity.userId),
   ]);
   return {
     providers: PROVIDER_REGISTRY.map((provider) => ({
       providerId: provider.id,
       displayName: provider.displayName,
+      agentNote: notes.get(provider.id)?.note ?? null,
       connected: connectedProviders.has(provider.id),
       mounted: request.dependencies.mounts.some((mount) => mount.providerId === provider.id && mount.isMounted),
       policyCounts: countProviderPolicies(provider.id, policies),
@@ -128,18 +181,20 @@ async function listMcpTools(request: AdminAgentToolRequest & {
   ]);
   const normalizedQuery = request.input.query?.toLowerCase();
   const tools = discovery.tools
-    .filter((entry) => request.input.mutability === undefined || entry.mutability === request.input.mutability)
-    .filter((entry) => request.input.states === undefined || request.input.states.includes(effectivePolicyState(entry, policies)))
-    .filter((entry) => normalizedQuery === undefined || `${entry.name} ${entry.title} ${entry.description}`.toLowerCase().includes(normalizedQuery))
-    .map((entry) => {
-      const storedPolicy = policies.get(entry.name);
+    .map((entry) => ({ entry, review: toolContractReview(entry, policies) }))
+    .filter(({ entry }) => request.input.mutability === undefined || entry.mutability === request.input.mutability)
+    .filter(({ entry }) => request.input.states === undefined || request.input.states.includes(effectivePolicyState(entry, policies)))
+    .filter(({ review }) => request.input.reviewKinds === undefined || request.input.reviewKinds.includes(review.kind))
+    .filter(({ entry }) => normalizedQuery === undefined || `${entry.name} ${entry.title} ${entry.description}`.toLowerCase().includes(normalizedQuery))
+    .map(({ entry, review }) => {
       return {
         toolName: entry.name,
         title: entry.title,
         description: entry.description,
         mutability: entry.mutability,
         state: effectivePolicyState(entry, policies),
-        needsReview: storedPolicy?.fingerprint !== entry.fingerprint,
+        needsReview: review.kind !== 'approved',
+        review,
         fingerprint: entry.fingerprint,
       };
     });
@@ -173,6 +228,7 @@ async function setMcpToolPolicies(request: AdminAgentToolRequest & {
     providerId: request.input.providerId,
     toolName: change.toolName,
     fingerprint: change.fingerprint,
+    contract: contractForToolPolicyReview(discovery.tools, change),
     state: change.state,
     updatedByUserId: request.identity.userId,
   })));
