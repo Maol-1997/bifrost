@@ -277,6 +277,8 @@
   --linear-agent-header-icon: lch(61.803 1.2 272);
   --linear-agent-header-hover: lch(14.006 0.593 272);
   --linear-agent-mini: lch(2.595 0.4 272);
+  --linear-agent-mini-submit-disabled: lch(17.574 1.589 272);
+  --linear-agent-mini-submit-foreground: lch(91.201 1.65 272);
   --linear-agent-background: var(--linear-gallery-main);
   --linear-agent-content-border: lch(22.193 1.93 272);
   --linear-agent-code-background: lch(6.307 0.85 272);
@@ -421,6 +423,57 @@ button:not(:disabled),
     var(--linear-agent-composer-border-conversation),
     var(--linear-agent-composer-border-bottom)
   );
+}
+
+.agent-chat-mini {
+  --linear-agent-composer-border-bottom: var(--linear-agent-composer-border-focus);
+}
+
+.agent-chat-mini .agent-chat-composer[data-size="mini"]::before {
+  border-radius: 8px;
+}
+
+.agent-chat-mini [data-agent-chat-message-list] {
+  max-width: none;
+  padding: 4px 8px 20px;
+}
+
+.agent-chat-mini [data-agent-chat-timestamp] {
+  width: 100%;
+  height: 30.5px;
+  margin-bottom: -14px;
+  padding: 8px 0;
+  line-height: normal;
+  text-align: center;
+}
+
+.agent-chat-mini .agent-chat-message > :first-child {
+  font-size: 13px;
+  line-height: 20.8px;
+  letter-spacing: normal;
+}
+
+.agent-chat-mini .agent-chat-message[data-role="user"] > :first-child {
+  border-radius: 8px;
+}
+
+.agent-chat-mini .agent-markdown {
+  font-size: 13px;
+  line-height: 20.8px;
+  letter-spacing: normal;
+}
+
+.agent-chat-mini .agent-chat-message[data-role="assistant"] {
+  gap: 12px;
+}
+
+.agent-chat-mini .agent-chat-message[data-role="assistant"] > :last-child {
+  margin-left: 8px;
+}
+
+.agent-chat-mini [data-agent-composer-control]:disabled {
+  color: var(--linear-agent-mini-submit-foreground);
+  background: var(--linear-agent-mini-submit-disabled);
 }
 
 .agent-chat-message:nth-last-child(n + 21) {

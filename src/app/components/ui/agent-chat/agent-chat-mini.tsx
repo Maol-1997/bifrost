@@ -120,16 +120,16 @@ const AgentChatMini = React.forwardRef<HTMLElement, AgentChatMiniProps>(
           aria-label={title}
           aria-modal="true"
           className={cn(
-            "z-[90] flex h-[480px] max-h-[calc(100%-24px)] w-[400px] max-w-[calc(100%-24px)] flex-col overflow-hidden rounded-t-xl rounded-b-2xl border-[0.5px] border-linear-search-sidebar-border bg-linear-agent-mini shadow-linear-popover",
+            "agent-chat-mini z-[90] flex h-[619px] max-h-[calc(100%-28px)] w-[400px] max-w-[calc(100%-28px)] flex-col overflow-hidden rounded-t-xl rounded-b-2xl border-[0.5px] border-linear-search-sidebar-border bg-linear-agent-mini shadow-linear-popover",
             position === "fixed"
-              ? "fixed bottom-[34px] right-[110px] max-[700px]:bottom-3 max-[700px]:right-3"
-              : "absolute bottom-4 right-4",
+              ? "fixed bottom-[34px] right-8 max-[700px]:bottom-3.5 max-[700px]:right-3.5"
+              : "absolute bottom-[26px] right-6 max-[700px]:fixed max-[700px]:bottom-3.5 max-[700px]:right-3.5",
             className,
           )}
           role="dialog"
           {...props}
         >
-          <header className="flex h-12 shrink-0 items-center justify-between border-b-[0.5px] border-linear-border bg-linear-input pl-2.5 pr-1.5">
+          <header className="flex h-12 shrink-0 items-center justify-between bg-linear-input pl-2.5 pr-1.5">
             <div className="flex min-w-0 flex-1 items-center gap-2">
               <span className="truncate pl-1.5 text-[13px] font-medium text-linear-bright">
                 {title}
@@ -148,7 +148,7 @@ const AgentChatMini = React.forwardRef<HTMLElement, AgentChatMiniProps>(
               </MiniHeaderButton>
             </div>
           </header>
-          <div className="flex min-h-0 flex-1 flex-col [&_.agent-chat-message[data-role=user]]:pr-4">
+          <div className="flex min-h-0 flex-1 flex-col bg-linear-input">
             {children}
           </div>
         </section>

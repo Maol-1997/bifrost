@@ -2,15 +2,7 @@ import {
   AgentChat,
   AgentChatComposer,
   AgentChatEmptyState,
-  AgentChatSuggestions,
-  type AgentSuggestion,
 } from "@app/components/ui/agent-chat"
-
-const suggestions: AgentSuggestion[] = [
-  { id: "github", icon: "project", title: "Review recent work", description: "Summarize my open pull requests and what needs attention." },
-  { id: "sentry", icon: "research", title: "Investigate errors", description: "Find the most important unresolved Sentry issues." },
-  { id: "linear", icon: "team", title: "Check project status", description: "Summarize what is moving and blocked in Linear." },
-]
 
 type BifrostNewChatContentProps = {
   input: string
@@ -28,20 +20,14 @@ function BifrostNewChatContent({
   submitting,
 }: BifrostNewChatContentProps): React.JSX.Element {
   return (
-    <>
-      <AgentChatComposer
-        autoFocus
-        onChange={onChange}
-        onStop={onStop}
-        onSubmit={onSubmit}
-        submitting={submitting}
-        value={input}
-      />
-      <AgentChatSuggestions
-        onSelect={(suggestion) => onSubmit(`${suggestion.title}. ${suggestion.description}`)}
-        suggestions={suggestions}
-      />
-    </>
+    <AgentChatComposer
+      autoFocus
+      onChange={onChange}
+      onStop={onStop}
+      onSubmit={onSubmit}
+      submitting={submitting}
+      value={input}
+    />
   )
 }
 
@@ -53,7 +39,6 @@ function BifrostNewChatLoadingState(): React.JSX.Element {
         <AgentChat className="h-full min-h-[540px] bg-transparent">
           <AgentChatEmptyState>
             <AgentChatComposer value="" />
-            <AgentChatSuggestions suggestions={suggestions} />
           </AgentChatEmptyState>
         </AgentChat>
       </div>

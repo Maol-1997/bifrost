@@ -44,7 +44,7 @@ function statusBadge(snapshot: HealthSnapshot | undefined): { text: string; clas
 export function AppShell(): React.JSX.Element {
   const location = useLocation();
   const isChat = location.pathname === APP_ROUTES.chat;
-  const [chatActivated, setChatActivated] = useState(isChat);
+  const [agentToolbarHost, setAgentToolbarHost] = useState<HTMLDivElement | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const health = useAppHealth();
   const { data: user } = useQuery({ queryKey: ['current-user'], queryFn: getCurrentUser });
@@ -53,10 +53,6 @@ export function AppShell(): React.JSX.Element {
   useEffect(() => {
     setIsSidebarOpen(false);
   }, [location.pathname]);
-
-  useEffect(() => {
-    if (isChat) setChatActivated(true);
-  }, [isChat]);
 
   useEffect(() => {
     if (!isSidebarOpen) return;
@@ -102,25 +98,32 @@ export function AppShell(): React.JSX.Element {
         ) : null}
       </Sidebar>
       <SidebarSpacer />
-      <main className={cn('flex min-w-0 flex-1 flex-col bg-linear-gallery-main min-[1025px]:mb-2 min-[1025px]:mr-2 min-[1025px]:mt-2 min-[1025px]:rounded-xl min-[1025px]:border-[0.5px] min-[1025px]:border-linear-border min-[1025px]:shadow-linear-control', isChat ? 'overflow-hidden' : 'overflow-y-auto')}>
-        <SidebarMobileHeader>
-          <SidebarTrigger aria-label="Open navigation" aria-controls="bifrost-sidebar" aria-expanded={isSidebarOpen} onClick={() => { setIsSidebarOpen(true); }} />
-          <span className="font-medium text-linear-bright">Bifrost</span>
-        </SidebarMobileHeader>
-        {chatActivated || isChat ? (
+      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+        <main className={cn('flex min-h-0 min-w-0 flex-1 flex-col bg-linear-gallery-main min-[1025px]:mr-2 min-[1025px]:mt-2 min-[1025px]:rounded-xl min-[1025px]:border-[0.5px] min-[1025px]:border-linear-border min-[1025px]:shadow-linear-control', isChat ? 'overflow-hidden' : 'overflow-y-auto')}>
+          <SidebarMobileHeader>
+            <SidebarTrigger aria-label="Open navigation" aria-controls="bifrost-sidebar" aria-expanded={isSidebarOpen} onClick={() => { setIsSidebarOpen(true); }} />
+            <span className="font-medium text-linear-bright">Bifrost</span>
+          </SidebarMobileHeader>
           <Suspense fallback={isChat ? <BifrostNewChatLoadingState /> : null}>
-            <Chat active={isChat} {...(user ? { owner: user.email } : {})} />
+            <Chat
+              active={isChat}
+              toolbarHost={agentToolbarHost}
+              {...(user ? { owner: user.email } : {})}
+            />
           </Suspense>
-        ) : null}
-        {!isChat ? (
-          <div className={cn(
-            'mx-auto w-full px-5 pb-24 pt-8 sm:px-10 sm:pt-11',
-            location.pathname.startsWith(APP_ROUTES.adminTools) ? 'max-w-5xl' : 'max-w-[760px]',
-          )}>
-            <Outlet context={{ health, user } satisfies AppShellContext} />
-          </div>
-        ) : null}
-      </main>
+          {!isChat ? (
+            <div className={cn(
+              'mx-auto w-full px-5 pb-24 pt-8 sm:px-10 sm:pt-11',
+              location.pathname.startsWith(APP_ROUTES.adminTools) ? 'max-w-5xl' : 'max-w-[760px]',
+            )}>
+              <Outlet context={{ health, user } satisfies AppShellContext} />
+            </div>
+          ) : null}
+        </main>
+        <div className="relative h-9 shrink-0 bg-linear-sidebar-background max-[1024px]:hidden">
+          <div ref={setAgentToolbarHost} className="absolute inset-x-0 top-1 h-7" />
+        </div>
+      </div>
     </div>
   );
 }

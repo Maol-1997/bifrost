@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useChat } from "@ai-sdk/react"
 import { useQuery } from "@tanstack/react-query"
+import { format, isToday, isYesterday } from "date-fns"
+import { createPortal } from "react-dom"
 import {
   DefaultChatTransport,
   getToolName,
@@ -20,6 +22,7 @@ import {
   AgentChatDock,
   AgentChatEditingBanner,
   AgentChatEmptyState,
+  AgentChatGlobalToolbar,
   AgentChatMessage,
   AgentChatMessages,
   AgentMarkdown,
@@ -29,6 +32,7 @@ import {
 import { ProviderIcon } from "@app/components/ui/provider-icon"
 import { getChatConfig, isConnectableProvider } from "@app/api/bifrost"
 import type { ProviderId } from "@app/api/bifrost"
+import { cn } from "@app/lib/cn"
 import { APP_ROUTES } from "@features/utils/routes"
 import {
   createEmptyConversation,
@@ -45,6 +49,7 @@ const CHAT_ID_QUERY_PARAMETER = "id"
 type ChatProps = {
   active?: boolean
   owner?: string
+  toolbarHost: HTMLElement | null
 }
 
 type FloatingConversation = {
@@ -78,7 +83,7 @@ type ChatToolSource =
   | { kind: "provider"; providerId: ProviderId }
   | { kind: "unknown" }
 
-export default function Chat({ active = true, owner }: ChatProps): React.JSX.Element | null {
+export default function Chat({ active = true, owner, toolbarHost }: ChatProps): React.JSX.Element | null {
   const { data: config } = useQuery({ queryKey: ["chat-config"], queryFn: getChatConfig })
   if (!config || !owner) return active ? <BifrostNewChatLoadingState /> : null
   if (!config.configured) {
@@ -95,10 +100,18 @@ export default function Chat({ active = true, owner }: ChatProps): React.JSX.Ele
       </AgentChat>
     )
   }
-  return <ChatHistory active={active} owner={owner} />
+  return <ChatHistory active={active} owner={owner} toolbarHost={toolbarHost} />
 }
 
-function ChatHistory({ active, owner }: { active: boolean; owner: string }): React.JSX.Element | null {
+function ChatHistory({
+  active,
+  owner,
+  toolbarHost,
+}: {
+  active: boolean
+  owner: string
+  toolbarHost: HTMLElement | null
+}): React.JSX.Element | null {
   const location = useLocation()
   const navigate = useNavigate()
   const [conversations, setConversations] = useState<StoredConversation[]>()
@@ -129,7 +142,11 @@ function ChatHistory({ active, owner }: { active: boolean; owner: string }): Rea
 
   useEffect(() => {
     const storedConversations = conversationsRef.current
-    if (!active || !storedConversations) return
+    if (!storedConversations) return
+    if (!active) {
+      setActiveConversation((current) => current ?? createEmptyConversation(owner))
+      return
+    }
     if (!requestedConversationId) {
       setActiveConversation((current) => shouldCreateNewConversation(current, storedConversations)
         ? createEmptyConversation(owner)
@@ -217,6 +234,25 @@ function ChatHistory({ active, owner }: { active: boolean; owner: string }): Rea
     setFloatingConversation({ conversation, placement })
   }
 
+  function openNewMiniChat(): void {
+    setFloatingConversation({
+      conversation: createEmptyConversation(owner),
+      placement: "toolbar",
+    })
+  }
+
+  function openConversationInMini(id: string): void {
+    const selected = floatingConversation?.conversation.id === id
+      ? floatingConversation.conversation
+      : conversations?.find((conversation) => conversation.id === id)
+    if (!selected) return
+
+    setFloatingConversation({ conversation: selected, placement: "toolbar" })
+    if (activeConversation?.id !== id) return
+    setActiveConversation(createEmptyConversation(owner))
+    if (active) openNewChatUrl()
+  }
+
   async function removeConversation(conversation: StoredConversation): Promise<void> {
     const remainingConversations = (conversations ?? []).filter((entry) => entry.id !== conversation.id)
     const deletedActiveConversation = activeConversation?.id === conversation.id
@@ -252,50 +288,73 @@ function ChatHistory({ active, owner }: { active: boolean; owner: string }): Rea
     return active ? <BifrostNewChatLoadingState /> : null
   }
 
+  const toolbarHistoryItems = historyItems(conversations, floatingConversation?.conversation.id)
+
   return (
-    <div className={`relative min-h-0 ${active ? "h-full" : "h-0"}`}>
-      <ChatConversation
-        dock={{
-          active,
-          onOpenFullPage: (conversation) => openConversationUrl(conversation.id),
-          onPlacementChange: changePagePlacement,
-          placement: "page",
-        }}
-        key={`page:${activeConversation.id}`}
-        navigation={{
-          onConversationStarted: openConversationUrl,
-          onHistorySelect: selectConversation,
-          onNewChat: startConversation,
-        }}
-        record={{
-          conversation: activeConversation,
-          history: conversations,
-          onChange: updateConversation,
-          onDelete: removeConversation,
-        }}
-      />
-      {floatingConversation && floatingConversation.conversation.id !== activeConversation.id ? (
+    <>
+      <div className={`relative min-h-0 ${active ? "h-full" : "h-0"}`}>
         <ChatConversation
           dock={{
             active,
             onOpenFullPage: (conversation) => openConversationUrl(conversation.id),
-            onPlacementChange: changeFloatingPlacement,
-            placement: floatingConversation.placement,
+            onPlacementChange: changePagePlacement,
+            placement: "page",
           }}
-          key={`floating:${floatingConversation.conversation.id}`}
+          key={activeConversation.id}
           navigation={{
+            onConversationStarted: openConversationUrl,
             onHistorySelect: selectConversation,
             onNewChat: startConversation,
           }}
           record={{
-            conversation: floatingConversation.conversation,
+            conversation: activeConversation,
             history: conversations,
             onChange: updateConversation,
             onDelete: removeConversation,
           }}
         />
+        {floatingConversation && floatingConversation.conversation.id !== activeConversation.id ? (
+          <ChatConversation
+            dock={{
+              active,
+              onOpenFullPage: (conversation) => openConversationUrl(conversation.id),
+              onPlacementChange: changeFloatingPlacement,
+              placement: floatingConversation.placement,
+            }}
+            key={floatingConversation.conversation.id}
+            navigation={{
+              onHistorySelect: selectConversation,
+              onNewChat: startConversation,
+            }}
+            record={{
+              conversation: floatingConversation.conversation,
+              history: conversations,
+              onChange: updateConversation,
+              onDelete: removeConversation,
+            }}
+          />
+        ) : null}
+      </div>
+      {toolbarHost ? createPortal(
+        <AgentChatGlobalToolbar
+          history={{
+            items: toolbarHistoryItems,
+            onNewChat: openNewMiniChat,
+            onSelect: (item) => openConversationInMini(item.id),
+          }}
+          {...(floatingConversation?.placement === "minimized" ? {
+            tab: {
+              onOpen: () => setFloatingConversation({
+                ...floatingConversation,
+                placement: "toolbar",
+              }),
+              title: floatingConversation.conversation.title,
+            },
+          } : {})}
+        />,
+        toolbarHost,
       ) : null}
-    </div>
+    </>
   )
 }
 
@@ -317,6 +376,7 @@ function ChatConversation({
     transport,
   })
   const isWorking = status === "submitted" || status === "streaming"
+  const isMiniChat = dock.placement !== "page"
   const conversationRecord = useConversationRecord({
     conversation,
     isWorking,
@@ -332,14 +392,7 @@ function ChatConversation({
     setMessages,
     stop,
   })
-  const historyItems = history.map((entry): AgentHistoryItem => ({
-    age: relativeAge(entry.updatedAt),
-    current: entry.id === conversation.id,
-    favorite: entry.favorite,
-    group: "Recent",
-    id: entry.id,
-    title: entry.title,
-  }))
+  const conversationHistoryItems = historyItems(history, conversation.id)
 
   function submit(value: string): void {
     if (messageEditing.submitEditedMessage(value)) {
@@ -389,7 +442,7 @@ function ChatConversation({
         },
       } : {})}
       history={{
-        items: historyItems,
+        items: conversationHistoryItems,
         onNewChat: () => cancelResponseAndChangeConversation(navigation.onNewChat),
         onSelect: (item) => cancelResponseAndChangeConversation(() => navigation.onHistorySelect(item.id)),
       }}
@@ -414,13 +467,17 @@ function ChatConversation({
         </AgentChatEmptyState>
       ) : (
         <>
-          <AgentChatMessages>
+          <AgentChatMessages
+            preserveInitialTimestamp={isMiniChat}
+            {...(isMiniChat ? { timestamp: conversationTimestamp(conversation.createdAt) } : {})}
+          >
             {messageEditing.visibleMessages.map((message, index) => (
               <ChatMessage
                 key={message.id}
                 message={message}
                 onCopy={() => copyMessage(message)}
                 onEdit={() => beginEditingMessage(message)}
+                showAssistantActions={isMiniChat}
                 streaming={isWorking && index === messageEditing.visibleMessages.length - 1 && message.role === "assistant"}
               />
             ))}
@@ -430,13 +487,17 @@ function ChatConversation({
               </AgentChatMessage>
             ) : null}
           </AgentChatMessages>
-          <div className="shrink-0 pb-4 pt-2">
+          <div
+            className={cn("shrink-0", isMiniChat ? "px-2 pb-1" : "pb-4 pt-2")}
+            data-agent-chat-composer-area=""
+          >
             {messageEditing.editingMessageId ? <AgentChatEditingBanner onCancel={cancelEditingMessage} /> : null}
             <AgentChatComposer
               autoFocus
               onChange={setInput}
               onStop={() => { void stop() }}
               onSubmit={submit}
+              size={isMiniChat ? "mini" : "default"}
               submitting={isWorking}
               value={input}
               variant="conversation"
@@ -454,11 +515,13 @@ function ChatMessage({
   message,
   onCopy,
   onEdit,
+  showAssistantActions,
   streaming,
 }: {
   message: UIMessage
   onCopy: () => void
   onEdit: () => void
+  showAssistantActions: boolean
   streaming: boolean
 }): React.JSX.Element {
   const text = messageText(message)
@@ -466,14 +529,26 @@ function ChatMessage({
 
   return (
     <AgentChatMessage
-      actions={message.role === "user"}
-      {...(message.role === "user" ? { onCopyMessage: onCopy, onEditMessage: onEdit } : {})}
+      actions={message.role === "user" || showAssistantActions}
+      onCopyMessage={onCopy}
+      {...(message.role === "user" ? { onEditMessage: onEdit } : {})}
       role={message.role === "user" ? "user" : "assistant"}
     >
       {toolParts.map((part) => <ToolActivity key={part.toolCallId} part={part} />)}
       {message.role === "assistant" ? <AgentMarkdown markdown={text} streaming={streaming} /> : text}
     </AgentChatMessage>
   )
+}
+
+function conversationTimestamp(timestamp: number): string {
+  const date = new Date(timestamp)
+  return `${conversationDay(date)} ${format(date, "p")}`
+}
+
+function conversationDay(date: Date): string {
+  if (isToday(date)) return "Today"
+  if (isYesterday(date)) return "Yesterday"
+  return format(date, "MMM d")
 }
 
 function conversationMarkdown(title: string, messages: readonly UIMessage[]): string {
@@ -550,6 +625,20 @@ function relativeAge(timestamp: number): string {
   const hours = Math.floor(minutes / 60)
   if (hours < 24) return `${hours}h`
   return `${Math.floor(hours / 24)}d`
+}
+
+function historyItems(
+  conversations: readonly StoredConversation[],
+  currentConversationId?: string,
+): AgentHistoryItem[] {
+  return conversations.map((conversation) => ({
+    age: relativeAge(conversation.updatedAt),
+    current: conversation.id === currentConversationId,
+    favorite: conversation.favorite,
+    group: "Recent",
+    id: conversation.id,
+    title: conversation.title,
+  }))
 }
 
 function shouldCreateNewConversation(

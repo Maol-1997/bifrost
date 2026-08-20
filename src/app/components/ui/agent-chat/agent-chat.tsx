@@ -1,5 +1,5 @@
 import * as React from "react"
-import { Copy, Plus, Star, Trash2, X } from "lucide-react"
+import { Copy, Plus, Star, Trash2 } from "lucide-react"
 
 import {
   DropdownMenu,
@@ -18,11 +18,10 @@ import {
 import { cn } from "@app/lib/cn"
 import { AgentChatToolbarButton } from "./agent-chat-actions"
 import {
+  AgentToolbarIcon,
+  ChatHistoryIcon,
   ChevronDownIcon,
   MoreIcon,
-  ProjectIcon,
-  SearchIcon,
-  UsersIcon,
 } from "./agent-chat-icons"
 import { AgentChatLogo } from "./agent-chat-logo"
 
@@ -55,6 +54,16 @@ type AgentChatProps = {
   conversation?: AgentChatConversation
   history?: AgentChatHistory
   title?: string
+}
+
+type AgentChatToolbarTab = {
+  onOpen: () => void
+  title: string
+}
+
+type AgentChatGlobalToolbarProps = {
+  history: AgentChatHistory
+  tab?: AgentChatToolbarTab
 }
 
 type HeaderIconButtonProps = React.ComponentPropsWithoutRef<"button"> & {
@@ -224,6 +233,45 @@ function AgentChatHeader({
   )
 }
 
+function AgentChatGlobalToolbar({ history, tab }: AgentChatGlobalToolbarProps) {
+  return (
+    <div
+      aria-label="Agent toolbar"
+      className="flex h-7 items-center justify-end gap-0.5 pr-2.5"
+      role="toolbar"
+    >
+      {tab ? (
+        <button
+          aria-label={`Open ${tab.title}`}
+          className="relative flex h-7 max-w-[260px] items-center rounded-[8px] border-[0.5px] border-transparent px-2 text-xs font-[450] leading-[normal] text-linear-muted transition-[background-color,color] duration-150 hover:bg-linear-ghost-hover hover:text-linear-foreground focus-visible:bg-linear-ghost-hover focus-visible:text-linear-foreground focus-visible:outline-none"
+          onClick={tab.onOpen}
+          type="button"
+        >
+          <span className="truncate">{tab.title}</span>
+        </button>
+      ) : null}
+      <button
+        aria-label="Agent"
+        className="relative flex h-7 items-center rounded-[8px] border-[0.5px] border-transparent pl-2.5 pr-3 text-xs font-medium leading-[normal] text-linear-muted transition-[background-color,color] duration-150 hover:bg-linear-ghost-hover hover:text-linear-bright focus-visible:bg-linear-ghost-hover focus-visible:text-linear-bright focus-visible:outline-none"
+        onClick={history.onNewChat}
+        type="button"
+      >
+        <AgentToolbarIcon />
+        <span className="ml-1.5">Agent</span>
+      </button>
+      <HistoryMenu align="end" history={history}>
+        <button
+          aria-label="Chat history"
+          className="relative flex size-7 items-center justify-center rounded-[8px] border-[0.5px] border-transparent text-linear-muted transition-[background-color,color] duration-150 hover:bg-linear-ghost-hover hover:text-linear-bright focus-visible:bg-linear-ghost-hover focus-visible:text-linear-bright focus-visible:outline-none data-[state=open]:bg-linear-ghost-hover data-[state=open]:text-linear-bright"
+          type="button"
+        >
+          <ChatHistoryIcon />
+        </button>
+      </HistoryMenu>
+    </div>
+  )
+}
+
 function AgentChat({
   children,
   className,
@@ -276,74 +324,6 @@ function isEditableTarget(target: EventTarget | null): boolean {
     && (target.isContentEditable || target.tagName === "INPUT" || target.tagName === "TEXTAREA")
 }
 
-type AgentSuggestion = {
-  description: string
-  icon: "project" | "research" | "team"
-  id: string
-  title: string
-}
-
-type AgentChatSuggestionsProps = {
-  onDismiss?: () => void
-  onSelect?: (suggestion: AgentSuggestion) => void
-  suggestions: AgentSuggestion[]
-}
-
-const suggestionIcons = {
-  project: ProjectIcon,
-  research: SearchIcon,
-  team: UsersIcon,
-} as const
-
-function AgentChatSuggestions({
-  onDismiss,
-  onSelect,
-  suggestions,
-}: AgentChatSuggestionsProps) {
-  return (
-    <div className="mx-auto flex w-[calc(100%-48px)] max-w-[712px] flex-col gap-3 pt-3 min-[1025px]:w-[calc(100%-32px)]">
-      <div className="flex h-7 items-center justify-between px-4">
-        <span className="text-xs font-[450] text-linear-select-chevron">
-          Get started with some examples
-        </span>
-        {onDismiss ? (
-          <button
-            aria-label="Dismiss"
-            className="relative flex size-6 items-center justify-center rounded-full text-linear-control-foreground transition-colors duration-150 hover:bg-linear-ghost-hover hover:text-linear-bright focus-visible:bg-linear-ghost-hover focus-visible:outline-none"
-            onClick={onDismiss}
-            type="button"
-          >
-            <X className="size-3.5" aria-hidden="true" />
-          </button>
-        ) : null}
-      </div>
-      <div className="grid grid-cols-3 gap-2">
-        {suggestions.map((suggestion) => {
-          const Icon = suggestionIcons[suggestion.icon]
-          return (
-            <button
-              key={suggestion.id}
-              className="group relative flex min-h-[134px] flex-col gap-1.5 rounded-lg border-[0.5px] border-linear-border bg-transparent px-4 pb-3 pt-4 text-left text-linear-bright transition-colors duration-150 hover:bg-linear-card-hover focus-visible:bg-linear-card-hover focus-visible:outline-none"
-              onClick={() => onSelect?.(suggestion)}
-              type="button"
-            >
-              <span className="mb-auto flex size-4 items-center justify-center text-linear-bright [filter:drop-shadow(0_0_4px_lch(100_0_272/.3))]">
-                <Icon />
-              </span>
-              <span className="text-[13px] font-medium leading-[15.5px]">
-                {suggestion.title}
-              </span>
-              <span className="text-[13px] font-[450] leading-[19.5px] text-linear-muted">
-                {suggestion.description}
-              </span>
-            </button>
-          )
-        })}
-      </div>
-    </div>
-  )
-}
-
 type AgentChatEmptyStateProps = {
   children: React.ReactNode
   className?: string
@@ -370,11 +350,12 @@ function AgentChatEmptyState({ children, className }: AgentChatEmptyStateProps) 
 export {
   AgentChat,
   AgentChatEmptyState,
+  AgentChatGlobalToolbar,
   AgentChatHeader,
-  AgentChatSuggestions,
   type AgentChatConversation,
   type AgentChatHistory,
   type AgentChatProps,
+  type AgentChatGlobalToolbarProps,
+  type AgentChatToolbarTab,
   type AgentHistoryItem,
-  type AgentSuggestion,
 }

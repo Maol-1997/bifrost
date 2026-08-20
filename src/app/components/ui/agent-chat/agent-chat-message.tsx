@@ -1,9 +1,4 @@
-import {
-  ThumbsDown,
-  ThumbsUp,
-  X,
-  Zap,
-} from "lucide-react"
+import { X, Zap } from "lucide-react"
 import { memo, type ReactNode, useLayoutEffect, useRef } from "react"
 
 import { cn } from "@app/lib/cn"
@@ -25,16 +20,10 @@ type AgentChatMessageProps = {
   role: AgentChatMessageRole
 }
 
-function AssistantMessageActions() {
+function AssistantMessageActions({ onCopyMessage }: { onCopyMessage: () => void }) {
   return (
     <div className="flex h-6 gap-0.5">
-      <AgentChatMessageActionButton label="This was helpful">
-        <ThumbsUp className="size-3.5" />
-      </AgentChatMessageActionButton>
-      <AgentChatMessageActionButton label="Leave feedback…">
-        <ThumbsDown className="size-3.5" />
-      </AgentChatMessageActionButton>
-      <AgentChatMessageActionButton label="Copy message">
+      <AgentChatMessageActionButton label="Copy message" onClick={onCopyMessage}>
         <CopyMessageIcon />
       </AgentChatMessageActionButton>
     </div>
@@ -93,7 +82,9 @@ const AgentChatMessage = memo(function AgentChatMessage({
         />
       )}
       {actions && isUser && queued && <QueuedMessageActions />}
-      {actions && !isUser && <AssistantMessageActions />}
+      {actions && !isUser && onCopyMessage
+        ? <AssistantMessageActions onCopyMessage={onCopyMessage} />
+        : null}
     </article>
   )
 })
@@ -102,6 +93,7 @@ type AgentChatMessagesProps = {
   children: ReactNode
   className?: string
   follow?: boolean
+  preserveInitialTimestamp?: boolean
   timestamp?: string
 }
 
@@ -112,6 +104,7 @@ function AgentChatMessages({
   children,
   className,
   follow = true,
+  preserveInitialTimestamp = false,
   timestamp,
 }: AgentChatMessagesProps) {
   const contentRef = useRef<HTMLDivElement>(null)
@@ -129,7 +122,11 @@ function AgentChatMessages({
     const contentElement = scrollContent
     const spacerElement = scrollSpacer
     const viewportElement = scrollViewport
-    let pinnedPrompt: Element | undefined
+    const initialPrompts = contentElement.querySelectorAll('[data-role="user"]')
+    let pinnedPrompt = preserveInitialTimestamp
+      ? initialPrompts[initialPrompts.length - 1]
+      : undefined
+    let shouldPreserveInitialPosition = preserveInitialTimestamp
 
     function updateFollowAnchor() {
       const distanceFromBottom =
@@ -152,6 +149,7 @@ function AgentChatMessages({
       }
       if (latestPrompt !== pinnedPrompt) {
         pinnedPrompt = latestPrompt
+        shouldPreserveInitialPosition = false
         shouldFollow.current = true
       }
       const promptTop =
@@ -162,8 +160,14 @@ function AgentChatMessages({
     }
 
     function followLatestPrompt() {
+      const contentFits = contentElement.offsetHeight <= viewportElement.clientHeight
       reserveRoomBelowLatestPrompt()
       if (follow && shouldFollow.current) {
+        if (shouldPreserveInitialPosition && contentFits) {
+          viewportElement.scrollTop = 0
+          return
+        }
+        shouldPreserveInitialPosition = false
         viewportElement.scrollTop = Number.MAX_SAFE_INTEGER
       }
     }
@@ -182,7 +186,7 @@ function AgentChatMessages({
       viewportElement.removeEventListener("scroll", updateFollowAnchor)
       resizeObserver?.disconnect()
     }
-  }, [follow])
+  }, [follow, preserveInitialTimestamp])
 
   return (
     <div
@@ -197,9 +201,13 @@ function AgentChatMessages({
           "mx-auto flex w-full max-w-[821px] flex-col gap-[26px] px-3 pb-5 pt-3 min-[1025px]:px-0",
           className,
         )}
+        data-agent-chat-message-list=""
       >
         {timestamp && (
-          <time className="mb-[-4px] block self-center text-xs font-medium text-linear-agent-action">
+          <time
+            className="mb-[-4px] block self-center text-xs font-medium text-linear-agent-action"
+            data-agent-chat-timestamp=""
+          >
             {timestamp}
           </time>
         )}

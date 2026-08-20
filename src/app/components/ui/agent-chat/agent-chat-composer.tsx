@@ -5,6 +5,7 @@ import { cn } from "@app/lib/cn"
 import { StopIcon, SubmitIcon } from "./agent-chat-icons"
 
 type AgentChatComposerVariant = "conversation" | "empty"
+type AgentChatComposerSize = "default" | "mini"
 
 type AgentChatComposerProps = Omit<
   React.ComponentPropsWithoutRef<"textarea">,
@@ -14,11 +15,13 @@ type AgentChatComposerProps = Omit<
   onStop?: () => void
   onSubmit?: (value: string) => void
   submitting?: boolean
+  size?: AgentChatComposerSize
   value?: string
   variant?: AgentChatComposerVariant
 }
 
 const editorMinimumHeight = 24
+const miniEditorMinimumHeight = 21
 
 function syncTextareaHeight(textarea: HTMLTextAreaElement, minimumHeight: number) {
   textarea.style.height = "auto"
@@ -62,6 +65,7 @@ function AgentChatComposer({
   onStop,
   onSubmit,
   placeholder,
+  size = "default",
   submitting = false,
   value = "",
   variant = "empty",
@@ -73,9 +77,12 @@ function AgentChatComposer({
 
   React.useLayoutEffect(() => {
     if (textareaRef.current) {
-      syncTextareaHeight(textareaRef.current, editorMinimumHeight)
+      syncTextareaHeight(
+        textareaRef.current,
+        size === "mini" ? miniEditorMinimumHeight : editorMinimumHeight,
+      )
     }
-  }, [value])
+  }, [size, value])
 
   function submitMessage() {
     if (submitting) return
@@ -110,7 +117,9 @@ function AgentChatComposer({
     <div
       className={cn(
         "agent-chat-composer-shell relative z-10 mx-auto w-[min(712px,calc(100%-48px))] min-[1025px]:w-[min(712px,calc(100%-32px))]",
-        variant === "conversation" &&
+        size === "mini"
+          ? "-translate-x-1 w-[calc(100%+8px)] max-w-none p-1 min-[1025px]:w-[calc(100%+8px)]"
+          : variant === "conversation" &&
           "w-[calc(100%-16px)] max-w-[829px] p-1 min-[1025px]:w-[calc(100%-24px)]",
         className,
       )}
@@ -120,22 +129,31 @@ function AgentChatComposer({
       <div
         className={cn(
           "agent-chat-composer relative flex w-full flex-col gap-2 rounded-[10px] p-3 shadow-linear-control",
-          variant === "conversation" &&
+          size === "mini"
+            ? "rounded-[7px] bg-linear-agent-message px-1 py-1.5"
+            : variant === "conversation" &&
             "bg-linear-agent-composer-conversation",
-          variant === "empty" && "bg-linear-agent-composer-empty",
+          size !== "mini" && variant === "empty" && "bg-linear-agent-composer-empty",
         )}
+        data-size={size}
         data-variant={variant}
       >
         <div
           className={cn(
             "min-h-0 flex-1 overflow-y-auto px-1.5 py-0.5",
-            variant === "empty" ? "min-h-12" : "min-h-[72px]",
+            size !== "mini" && (variant === "empty" ? "min-h-12" : "min-h-[72px]"),
           )}
+          data-agent-composer-editor=""
         >
           <textarea
             ref={textareaRef}
             aria-label="Send a message to Bifrost"
-            className="block w-full resize-none overflow-y-auto bg-transparent p-0 text-[15px] font-[450] leading-6 tracking-[-0.1px] text-linear-foreground outline-none placeholder:text-linear-agent-placeholder"
+            className={cn(
+              "block w-full resize-none overflow-y-auto bg-transparent p-0 font-[450] text-linear-foreground outline-none placeholder:text-linear-agent-placeholder",
+              size === "mini"
+                ? "text-[13px] leading-[20.8px]"
+                : "text-[15px] leading-6 tracking-[-0.1px]",
+            )}
             onChange={(event) => onChange?.(event.currentTarget.value)}
             onKeyDown={handleKeyDown}
             placeholder={placeholder ?? (variant === "empty" ? "Ask Bifrost…" : "Reply…")}
@@ -145,7 +163,13 @@ function AgentChatComposer({
           />
         </div>
 
-        <div className="flex h-6 items-center justify-end" data-agent-composer-toolbar="">
+        <div
+          className={cn(
+            "flex h-6 items-center justify-end",
+            size === "mini" && "h-7 items-end pb-1 pl-0.5 pr-1.5",
+          )}
+          data-agent-composer-toolbar=""
+        >
           <ComposerIconButton
             aria-disabled={actionDisabled}
             className={cn(

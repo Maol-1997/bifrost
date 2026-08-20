@@ -1,6 +1,5 @@
 import * as React from "react"
 
-import { cn } from "@app/lib/cn"
 import {
   AgentChat,
   type AgentChatConversation,
@@ -91,8 +90,9 @@ function AgentChatDock({
     )
   }
 
-  const floating = !pageVisible
-  const floatingContent = currentPlacement === "toolbar" ? (
+  if (currentPlacement === "minimized") return null
+
+  return (
     <AgentChatMini
       {...(conversation ? {
         actions: {
@@ -105,26 +105,12 @@ function AgentChatDock({
         onMinimize: () => changePlacement("minimized"),
         onOpenFullPage: openFullPage,
       }}
-      position={floating ? "fixed" : "contained"}
+      position={pageVisible ? "contained" : "fixed"}
       title={title}
     >
       {children}
     </AgentChatMini>
-  ) : (
-    <button
-      aria-label={`Open ${title}`}
-      className={cn(
-        "flex h-7 max-w-[260px] items-center rounded-lg border-[0.5px] border-transparent px-3 text-xs font-medium text-linear-muted transition-[background-color,color] duration-150 hover:bg-linear-ghost-hover hover:text-linear-foreground focus-visible:bg-linear-ghost-hover focus-visible:text-linear-foreground focus-visible:outline-none",
-        floating ? "fixed bottom-3 right-3 z-[90]" : "absolute bottom-1.5 right-12",
-      )}
-      onClick={() => changePlacement("toolbar")}
-      type="button"
-    >
-      <span className="truncate">{title}</span>
-    </button>
   )
-
-  return floatingContent
 }
 
 export {
