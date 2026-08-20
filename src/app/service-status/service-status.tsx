@@ -35,7 +35,7 @@ export default function ServiceStatus(): React.JSX.Element {
 
   return (
     <section>
-      <PageHead title="Service status" subtitle={<>Whether each integration is working <em>for everyone</em>. If it's fine here but failing for you, check <Link to={APP_ROUTES.integrations}>Integrations</Link> and <Link to={APP_ROUTES.agents}>Agents & sessions</Link>.</>} />
+      <PageHead title="Service status" subtitle={<>Whether each integration is working <em>for everyone</em>. If it's fine here but failing for you, check <Link to={APP_ROUTES.integrations}>Integrations</Link> and <Link to={APP_ROUTES.agents}>Sessions</Link>.</>} />
       {outages.map((app) => {
         const name = providerMap.get(app.appId)?.name ?? app.appId;
         return (

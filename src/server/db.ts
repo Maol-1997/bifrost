@@ -176,7 +176,7 @@ export class Database {
    * Resolves a session cookie to its live session.
    *
    * Side effect: stamps `last_used_at` and records the caller's user agent, so
-   * that "Agents & sessions" reflects what is actually talking to Bifrost. Expired
+   * that "Sessions" reflects what is actually talking to Bifrost. Expired
    * sessions match nothing and are therefore never revived by this call.
    */
   async resolveSessionAndTouch(token: string, userAgent?: string): Promise<{ sessionId: string; userId: string; clientId: string; expiresAt: Date } | undefined> {
@@ -287,7 +287,7 @@ export class Database {
    *
    * Re-approving an existing client updates that grant rather than adding
    * another, so reconnecting a client does not accumulate rows the user then has
-   * to tell apart in "Agents & sessions".
+   * to tell apart in "Sessions".
    *
    * No user agent is recorded here on purpose: at this point the caller is the
    * browser the human approved in, not the program being authorized. The agent's
@@ -358,7 +358,7 @@ export class Database {
   /**
    * Resolves a bearer access token to the grant behind it.
    *
-   * Stamps `last_used_at` in the same statement, so "Agents & sessions" stays honest
+   * Stamps `last_used_at` in the same statement, so "Sessions" stays honest
    * without a second round trip on every MCP call. Expired tokens match nothing.
    */
   async resolveOAuthAccessTokenAndTouch(token: string, userAgent?: string): Promise<OAuthIdentity | undefined> {

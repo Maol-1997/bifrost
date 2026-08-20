@@ -30,7 +30,7 @@ export default function Agents(): React.JSX.Element {
   return (
     <section>
       <div className="flex flex-wrap items-start justify-between gap-4">
-        <div className="min-w-[220px] flex-1"><PageHead title="Agents & sessions" subtitle="The agent apps and browser sessions using your Bifrost account right now. Come here to add an agent, troubleshoot access or revoke anything you don't recognize." /></div>
+        <div className="min-w-[220px] flex-1"><PageHead title="Sessions" subtitle="The agent apps and browser sessions using your Bifrost account right now. Come here to add an agent, troubleshoot access or revoke anything you don't recognize." /></div>
         <Button asChild className="shrink-0"><Link to={APP_ROUTES.addAgent}>Add an agent</Link></Button>
       </div>
       {isLoading ? <LoadingState label="Loading agents and sessions…" /> : null}

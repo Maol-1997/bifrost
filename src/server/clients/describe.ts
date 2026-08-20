@@ -1,7 +1,7 @@
 /**
  * Turns the only two things we honestly know about a client — the client id it
  * signed in with and the user agent it sends — into something a human
- * recognizes on the "Agents & sessions" screen.
+ * recognizes on the "Sessions" screen.
  *
  * MCP 2026-07-28 is stateless, so there is no `initialize` handshake carrying
  * `clientInfo`; the user agent really is all we get. When it matches nothing we

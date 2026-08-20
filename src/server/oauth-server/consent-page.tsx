@@ -36,7 +36,7 @@ export function renderConsentPage(view: ConsentView): string {
       <ul>
         <li>It reaches only the apps you have already connected.</li>
         <li>It acts as you, and every call is logged against your account.</li>
-        <li>You can disconnect it any time from Agents &amp; sessions.</li>
+        <li>You can disconnect it any time from Sessions.</li>
       </ul>
       <form method="post" action={CONSENT_PATH}>
         <input type="hidden" name="consent_token" value={view.consentToken} />
