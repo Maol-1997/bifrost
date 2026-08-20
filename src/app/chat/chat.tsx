@@ -433,6 +433,7 @@ function ChatConversation({
           <div className="shrink-0 pb-4 pt-2">
             {messageEditing.editingMessageId ? <AgentChatEditingBanner onCancel={cancelEditingMessage} /> : null}
             <AgentChatComposer
+              autoFocus
               onChange={setInput}
               onStop={() => { void stop() }}
               onSubmit={submit}

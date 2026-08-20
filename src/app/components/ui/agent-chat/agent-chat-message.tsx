@@ -106,6 +106,7 @@ type AgentChatMessagesProps = {
 }
 
 const followThreshold = 48
+const pinnedPromptGap = 16
 
 function AgentChatMessages({
   children,
@@ -115,15 +116,20 @@ function AgentChatMessages({
 }: AgentChatMessagesProps) {
   const contentRef = useRef<HTMLDivElement>(null)
   const shouldFollow = useRef(true)
+  const spacerRef = useRef<HTMLDivElement>(null)
   const viewportRef = useRef<HTMLDivElement>(null)
 
   useLayoutEffect(() => {
-    const contentElement = contentRef.current
+    const scrollContent = contentRef.current
+    const scrollSpacer = spacerRef.current
     const scrollViewport = viewportRef.current
-    if (!contentElement || !scrollViewport) {
+    if (!scrollContent || !scrollSpacer || !scrollViewport) {
       return
     }
+    const contentElement = scrollContent
+    const spacerElement = scrollSpacer
     const viewportElement = scrollViewport
+    let pinnedPrompt: Element | undefined
 
     function updateFollowAnchor() {
       const distanceFromBottom =
@@ -133,32 +139,46 @@ function AgentChatMessages({
       shouldFollow.current = distanceFromBottom <= followThreshold
     }
 
-    let followFrame: number | undefined
+    // Reserving the room the newest turn still lacks to fill the viewport is what keeps a
+    // sent prompt at the top: the bottom of the scroll range lands on it, and the reply
+    // consumes the reserved room instead of pushing the prompt back up. Once the turn is
+    // taller than the viewport nothing is reserved and following the bottom resumes.
+    function reserveRoomBelowLatestPrompt() {
+      const prompts = contentElement.querySelectorAll('[data-role="user"]')
+      const latestPrompt = prompts[prompts.length - 1]
+      if (!latestPrompt) {
+        spacerElement.style.height = "0px"
+        return
+      }
+      if (latestPrompt !== pinnedPrompt) {
+        pinnedPrompt = latestPrompt
+        shouldFollow.current = true
+      }
+      const promptTop =
+        latestPrompt.getBoundingClientRect().top - contentElement.getBoundingClientRect().top
+      const turnHeight = contentElement.offsetHeight - promptTop
+      const reservedRoom = viewportElement.clientHeight - turnHeight - pinnedPromptGap
+      spacerElement.style.height = `${Math.max(0, reservedRoom)}px`
+    }
 
-    function followLatestMessage() {
-      if (follow && shouldFollow.current && followFrame === undefined) {
-        followFrame = requestAnimationFrame(() => {
-          followFrame = undefined
-          viewportElement.scrollTop = Number.MAX_SAFE_INTEGER
-        })
+    function followLatestPrompt() {
+      reserveRoomBelowLatestPrompt()
+      if (follow && shouldFollow.current) {
+        viewportElement.scrollTop = Number.MAX_SAFE_INTEGER
       }
     }
 
-    if (follow && shouldFollow.current) {
-      viewportElement.scrollTop = Number.MAX_SAFE_INTEGER
-    }
+    followLatestPrompt()
     viewportElement.addEventListener("scroll", updateFollowAnchor, { passive: true })
 
     const resizeObserver =
       typeof ResizeObserver === "undefined"
         ? undefined
-        : new ResizeObserver(followLatestMessage)
+        : new ResizeObserver(followLatestPrompt)
     resizeObserver?.observe(contentElement)
+    resizeObserver?.observe(viewportElement)
 
     return () => {
-      if (followFrame !== undefined) {
-        cancelAnimationFrame(followFrame)
-      }
       viewportElement.removeEventListener("scroll", updateFollowAnchor)
       resizeObserver?.disconnect()
     }
@@ -185,6 +205,7 @@ function AgentChatMessages({
         )}
         {children}
       </div>
+      <div ref={spacerRef} aria-hidden="true" />
     </div>
   )
 }

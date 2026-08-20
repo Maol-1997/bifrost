@@ -102,7 +102,7 @@ export function AppShell(): React.JSX.Element {
         ) : null}
       </Sidebar>
       <SidebarSpacer />
-      <main className={cn('flex min-w-0 flex-1 flex-col bg-linear-gallery-main min-[1025px]:mb-2 min-[1025px]:mr-2 min-[1025px]:mt-2 min-[1025px]:rounded-xl min-[1025px]:border-[0.5px] min-[1025px]:border-linear-border', isChat ? 'overflow-hidden' : 'overflow-y-auto')}>
+      <main className={cn('flex min-w-0 flex-1 flex-col bg-linear-gallery-main min-[1025px]:mb-2 min-[1025px]:mr-2 min-[1025px]:mt-2 min-[1025px]:rounded-xl min-[1025px]:border-[0.5px] min-[1025px]:border-linear-border min-[1025px]:shadow-linear-control', isChat ? 'overflow-hidden' : 'overflow-y-auto')}>
         <SidebarMobileHeader>
           <SidebarTrigger aria-label="Open navigation" aria-controls="bifrost-sidebar" aria-expanded={isSidebarOpen} onClick={() => { setIsSidebarOpen(true); }} />
           <span className="font-medium text-linear-bright">Bifrost</span>

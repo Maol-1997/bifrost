@@ -30,6 +30,7 @@ function BifrostNewChatContent({
   return (
     <>
       <AgentChatComposer
+        autoFocus
         onChange={onChange}
         onStop={onStop}
         onSubmit={onSubmit}

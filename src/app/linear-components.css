@@ -310,7 +310,7 @@
   --linear-agent-composer-border-top: lch(22.193 1.93 272);
   --linear-agent-composer-border-focus: lch(16.793 1.93 272);
   --linear-agent-composer-border-conversation: lch(20.505 2.38 272);
-  --linear-agent-composer-border-bottom: lch(16.793 1.93 272);
+  --linear-agent-composer-border-bottom: var(--linear-border);
   --linear-agent-composer-border-touch: lch(17.265 2.38 272);
   --linear-agent-composer-shell-top: lch(6.307 0.85 272);
   --linear-agent-composer-shell-bottom: lch(9.232 0.85 272);
@@ -318,6 +318,7 @@
   --linear-border-width-default: 1px;
   --linear-border-width-emphasis: 2px;
   --linear-mask-opaque: #000;
+  --linear-mask-composite-exclude: exclude;
   --linear-shadow-control: 0 0.5px 1px 1px lch(0 0 0 / 30%);
   --linear-shadow-outline: 0 0 0 0.5px lch(100 0 0 / 14.3%), 0 0.5px 1px 1px lch(0 0 0 / 30%);
   --linear-shadow-outline-hover: 0 0 0 0.5px lch(100 0 0 / 23.8%), 0 0.5px 1px 1px lch(0 0 0 / 30%);
@@ -361,7 +362,7 @@ button:not(:disabled),
   cursor: default;
 }
 
-.agent-chat-surface[data-conversation="false"] {
+.agent-chat-surface:not([data-conversation="true"]) {
   background: linear-gradient(
     to bottom,
     var(--linear-gallery-main) 0%,
@@ -386,24 +387,26 @@ button:not(:disabled),
 .agent-chat-composer::before {
   position: absolute;
   inset: -0.5px;
-  z-index: -1;
-  padding: 0.5px;
+  border: var(--linear-border-width-hairline) solid transparent;
   pointer-events: none;
   content: "";
-  background: linear-gradient(
+  background-image: linear-gradient(
     to bottom,
     var(--linear-agent-composer-border-top),
     var(--linear-agent-composer-border-bottom)
   );
+  background-position: -0.5px -0.5px;
+  background-size: calc(100% + 1px) calc(100% + 1px);
   border-radius: 11px;
   mask:
-    linear-gradient(var(--linear-mask-opaque) 0 0) content-box exclude,
+    linear-gradient(var(--linear-mask-opaque) 0 0) padding-box,
     linear-gradient(var(--linear-mask-opaque) 0 0);
+  mask-composite: exclude, var(--linear-mask-composite-exclude);
   transition: background-image 100ms cubic-bezier(0.165, 0.84, 0.44, 1);
 }
 
 .agent-chat-composer:focus-within::before {
-  background: linear-gradient(
+  background-image: linear-gradient(
     to bottom,
     var(--linear-agent-composer-border-focus),
     var(--linear-agent-composer-border-bottom)
@@ -411,7 +414,7 @@ button:not(:disabled),
 }
 
 .agent-chat-composer[data-variant="conversation"]::before {
-  background: linear-gradient(
+  background-image: linear-gradient(
     to bottom,
     var(--linear-agent-composer-border-conversation),
     var(--linear-agent-composer-border-bottom)
@@ -442,7 +445,7 @@ button:not(:disabled),
   }
 
   .agent-chat-composer[data-variant="conversation"]::before {
-    background: linear-gradient(
+    background-image: linear-gradient(
       to bottom,
       var(--linear-agent-composer-border-touch),
       var(--linear-agent-composer-border-bottom)
