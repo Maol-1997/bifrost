@@ -22,6 +22,8 @@ export type ClientDescription = { name: string; monogram: string; logo?: ClientL
 
 const KNOWN_CLIENTS: readonly { pattern: RegExp; name: string; monogram: string; logo?: ClientLogoId }[] = [
   { pattern: /claude[-_ ]?code|claude[-_ ]?cli/i, name: 'Claude Code', monogram: '>_', logo: 'claude-code' },
+  { pattern: /claude[-_ ]?desktop/i, name: 'Claude Desktop', monogram: 'CD' },
+  { pattern: /chatgpt/i, name: 'ChatGPT', monogram: 'CG' },
   { pattern: /\bcursor\b/i, name: 'Cursor', monogram: 'Cu', logo: 'cursor' },
   // Ahead of `codex` so a client calling itself `opencode` is not read as
   // OpenAI's, and vice versa: neither substring contains the other, but the

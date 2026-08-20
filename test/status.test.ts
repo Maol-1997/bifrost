@@ -19,6 +19,8 @@ describe('statuspage severity mapping', () => {
 describe('client identification', () => {
   it('names the clients we know from their user agent', () => {
     expect(describeClient('mcp', 'claude-cli/1.4.2 (external, cli)').name).toBe('Claude Code');
+    expect(describeClient('mcp', 'Claude-Desktop/1.0').name).toBe('Claude Desktop');
+    expect(describeClient('chatgpt', undefined).name).toBe('ChatGPT');
     expect(describeClient('mcp', 'Cursor/0.45.1').name).toBe('Cursor');
     expect(describeClient('bifrost-web', 'Mozilla/5.0').name).toBe('Bifrost web');
   });

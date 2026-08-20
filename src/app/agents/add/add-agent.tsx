@@ -10,7 +10,7 @@ import { getMcpAddress, type ConnectedClient } from '@app/api/bifrost';
 import { connectedClientsQueryOptions } from '@app/api/query-options';
 import { APP_ROUTES } from '@features/utils/routes';
 
-type ClientTab = { id: string; label: string; steps: readonly string[]; command: (address: string) => string };
+type ClientTab = { id: string; label: string; steps: readonly string[]; copyValue: (address: string) => string };
 
 const clientTabs: readonly ClientTab[] = [
   {
@@ -20,13 +20,19 @@ const clientTabs: readonly ClientTab[] = [
     // command. Bifrost speaks Streamable HTTP, not the legacy two-endpoint SSE
     // transport, so the flag is `http`.
     steps: ['Open a terminal (the same one you run Claude Code from).', 'Run the command below.'],
-    command: (address) => `claude mcp add --transport http bifrost ${address}`,
+    copyValue: (address) => `claude mcp add --transport http bifrost ${address}`,
+  },
+  {
+    id: 'claude-desktop',
+    label: 'Claude Desktop',
+    steps: ['Open Claude Desktop and go to Settings → Connectors.', 'Click “Add custom connector”, name it “Bifrost”, and paste the URL below.', 'Click “Add”, then “Connect” to authorize Bifrost.'],
+    copyValue: (address) => address,
   },
   {
     id: 'codex',
     label: 'Codex',
     steps: ['Open a terminal.', 'Run the command below.'],
-    command: (address) => `codex mcp add bifrost -- npx -y mcp-remote ${address}`,
+    copyValue: (address) => `codex mcp add bifrost -- npx -y mcp-remote ${address}`,
   },
   {
     id: 'cursor',
@@ -34,13 +40,19 @@ const clientTabs: readonly ClientTab[] = [
     // Paste rather than `>`: that file usually already holds other servers, and
     // a redirect would silently delete them.
     steps: ['Open ~/.cursor/mcp.json (create it if it isn’t there).', 'Add the entry below inside "mcpServers", then reload the Cursor window.'],
-    command: (address) => `"bifrost": { "url": "${address}" }`,
+    copyValue: (address) => `"bifrost": { "url": "${address}" }`,
+  },
+  {
+    id: 'chatgpt',
+    label: 'ChatGPT',
+    steps: ['In ChatGPT on the web, enable Developer mode under Settings → Apps → Advanced Settings.', 'Go to Settings → Apps → Create, name the app “Bifrost”, and use the URL below as its MCP endpoint.', 'Click “Scan tools”, complete OAuth authorization, then click “Create”.'],
+    copyValue: (address) => address,
   },
   {
     id: 'other',
     label: 'Something else',
     steps: ['Any program that supports MCP servers over HTTP works with Bifrost.', 'Give it the address below as the “MCP server URL”.', 'It has to support OAuth — almost all of them do, and it’s what saves you from pasting a secret.'],
-    command: (address) => address,
+    copyValue: (address) => address,
   },
 ];
 
@@ -67,7 +79,7 @@ function StepHeading({ number, children }: { number: string; children: React.Rea
   return <div className="flex items-center gap-2.5"><span className="flex size-5 items-center justify-center rounded-full bg-brand/22 text-[11px] font-semibold text-brand-hover">{number}</span><h2 className="text-[13.5px] font-semibold">{children}</h2></div>;
 }
 
-function CommandBlock({ value }: { value: string }): React.JSX.Element {
+function CopyableSetupValue({ value }: { value: string }): React.JSX.Element {
   return <div className="mt-2.5 flex gap-2"><code className="min-w-0 flex-1 overflow-x-auto whitespace-nowrap rounded-lg border-[0.5px] border-app-border-pane bg-black/30 px-3 py-2.5 font-mono text-xs text-app-text-secondary">{value}</code><CopyButton value={value} /></div>;
 }
 
@@ -90,8 +102,8 @@ export default function AddAgent(): React.JSX.Element {
 
   return (
     <section>
-      <Link to={APP_ROUTES.agents} className="mb-[18px] inline-flex min-h-11 items-center gap-1.5 text-[12.5px] text-app-text-tertiary hover:text-app-text-primary">← Agents & sessions</Link>
-      <PageHead title="Add an agent" subtitle="Connect Claude Code, Codex, Cursor or another agent app to Bifrost. You only need to do this once, and it takes about a minute." />
+      <Link to={APP_ROUTES.agents} className="mb-[18px] inline-flex min-h-11 items-center gap-1.5 text-[12.5px] text-app-text-tertiary hover:text-app-text-primary">← Sessions</Link>
+      <PageHead title="Add an agent" subtitle="Connect Claude Code, Claude Desktop, Codex, Cursor, ChatGPT or another agent app to Bifrost. You only need to do this once, and it takes about a minute." />
       <SectionCard className="mt-6 p-5">
         <StepHeading number="1">Copy your Bifrost address</StepHeading>
         <div className="mt-3 flex gap-2"><div className="min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap rounded-lg border-[0.5px] border-app-border-pane bg-black/30 px-3 py-2.5 font-mono text-[12.5px] text-app-text-secondary">{address ?? 'Loading…'}</div>{address ? <CopyButton value={address} /> : null}</div>
@@ -106,11 +118,11 @@ export default function AddAgent(): React.JSX.Element {
           {clientTabs.map((tab) => (
             <TabsContent key={tab.id} value={tab.id} className="mt-3.5">
               {tab.steps.map((step, index) => <div key={step} className="flex gap-2 py-1 text-[12.5px] leading-5 text-app-text-secondary"><span className="text-app-text-quaternary">{index + 1}.</span><span>{step}</span></div>)}
-              {address ? <CommandBlock value={tab.command(address)} /> : null}
+              {address ? <CopyableSetupValue value={tab.copyValue(address)} /> : null}
             </TabsContent>
           ))}
         </Tabs>
-        <p className="mt-3 text-[11.5px] leading-[1.55] text-app-text-quaternary text-pretty">A browser tab will open asking you to authorize the program. Approve it once and it stays connected on its own — it renews itself in the background, so there’s nothing to redo later. You can disconnect it any time from Agents & sessions.</p>
+        <p className="mt-3 text-[11.5px] leading-[1.55] text-app-text-quaternary text-pretty">A browser tab will open asking you to authorize the program. Approve it once and it stays connected on its own — it renews itself in the background, so there’s nothing to redo later. You can disconnect it any time from Sessions.</p>
       </SectionCard>
       <SectionCard className="mt-3.5 p-5">
         <StepHeading number="3">Check it worked</StepHeading>
