@@ -93,7 +93,7 @@ const Sidebar = React.forwardRef<HTMLElement, SidebarProps>(
         data-state={open ? "open" : "closed"}
         data-layout={isDesktop ? "desktop" : "mobile"}
         className={cn(
-          "fixed inset-y-0 z-[96] flex h-dvh max-w-full shrink-0 flex-col overflow-hidden bg-linear-gallery-main shadow-none transition-shadow duration-150 ease-in data-[state=open]:shadow-linear-dialog motion-reduce:transition-none min-[1025px]:bg-linear-canvas min-[1025px]:shadow-none",
+          "fixed inset-y-0 z-[96] flex h-dvh max-w-full shrink-0 flex-col overflow-hidden bg-linear-gallery-main shadow-none transition-shadow duration-150 ease-in data-[state=open]:shadow-linear-dialog motion-reduce:transition-none min-[1025px]:bg-linear-sidebar-background min-[1025px]:shadow-none",
           className,
         )}
         style={{ ...style, width: springs.width, left: springs.left }}

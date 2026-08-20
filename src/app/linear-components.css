@@ -48,6 +48,7 @@
   --color-linear-tooltip-border: var(--linear-tooltip-border);
   --color-linear-tooltip-foreground: var(--linear-tooltip-foreground);
   --color-linear-tooltip-muted: var(--linear-tooltip-muted);
+  --color-linear-sidebar-background: var(--linear-sidebar-background);
   --color-linear-sidebar-active: var(--linear-sidebar-active);
   --color-linear-sidebar-backdrop: var(--linear-sidebar-backdrop);
   --color-linear-gallery-main: var(--linear-gallery-main);
@@ -232,6 +233,7 @@
   --linear-tooltip-border: lch(29.393 2.38 272);
   --linear-tooltip-foreground: lch(91.554 1.65 272);
   --linear-tooltip-muted: lch(66.215 1.65 272);
+  --linear-sidebar-background: lch(2.595 0.4 272);
   --linear-sidebar-active: lch(13.845 1.3 272);
   --linear-sidebar-backdrop: lch(0 0 0 / 40%);
   --linear-gallery-main: lch(5.52 0.4 272);
