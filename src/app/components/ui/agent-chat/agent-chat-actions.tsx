@@ -25,7 +25,7 @@ const AgentChatMessageActionButton = React.forwardRef<
         ref={ref}
         aria-label={label}
         className={cn(
-          "relative flex size-6 cursor-default items-center justify-center rounded-full border-[0.5px] border-transparent px-0.5 text-linear-agent-action transition-[border,background-color,color,opacity] duration-150 hover:bg-linear-agent-action-hover hover:text-linear-bright focus-visible:bg-linear-agent-action-hover focus-visible:text-linear-bright focus-visible:outline-none",
+          "relative flex size-6 cursor-default items-center justify-center rounded-full linear-border-hairline border-transparent px-0.5 text-linear-agent-action transition-[border,background-color,color,opacity] duration-150 hover:bg-linear-agent-action-hover hover:text-linear-bright focus-visible:bg-linear-agent-action-hover focus-visible:text-linear-bright focus-visible:outline-none",
           className,
         )}
         type="button"

@@ -29,7 +29,7 @@ function AgentChatEditingBanner({
         <TooltipTrigger asChild>
           <button
             aria-label="Cancel editing"
-            className="relative mr-2 flex size-5 cursor-default items-center justify-center rounded-full border-[0.5px] border-transparent px-0.5 text-linear-foreground transition-[background-color,color] duration-150 hover:bg-linear-agent-header-hover hover:text-linear-bright focus-visible:bg-linear-agent-header-hover focus-visible:text-linear-bright focus-visible:outline-none"
+            className="relative mr-2 flex size-5 cursor-default items-center justify-center rounded-full linear-border-hairline border-transparent px-0.5 text-linear-foreground transition-[background-color,color] duration-150 hover:bg-linear-agent-header-hover hover:text-linear-bright focus-visible:bg-linear-agent-header-hover focus-visible:text-linear-bright focus-visible:outline-none"
             onClick={onCancel}
             type="button"
           >

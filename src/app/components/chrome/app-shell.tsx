@@ -72,7 +72,7 @@ export function AppShell(): React.JSX.Element {
       <SidebarBackdrop open={isSidebarOpen} aria-label="Close navigation" onClick={() => { setIsSidebarOpen(false); }} />
       <Sidebar id="bifrost-sidebar" aria-label="Primary navigation" open={isSidebarOpen} onOpenChange={setIsSidebarOpen}>
         <SidebarHeader className="h-auto px-4 pb-5">
-          <div className="flex items-center gap-2"><BifrostMark className="size-[22px]" /><span className="text-sm font-semibold text-linear-bright">Bifrost</span></div>
+          <div className="flex select-none items-center gap-2"><BifrostMark className="size-[22px]" /><span className="text-sm font-semibold text-linear-bright">Bifrost</span></div>
         </SidebarHeader>
         <SidebarContent className="pt-2">
           <SidebarGroup>

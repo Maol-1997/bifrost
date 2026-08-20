@@ -18,6 +18,7 @@ import {
   AgentChat,
   AgentChatComposer,
   AgentChatDock,
+  AgentChatEditingBanner,
   AgentChatEmptyState,
   AgentChatMessage,
   AgentChatMessages,
@@ -293,6 +294,7 @@ function ChatConversation({
   placement: AgentChatPlacement
 }): React.JSX.Element {
   const [input, setInput] = useState("")
+  const [editingMessageId, setEditingMessageId] = useState<string>()
   const [historyError, setHistoryError] = useState(false)
   const deleting = useRef(false)
   const pendingSave = useRef<StoredConversation | undefined>(undefined)
@@ -300,7 +302,7 @@ function ChatConversation({
     && conversation.titleVersion === CHAT_TITLE_VERSION
   const titleGenerationStarted = useRef(hasCurrentGeneratedTitle)
   const transport = useMemo(() => new DefaultChatTransport({ api: "/api/chat" }), [])
-  const { error, messages, sendMessage, status, stop } = useChat({
+  const { error, messages, regenerate, sendMessage, setMessages, status, stop } = useChat({
     id: conversation.id,
     messages: conversation.messages,
     transport,
@@ -308,6 +310,12 @@ function ChatConversation({
   const isWorking = status === "submitted" || status === "streaming"
   const provisionalTitle = conversationTitle(messages)
   const title = hasCurrentGeneratedTitle ? conversation.title : provisionalTitle
+  const editingMessageIndex = editingMessageId
+    ? messages.findIndex((message) => message.id === editingMessageId)
+    : -1
+  const visibleMessages = editingMessageIndex >= 0
+    ? messages.slice(0, editingMessageIndex)
+    : messages
   const currentConversationRef = useRef<StoredConversation>(conversation)
   currentConversationRef.current = {
     ...conversation,
@@ -385,9 +393,48 @@ function ChatConversation({
   }, [])
 
   function submit(value: string): void {
+    if (editingMessageId) {
+      submitEditedMessage(value, editingMessageId)
+      return
+    }
     if (messages.length === 0) onConversationStarted?.(conversation.id)
     setInput("")
     void sendMessage({ text: value })
+  }
+
+  function submitEditedMessage(value: string, messageId: string): void {
+    const messageIndex = messages.findIndex((message) => message.id === messageId)
+    const message = messages[messageIndex]
+    if (!message || message.role !== "user") {
+      cancelEditingMessage()
+      return
+    }
+
+    const editedMessage: UIMessage = {
+      ...message,
+      parts: [{ type: "text", text: value }],
+    }
+    setMessages([...messages.slice(0, messageIndex), editedMessage])
+    setEditingMessageId(undefined)
+    setInput("")
+    void regenerate({ messageId })
+  }
+
+  function beginEditingMessage(message: UIMessage): void {
+    if (message.role !== "user") return
+    if (isWorking) void stop()
+    setEditingMessageId(message.id)
+    setInput(messageText(message))
+  }
+
+  function cancelEditingMessage(): void {
+    setEditingMessageId(undefined)
+    setInput("")
+  }
+
+  function copyMessage(message: UIMessage): void {
+    void navigator.clipboard.writeText(messageText(message))
+      .catch(() => toast.error("Message could not be copied"))
   }
 
   function changeConversation(action: () => void): void {
@@ -454,20 +501,23 @@ function ChatConversation({
       ) : (
         <>
           <AgentChatMessages>
-            {messages.map((message, index) => (
+            {visibleMessages.map((message, index) => (
               <ChatMessage
                 key={message.id}
                 message={message}
-                streaming={isWorking && index === messages.length - 1 && message.role === "assistant"}
+                onCopy={() => copyMessage(message)}
+                onEdit={() => beginEditingMessage(message)}
+                streaming={isWorking && index === visibleMessages.length - 1 && message.role === "assistant"}
               />
             ))}
-            {status === "submitted" ? (
+            {status === "submitted" && !editingMessageId ? (
               <AgentChatMessage actions={false} role="assistant">
                 <span className="animate-design-blink text-linear-muted">Thinking…</span>
               </AgentChatMessage>
             ) : null}
           </AgentChatMessages>
           <div className="shrink-0 pb-4 pt-2">
+            {editingMessageId ? <AgentChatEditingBanner onCancel={cancelEditingMessage} /> : null}
             <AgentChatComposer
               onChange={setInput}
               onStop={() => { void stop() }}
@@ -485,12 +535,26 @@ function ChatConversation({
   )
 }
 
-function ChatMessage({ message, streaming }: { message: UIMessage; streaming: boolean }): React.JSX.Element {
+function ChatMessage({
+  message,
+  onCopy,
+  onEdit,
+  streaming,
+}: {
+  message: UIMessage
+  onCopy: () => void
+  onEdit: () => void
+  streaming: boolean
+}): React.JSX.Element {
   const text = messageText(message)
   const toolParts = message.parts.filter(isToolUIPart)
 
   return (
-    <AgentChatMessage actions={false} role={message.role === "user" ? "user" : "assistant"}>
+    <AgentChatMessage
+      actions={message.role === "user"}
+      {...(message.role === "user" ? { onCopyMessage: onCopy, onEditMessage: onEdit } : {})}
+      role={message.role === "user" ? "user" : "assistant"}
+    >
       {toolParts.map((part) => <ToolActivity key={part.toolCallId} part={part} />)}
       {message.role === "assistant" ? <AgentMarkdown markdown={text} streaming={streaming} /> : text}
     </AgentChatMessage>
@@ -527,18 +591,19 @@ function ToolActivity({ part }: { part: ChatToolPart }): React.JSX.Element {
   const title = toolDisplayTitle(part, source)
 
   return (
-    <div className="mb-2 flex items-center gap-2 text-xs font-medium text-linear-agent-action">
-      {source.kind === "provider" ? (
-        <span aria-hidden="true" className={finished ? "opacity-70" : "animate-design-pulse"}>
+    <div className="mb-2 flex select-none items-center gap-2 text-xs font-medium text-linear-agent-action">
+      <span
+        aria-hidden="true"
+        className={`flex size-4 shrink-0 items-center justify-center ${finished ? "opacity-70" : "animate-design-pulse"}`}
+      >
+        {source.kind === "provider" ? (
           <ProviderIcon providerId={source.providerId} size="sidebar" />
-        </span>
-      ) : source.kind === "bifrost" ? (
-        <span aria-hidden="true" className={finished ? "opacity-70" : "animate-design-pulse"}>
+        ) : source.kind === "bifrost" ? (
           <BifrostMark className="size-4" />
-        </span>
-      ) : (
-        <span aria-hidden="true" className={finished ? "size-1.5 rounded-full bg-linear-muted" : "size-1.5 animate-design-pulse rounded-full bg-linear-primary"} />
-      )}
+        ) : (
+          <span className={`size-1.5 rounded-full ${finished ? "bg-linear-muted" : "bg-linear-primary"}`} />
+        )}
+      </span>
       <span>{finished ? "Used" : "Using"} {title}</span>
     </div>
   )
