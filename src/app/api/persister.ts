@@ -1,6 +1,7 @@
 import { createAsyncStoragePersister } from '@tanstack/query-async-storage-persister';
 import { defaultShouldDehydrateQuery, type OmitKeyof } from '@tanstack/react-query';
 import type { PersistQueryClientOptions } from '@tanstack/react-query-persist-client';
+import type { Persister } from '@tanstack/react-query-persist-client';
 import { del, get, set } from 'idb-keyval';
 
 // Only the providers query (see query-options.ts) is worth painting instantly.
@@ -10,16 +11,31 @@ const STORAGE_KEY = 'bifrost-query-cache';
 // Bump to discard every previously persisted cache after a breaking shape change.
 const CACHE_BUSTER = 'v1';
 
+const storagePersister = createAsyncStoragePersister({
+  key: STORAGE_KEY,
+  storage: {
+    getItem: async (key) => (await get<string>(key)) ?? null,
+    setItem: set,
+    removeItem: del,
+  },
+});
+
+/**
+ * Saves fire on every cache event, so while the providers query is still
+ * pending (or just errored) the dehydrated state is empty. Writing that would
+ * wipe the good snapshot the next reload needs; sign-out clears explicitly.
+ */
+const persister: Persister = {
+  ...storagePersister,
+  persistClient: (client) => {
+    if (client.clientState.queries.length === 0) return;
+    return storagePersister.persistClient(client);
+  },
+};
+
 export const persistOptions: OmitKeyof<PersistQueryClientOptions, 'queryClient'> = {
   buster: CACHE_BUSTER,
-  persister: createAsyncStoragePersister({
-    key: STORAGE_KEY,
-    storage: {
-      getItem: async (key) => (await get<string>(key)) ?? null,
-      setItem: set,
-      removeItem: del,
-    },
-  }),
+  persister,
   dehydrateOptions: {
     shouldDehydrateQuery: (query) => (
       defaultShouldDehydrateQuery(query) && query.queryKey[0] === PERSISTED_QUERY_ROOT
