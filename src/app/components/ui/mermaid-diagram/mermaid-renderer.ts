@@ -35,6 +35,9 @@ function loadMermaid() {
         actorBkg: "#1c1d1f",
         actorBorder: "#444446",
         actorTextColor: "#e3e4e7",
+        // ER attribute rows fall back to white/#f2f2f2 zebra stripes otherwise.
+        attributeBackgroundColorEven: "#19191b",
+        attributeBackgroundColorOdd: "#1c1d1f",
         background: "#19191b",
         fontFamily:
           '"Berkeley Mono", "SFMono Regular", Consolas, "Liberation Mono", Menlo, Courier, monospace',
