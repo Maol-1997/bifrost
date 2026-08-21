@@ -116,7 +116,7 @@ function AgentChatComposer({
   return (
     <div
       className={cn(
-        "agent-chat-composer-shell relative z-10 mx-auto w-[min(712px,calc(100%-48px))] min-[1025px]:w-[min(712px,calc(100%-32px))]",
+        "relative z-10 mx-auto w-[min(712px,calc(100%-48px))] min-[1025px]:w-[min(712px,calc(100%-32px))]",
         size === "mini"
           ? "-translate-x-1 w-[calc(100%+8px)] max-w-none p-1 min-[1025px]:w-[calc(100%+8px)]"
           : variant === "conversation" &&
