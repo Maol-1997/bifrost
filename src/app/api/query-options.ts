@@ -3,6 +3,9 @@ import { getAdminProviderTools, getConnectedClients, getProviders } from './bifr
 import type { ConnectableProviderId } from './types';
 
 const MAX_FRONTEND_STALE_MS = 60 * 60 * 1_000;
+// Persistence silently drops queries whose gcTime is shorter than the
+// persister's maxAge (24h), so the persisted query must keep pace with it.
+const PERSISTED_GC_TIME_MS = 24 * 60 * 60 * 1_000;
 const MIN_REFETCH_INTERVAL_MS = 1_000;
 const MAX_REFETCH_JITTER_MS = 5_000;
 
@@ -19,6 +22,7 @@ function nextRefetchFromServer(nextCheckInMs: number | undefined, dataUpdatedAt:
 export const providersQueryOptions = queryOptions({
   queryKey: ['providers'],
   queryFn: getProviders,
+  gcTime: PERSISTED_GC_TIME_MS,
   staleTime: (query) => staleTimeFromServer(query.state.data?.cache.freshForMs),
   refetchInterval: (query) => nextRefetchFromServer(
     query.state.data?.cache.nextCheckInMs,

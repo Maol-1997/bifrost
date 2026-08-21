@@ -8,8 +8,16 @@ import { SectionCard } from '@app/components/ui/section-card';
 import { SettingsLinkRow, SettingsLinkRowIcon, SettingsRow, SettingsRowAction, SettingsRowContent } from '@app/components/ui/settings-group';
 import { initialsOf } from '@app/lib/initials';
 import { getProviderCatalog } from '@app/api/bifrost';
+import { clearPersistedQueries } from '@app/api/persister';
 import { connectedClientsQueryOptions, providersQueryOptions } from '@app/api/query-options';
 import { APP_ROUTES } from '@features/utils/routes';
+
+/** The clear must land before the logout navigation; native submit skips this handler. */
+function signOutWithCleanCache(event: React.SyntheticEvent<HTMLFormElement>): void {
+  event.preventDefault();
+  const form = event.currentTarget;
+  void clearPersistedQueries().catch(() => undefined).finally(() => { form.submit(); });
+}
 
 export default function AccountSecurity(): React.JSX.Element {
   const { user } = useOutletContext<AppShellContext>();
@@ -37,7 +45,7 @@ export default function AccountSecurity(): React.JSX.Element {
           <SettingsRow className="h-auto min-h-[65px] flex-wrap sm:flex-nowrap">
             <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-brand/25 text-[13px] font-semibold text-brand-hover">{initialsOf(user.name)}</div>
             <SettingsRowContent className="min-w-[220px]"><div className="text-[13.5px] font-semibold">{user.name}</div><div className="mt-0.5 text-xs text-app-text-tertiary">{user.email} · signed in with Google</div></SettingsRowContent>
-            <SettingsRowAction><form action="/auth/logout" method="post"><Button type="submit" variant="outline">Sign out</Button></form></SettingsRowAction>
+            <SettingsRowAction><form action="/auth/logout" method="post" onSubmit={signOutWithCleanCache}><Button type="submit" variant="outline">Sign out</Button></form></SettingsRowAction>
           </SettingsRow>
         </SectionCard>
       ) : null}

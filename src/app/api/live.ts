@@ -4,6 +4,7 @@ import { APP_ROUTES } from '@features/utils/routes';
 import { isConnectableProvider, providerCatalog } from './catalog';
 import { bifrostClient } from './client';
 import { parseRpcResponse } from './parse-rpc-response';
+import { clearPersistedQueries } from './persister';
 import type { BifrostApi, ConnectionStatus } from './types';
 
 const getStatus = bifrostClient.api['status.json'].$get;
@@ -131,6 +132,7 @@ export const liveApi: BifrostApi = {
     }));
     // Revoking the current browser kills its backing cookie immediately.
     if ('wasCurrentClient' in result && result.wasCurrentClient) {
+      await clearPersistedQueries().catch(() => undefined);
       window.location.assign(APP_ROUTES.signIn);
     }
   },
