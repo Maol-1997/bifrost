@@ -27,6 +27,9 @@ function loadMermaid() {
       securityLevel: "strict",
       sequence: { actorMargin: 80, diagramMarginX: 16, diagramMarginY: 4 },
       startOnLoad: false,
+      // Streaming sends partial sources that fail to parse; without this,
+      // mermaid appends its error SVG to document.body on every failure.
+      suppressErrorRendering: true,
       theme: "base",
       themeVariables: {
         actorBkg: "#1c1d1f",
