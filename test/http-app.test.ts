@@ -76,6 +76,11 @@ describe('HTTP security boundaries', () => {
     expect(response.headers.get('Content-Security-Policy')).toContain("default-src 'self'");
   });
 
+  it('allows only self-hosted font sources', async () => {
+    const response = await request('/healthz');
+    expect(response.headers.get('Content-Security-Policy')).toMatch(/font-src 'self' data:;/);
+  });
+
   it('adds a request id when the caller does not provide one', async () => {
     const response = await request('/healthz');
     expect(response.headers.get('X-Request-Id')).toMatch(/^[0-9a-f-]{36}$/);

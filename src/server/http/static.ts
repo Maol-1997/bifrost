@@ -16,6 +16,7 @@ export function createStaticRoutes(): Hono<AppEnv> {
   const assetNotFound = (context: Parameters<typeof serveAsset>[0]) => context.json({ error: 'Not found' }, 404);
 
   routes.get('/assets/*', serveAsset, assetNotFound);
+  routes.get('/fonts/*', serveAsset, assetNotFound);
   routes.get('/favicon.svg', serveAsset, assetNotFound);
 
   const serveIndex = serveStatic<AppEnv>({

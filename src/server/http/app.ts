@@ -13,8 +13,8 @@ import { createPublicRoutes } from './public.js';
 const contentSecurityPolicy = {
   defaultSrc: ["'self'"],
   scriptSrc: ["'self'"],
-  styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
-  fontSrc: ['https://fonts.gstatic.com'],
+  styleSrc: ["'self'", "'unsafe-inline'"],
+  fontSrc: ["'self'", 'data:'],
   connectSrc: ["'self'"],
   imgSrc: ["'self'", 'data:'],
   baseUri: ["'none'"],

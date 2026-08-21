@@ -9,6 +9,7 @@ import {
   DropdownMenuTrigger,
 } from "@app/components/ui/dropdown-menu"
 import { cn } from "@app/lib/cn"
+import { loadMermaidFontFaceCss } from "./mermaid-font"
 import {
   getCachedMermaidDiagram,
   preloadMermaidDiagram,
@@ -31,9 +32,9 @@ type RenderedDiagramState = RenderedDiagram & {
 const LINEAR_MERMAID_PLACEHOLDER_HEIGHT = 150
 const COPY_CONFIRMATION_DURATION = 1200
 
-function diagramDocument(svg: string) {
+function diagramDocument(svg: string, fontFaceCss: string) {
   return `<!doctype html><html><head><style>
-    @font-face{font-family:"Berkeley Mono";font-weight:100 900;font-display:swap;src:url("https://static.linear.app/fonts/Berkeley-Mono-Variable.woff2?v=3.2") format("woff2")}
+    ${fontFaceCss}
     html,body{background:#19191b;height:100%;margin:0;padding:0;overflow:hidden;user-select:text;font-family:"Berkeley Mono","SFMono Regular",Consolas,"Liberation Mono",Menlo,Courier,monospace}
     body{display:flex;align-items:center;justify-content:center}
     body>svg{display:block;width:100%;height:auto;max-height:100%}
@@ -62,10 +63,18 @@ const MermaidDiagram = React.memo(
       const cachedDiagram = getCachedMermaidDiagram(source)
       return cachedDiagram ? { ...cachedDiagram, source } : undefined
     })
+    const [fontFaceCss, setFontFaceCss] = React.useState<string>()
     const diagram =
       renderedState?.source === source
         ? renderedState
         : getCachedMermaidDiagram(source)
+    const frameDocument = React.useMemo(
+      () =>
+        diagram && fontFaceCss !== undefined
+          ? diagramDocument(diagram.svg, fontFaceCss)
+          : undefined,
+      [diagram, fontFaceCss],
+    )
     const error = errorState?.source === source ? errorState.message : undefined
     const isActivated =
       !defer || activatedSource === source || Boolean(getCachedMermaidDiagram(source))
@@ -79,6 +88,18 @@ const MermaidDiagram = React.memo(
       },
       [],
     )
+
+    React.useEffect(() => {
+      let active = true
+      void loadMermaidFontFaceCss().then((css) => {
+        if (active) {
+          setFontFaceCss(css)
+        }
+      })
+      return () => {
+        active = false
+      }
+    }, [])
 
     React.useEffect(() => {
       if (!isActivated) {
@@ -204,14 +225,16 @@ const MermaidDiagram = React.memo(
               className="agent-mermaid-exact-skeleton"
               data-hidden={loadedSvg === diagram.svg}
             />
-            <iframe
-              aria-label="Mermaid diagram"
-              data-loaded={loadedSvg === diagram.svg}
-              onLoad={() => setLoadedSvg(diagram.svg)}
-              sandbox=""
-              srcDoc={diagramDocument(diagram.svg)}
-              title="Mermaid diagram"
-            />
+            {frameDocument !== undefined && (
+              <iframe
+                aria-label="Mermaid diagram"
+                data-loaded={loadedSvg === diagram.svg}
+                onLoad={() => setLoadedSvg(diagram.svg)}
+                sandbox=""
+                srcDoc={frameDocument}
+                title="Mermaid diagram"
+              />
+            )}
           </div>
         )}
       </figure>

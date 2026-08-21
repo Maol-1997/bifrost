@@ -3,7 +3,7 @@
   font-style: normal;
   font-weight: 100 900;
   font-display: swap;
-  src: url("https://static.linear.app/fonts/InterVariable.woff2?v=4.1") format("woff2");
+  src: url("/fonts/InterVariable.woff2") format("woff2");
   unicode-range: U+0-2B1B, U+2B1D-10FFFF;
 }
 
@@ -12,7 +12,7 @@
   font-style: italic;
   font-weight: 100 900;
   font-display: swap;
-  src: url("https://static.linear.app/fonts/InterVariable-Italic.woff2?v=4.1") format("woff2");
+  src: url("/fonts/InterVariable-Italic.woff2") format("woff2");
   unicode-range: U+0-2B1B, U+2B1D-10FFFF;
 }
 
