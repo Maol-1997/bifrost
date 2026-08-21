@@ -10,9 +10,9 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuRadioGroup, DropdownMenu
 import { ErrorState } from '@app/components/ui/error-state';
 import { ExpandableText } from '@app/components/ui/expandable-text';
 import { SearchInput } from '@app/components/ui/input';
-import { LoadingState } from '@app/components/ui/loading-state';
 import { PageHead } from '@app/components/ui/page-head';
 import { SectionCard } from '@app/components/ui/section-card';
+import { Skeleton } from '@app/components/ui/skeleton';
 import { SettingsRow } from '@app/components/ui/settings-group';
 import { Surface } from '@app/components/ui/surface';
 import { cn } from '@app/lib/cn';
@@ -240,6 +240,43 @@ function ToolRow({ tool, providerId, controller }: { tool: AdminTool; providerId
   );
 }
 
+function ToolRowSkeleton(): React.JSX.Element {
+  return (
+    <div className="grid min-h-[65px] grid-cols-[44px_minmax(0,1fr)] items-start gap-x-3 border-t-[0.5px] border-linear-settings-divider px-4 py-4 first:border-t-0 sm:grid-cols-[44px_minmax(0,1fr)_188px]">
+      <div className="flex justify-center pt-0.5"><Skeleton className="animate-design-pulse size-4 rounded-[4px] bg-white/7" /></div>
+      <div className="flex min-w-0 flex-col gap-2.5 pt-1">
+        <Skeleton className="animate-design-pulse h-2.5 w-36 bg-white/7" />
+        <Skeleton className="animate-design-pulse h-2 w-full max-w-105 bg-white/5" />
+        <Skeleton className="animate-design-pulse h-2 w-52 bg-white/5" />
+      </div>
+      <div className="col-start-2 mt-3 min-w-0 sm:col-start-3 sm:row-start-1 sm:mt-0">
+        <Skeleton className="animate-design-pulse mt-0.5 h-2 w-10 bg-white/5" />
+        <Skeleton className="animate-design-pulse mt-2 h-[30px] w-full rounded-lg bg-white/7" />
+      </div>
+    </div>
+  );
+}
+
+/** Mirrors the ready layout: Read and Write groups of checkbox + text + policy rows. */
+function ToolAdministrationSkeleton(): React.JSX.Element {
+  return (
+    <div aria-live="polite" aria-busy="true" className="mt-7">
+      {[3, 2].map((rowCount, groupIndex) => (
+        <section className={groupIndex === 0 ? undefined : 'mt-3'} key={groupIndex}>
+          <div className="flex min-h-11 items-center justify-between px-1">
+            <Skeleton className="animate-design-pulse h-2.5 w-24 bg-white/7" />
+            <Skeleton className="animate-design-pulse h-2 w-6 bg-white/5" />
+          </div>
+          <SectionCard className="mt-2 overflow-hidden">
+            {Array.from({ length: rowCount }, (_, index) => <ToolRowSkeleton key={index} />)}
+          </SectionCard>
+        </section>
+      ))}
+      <div className="mt-3 text-center text-xs text-app-text-quaternary">Loading official provider tools…</div>
+    </div>
+  );
+}
+
 type ToolGroupModel = { mutability: ToolMutability; tools: readonly AdminTool[]; providerId: ConnectableProviderId };
 
 function ToolGroup({ group, controller }: { group: ToolGroupModel; controller: ToolAdministrationController }): React.JSX.Element | null {
@@ -335,7 +372,7 @@ function AdminProviderTools({ providerId }: { providerId: ConnectableProviderId 
       </div>
       <label htmlFor="tool-search" className="mt-6 block text-[11px] font-medium text-app-text-tertiary">Search tools</label>
       <SearchInput id="tool-search" variant="content" value={search} onChange={(event) => { setSearch(event.target.value); }} placeholder="Name or description" containerClassName="mt-1" className="h-11" />
-      {toolsQuery.isPending ? <LoadingState label="Loading official provider tools…" /> : null}
+      {toolsQuery.isPending ? <ToolAdministrationSkeleton /> : null}
       {toolsQuery.isError ? <ErrorState title="We couldn't load tool administration" body="You may not have administrator access, or provider discovery failed before the catalog could load." onRetry={() => { void toolsQuery.refetch(); }} /> : null}
       {policyMutation.isError ? <p role="alert" className="mt-4 text-[12.5px] text-danger">No policies were saved. A selected tool may have changed, refresh and review it again.</p> : null}
       {refreshMutation.isError ? <p role="alert" className="mt-4 text-[12.5px] text-danger">The official MCP endpoint could not be refreshed. Try again.</p> : null}
