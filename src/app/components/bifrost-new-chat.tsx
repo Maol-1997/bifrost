@@ -1,8 +1,11 @@
+// Direct imports on purpose: this file loads eagerly with the app shell, and
+// the agent-chat barrel would drag markdown-it + highlight.js into the main
+// bundle through agent-chat-markdown.
 import {
   AgentChat,
-  AgentChatComposer,
   AgentChatEmptyState,
-} from "@app/components/ui/agent-chat"
+} from "@app/components/ui/agent-chat/agent-chat"
+import { AgentChatComposer } from "@app/components/ui/agent-chat/agent-chat-composer"
 
 type BifrostNewChatContentProps = {
   input: string
