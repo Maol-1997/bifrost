@@ -1,9 +1,13 @@
 import { lazy, Suspense, useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Activity, Bot, MonitorSmartphone, Plug, type LucideIcon } from 'lucide-react';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { BifrostNewChatLoadingState } from '@app/components/bifrost-new-chat';
 import { BifrostMark } from '@app/components/ui/bifrost-mark';
+import { DownloadAppsIcon } from '@app/components/ui/icons/download-apps-icon';
+import { IntegrationsIcon } from '@app/components/ui/icons/integrations-icon';
+import type { LinearIconProps } from '@app/components/ui/icons/linear-icon';
+import { PulseIcon } from '@app/components/ui/icons/pulse-icon';
+import { SidebarAgentIcon } from '@app/components/ui/icons/sidebar-agent-icon';
 import { Sidebar, SidebarBackdrop, SidebarContent, SidebarGroup, SidebarHeader, SidebarLink, SidebarMobileHeader, SidebarSpacer, SidebarTrigger } from '@app/components/ui/sidebar';
 import { cn } from '@app/lib/cn';
 import { initialsOf } from '@app/lib/initials';
@@ -18,11 +22,11 @@ const Chat = lazy(() => import('@app/chat/chat'));
 /** What the shell loads once and shares with every page under it. */
 export type AppShellContext = { health: AppHealthState; user: CurrentUser | null | undefined };
 
-const navItems: readonly { to: string; label: string; icon: LucideIcon }[] = [
-  { to: APP_ROUTES.chat, label: 'Agent', icon: Bot },
-  { to: APP_ROUTES.integrations, label: 'Integrations', icon: Plug },
-  { to: APP_ROUTES.agents, label: 'Sessions', icon: MonitorSmartphone },
-  { to: APP_ROUTES.serviceStatus, label: 'Service status', icon: Activity },
+const navItems: readonly { to: string; label: string; icon: React.ComponentType<LinearIconProps> }[] = [
+  { to: APP_ROUTES.chat, label: 'Agent', icon: SidebarAgentIcon },
+  { to: APP_ROUTES.integrations, label: 'Integrations', icon: IntegrationsIcon },
+  { to: APP_ROUTES.agents, label: 'Sessions', icon: DownloadAppsIcon },
+  { to: APP_ROUTES.serviceStatus, label: 'Service status', icon: PulseIcon },
 ];
 
 function isActiveRoute(pathname: string, to: string): boolean {
