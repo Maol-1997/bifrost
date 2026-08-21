@@ -1,6 +1,7 @@
 import { zValidator, type Hook } from '@hono/zod-validator';
 import type { Next } from 'hono';
 import { Hono } from 'hono';
+import { streamSSE } from 'hono/streaming';
 import { z } from 'zod';
 import { APP_ROUTES } from '../../features/utils/routes.js';
 import { createBifrostChatResponse, createBifrostChatTitle } from '../chat.js';
@@ -20,6 +21,8 @@ import { limitRequestBody, readJsonBody } from './request-body.js';
 // A live session inside this window still works, but the UI warns that it will
 // need renewal soon.
 const RENEWAL_WINDOW_MS = 7 * 86_400_000;
+// Comment frames keep intermediaries from closing an otherwise idle event stream.
+const EVENT_STREAM_HEARTBEAT_MS = 25_000;
 const providerPathSchema = z.object({ providerId: z.enum(SUPPORTED_APPS) });
 const clientActionSchema = z.object({
   kind: z.enum(['browser', 'agent']),
@@ -56,6 +59,7 @@ export function createBrowserRoutes() {
 
   return routes
     .get('/api/app-connections.json', async (context) => context.json(await appConnections(context)))
+    .get('/api/events', (context) => browserEventStream(context))
     .get('/api/clients.json', async (context) => context.json(await clientList(context)))
     .get('/api/me.json', async (context) => {
       const user = await context.get('dependencies').database.getUser(context.get('browserIdentity').userId);
@@ -176,6 +180,23 @@ async function requireAdministrator(context: AppContext, next: Next): Promise<Re
   await next();
 }
 
+function browserEventStream(context: AppContext): Response {
+  const { events } = context.get('dependencies');
+  const userId = context.get('browserIdentity').userId;
+  return streamSSE(context, async (stream) => {
+    const unsubscribe = events.subscribe(userId, (event) => {
+      void stream.writeSSE({ event, data: '' });
+    });
+    const heartbeat = setInterval(() => {
+      void stream.write(': heartbeat\n\n');
+    }, EVENT_STREAM_HEARTBEAT_MS);
+    // Returning closes the stream, so hold it open until the browser goes away.
+    await new Promise<void>((resolve) => { stream.onAbort(resolve); });
+    clearInterval(heartbeat);
+    unsubscribe();
+  });
+}
+
 async function logout(context: AppContext): Promise<Response> {
   const { database } = context.get('dependencies');
   await database.deleteSession(context.get('browserIdentity').token);
@@ -199,6 +220,7 @@ async function finishProviderAuthorization(context: AppContext, expectedProvider
     const result = await context.get('dependencies').oauth.finishProvider(parameters.code, parameters.state);
     if (result.providerId !== expectedProvider) throw new Error('OAuth provider callback mismatch');
     invalidateProviderToolDiscovery(result.userId, result.providerId);
+    context.get('dependencies').events.emit(result.userId, 'providers-changed');
     return context.redirect(APP_ROUTES.integrations);
   } catch (error) {
     logger.warn(errorSummary(error), 'Provider OAuth callback failed');
@@ -207,10 +229,11 @@ async function finishProviderAuthorization(context: AppContext, expectedProvider
 }
 
 async function disconnectProvider(context: AppContext, providerId: ProviderId) {
-  const { database } = context.get('dependencies');
+  const { database, events } = context.get('dependencies');
   const userId = context.get('browserIdentity').userId;
   await database.deleteCredential(userId, providerId);
   invalidateProviderToolDiscovery(userId, providerId);
+  events.emit(userId, 'providers-changed');
   return context.json({ connected: false });
 }
 
@@ -219,8 +242,10 @@ async function setProviderPreference(
   providerId: ProviderId,
   preference: z.infer<typeof providerPreferenceSchema>,
 ) {
-  const { database } = context.get('dependencies');
-  await database.setProviderHidden(context.get('browserIdentity').userId, providerId, preference.isHidden);
+  const { database, events } = context.get('dependencies');
+  const userId = context.get('browserIdentity').userId;
+  await database.setProviderHidden(userId, providerId, preference.isHidden);
+  events.emit(userId, 'providers-changed');
   return context.json(preference);
 }
 
@@ -230,7 +255,7 @@ async function setToolPreference(
   preference: z.infer<typeof toolPreferenceSchema>,
 ) {
   const identity = context.get('browserIdentity');
-  const { database, mounts, oauth } = context.get('dependencies');
+  const { database, events, mounts, oauth } = context.get('dependencies');
   const [connectedProviders, policies] = await Promise.all([
     database.connectedProviders(identity.userId),
     database.toolPolicies(),
@@ -255,6 +280,7 @@ async function setToolPreference(
   } else {
     await database.setToolPreference(identity.userId, toolName, preference.isEnabled);
   }
+  events.emit(identity.userId, 'providers-changed');
   return context.json(preference);
 }
 
@@ -324,7 +350,7 @@ async function setDeploymentToolPolicies(
   policies: z.infer<typeof toolPolicyBatchSchema>['tools'],
 ) {
   const identity = context.get('browserIdentity');
-  const { database, mounts, oauth } = context.get('dependencies');
+  const { database, events, mounts, oauth } = context.get('dependencies');
   const discovery = await discoverProviderToolsFresh({
     userId: identity.userId,
     providerId,
@@ -343,6 +369,9 @@ async function setDeploymentToolPolicies(
     state: policy.state,
     updatedByUserId: identity.userId,
   })));
+  // Policies are deployment-wide: every user's tool list may just have changed.
+  events.broadcast('providers-changed');
+  events.broadcast('admin-tools-changed');
   return context.json({ tools: policies, cache: discovery.cache });
 }
 
@@ -350,7 +379,7 @@ async function handleClientAction(
   context: AppContext,
   request: z.infer<typeof clientActionSchema>,
 ) {
-  const { database } = context.get('dependencies');
+  const { database, events } = context.get('dependencies');
   const identity = context.get('browserIdentity');
 
   if (request.action === 'renew') {
@@ -361,6 +390,7 @@ async function handleClientAction(
     if (!renewedUntil) {
       return context.json({ error: 'That client has to sign in again before it can keep working' }, 409);
     }
+    events.emit(identity.userId, 'clients-changed');
     return context.json({ expiresAt: renewedUntil.toISOString() });
   }
 
@@ -371,6 +401,7 @@ async function handleClientAction(
   const wasCurrentClient = request.kind === 'browser'
     && request.id === identity.sessionId;
   if (wasCurrentClient) clearSessionCookie(context);
+  events.emit(identity.userId, 'clients-changed');
   return context.json({ revoked: true, wasCurrentClient });
 }
 

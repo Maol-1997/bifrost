@@ -6,6 +6,7 @@ import { Coordinator } from '../src/server/coordination.js';
 import { Database } from '../src/server/db.js';
 import { createApp } from '../src/server/http/app.js';
 import type { AppDependencies } from '../src/server/http/context.js';
+import { BrowserEventBus } from '../src/server/http/events.js';
 import { MAX_REQUEST_BODY_BYTES } from '../src/server/http/request-body.js';
 import { createHumanMcpHandler } from '../src/server/mcp.js';
 import { OAuthService } from '../src/server/oauth.js';
@@ -24,7 +25,7 @@ const coordinator = new Coordinator();
 const oauth = new OAuthService(config, database, coordinator);
 const mounts: readonly ProviderMount[] = [];
 const mcpHandler = createHumanMcpHandler({ config, database, coordinator, oauth, mounts });
-const dependencies: AppDependencies = { config, database, coordinator, oauth, mounts, mcpHandler };
+const dependencies: AppDependencies = { config, database, coordinator, oauth, mounts, mcpHandler, events: new BrowserEventBus() };
 const app = createApp(dependencies);
 
 afterAll(async () => {

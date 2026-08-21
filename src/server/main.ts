@@ -4,6 +4,7 @@ import { Coordinator } from './coordination.js';
 import { Database } from './db.js';
 import { createApp } from './http/app.js';
 import type { AppDependencies } from './http/context.js';
+import { BrowserEventBus } from './http/events.js';
 import { errorSummary, logger } from './logger.js';
 import { createHumanMcpHandler } from './mcp.js';
 import { OAuthService } from './oauth.js';
@@ -27,7 +28,8 @@ async function main(): Promise<void> {
 
   const oauth = new OAuthService(config, database, coordinator);
   const mcpHandler = createHumanMcpHandler({ config, database, coordinator, oauth, mounts });
-  const dependencies: AppDependencies = { config, database, coordinator, oauth, mounts, mcpHandler };
+  const events = new BrowserEventBus();
+  const dependencies: AppDependencies = { config, database, coordinator, oauth, mounts, mcpHandler, events };
   const app = createApp(dependencies);
   const server = serve({
     fetch: app.fetch,

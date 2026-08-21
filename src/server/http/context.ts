@@ -7,6 +7,7 @@ import type { Database } from '../db.js';
 import type { AgentIdentity, BrowserIdentity } from '../mcp.js';
 import type { OAuthService } from '../oauth.js';
 import type { ProviderMount } from '../providers/types.js';
+import type { BrowserEventBus } from './events.js';
 
 /** Everything built once at startup that a request handler may need. */
 export type AppDependencies = {
@@ -16,6 +17,7 @@ export type AppDependencies = {
   oauth: OAuthService;
   mounts: readonly ProviderMount[];
   mcpHandler: McpHttpHandler;
+  events: BrowserEventBus;
 };
 
 export type AppEnv = {

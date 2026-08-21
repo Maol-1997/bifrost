@@ -8,6 +8,7 @@ import { Sidebar, SidebarBackdrop, SidebarContent, SidebarGroup, SidebarHeader, 
 import { cn } from '@app/lib/cn';
 import { initialsOf } from '@app/lib/initials';
 import { getCurrentUser, type CurrentUser, type HealthSnapshot } from '@app/api/bifrost';
+import { useLiveInvalidations } from '@app/api/use-live-invalidations';
 import { APP_ROUTES } from '@features/utils/routes';
 import { AdminToolNavigation } from './admin-tool-navigation';
 import { useAppHealth, type AppHealthState } from './use-app-health';
@@ -48,6 +49,7 @@ export function AppShell(): React.JSX.Element {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const health = useAppHealth();
   const { data: user } = useQuery({ queryKey: ['current-user'], queryFn: getCurrentUser });
+  useLiveInvalidations(Boolean(user));
   const badge = statusBadge(health.snapshot);
 
   useEffect(() => {
