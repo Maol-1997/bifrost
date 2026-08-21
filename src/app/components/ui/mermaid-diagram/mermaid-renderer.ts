@@ -35,7 +35,9 @@ function loadMermaid() {
         actorBkg: "#1c1d1f",
         actorBorder: "#444446",
         actorTextColor: "#e3e4e7",
-        // ER attribute rows fall back to white/#f2f2f2 zebra stripes otherwise.
+        // ER attribute rows fall back to light zebra stripes otherwise. The
+        // v11 unified renderer reads rowOdd/rowEven; the attribute* pair
+        // covers the legacy renderer.
         attributeBackgroundColorEven: "#19191b",
         attributeBackgroundColorOdd: "#1c1d1f",
         background: "#19191b",
@@ -51,6 +53,8 @@ function loadMermaid() {
         primaryBorderColor: "#444446",
         primaryColor: "#1c1d1f",
         primaryTextColor: "#e3e4e7",
+        rowEven: "#19191b",
+        rowOdd: "#1c1d1f",
         secondaryColor: "#1c1d1f",
         signalColor: "#5c5c5f",
         signalTextColor: "#e3e4e7",
