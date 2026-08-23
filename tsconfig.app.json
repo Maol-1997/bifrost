@@ -20,7 +20,6 @@
     "exactOptionalPropertyTypes": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,
-    "baseUrl": ".",
     "paths": {
       "@app/*": ["./src/app/*"],
       "@features/*": ["./src/features/*"]

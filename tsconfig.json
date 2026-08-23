@@ -16,7 +16,6 @@
     "jsx": "react-jsx",
     "outDir": "dist",
     "rootDir": ".",
-    "baseUrl": ".",
     "paths": {
       "@app/*": ["./src/app/*"]
     },
