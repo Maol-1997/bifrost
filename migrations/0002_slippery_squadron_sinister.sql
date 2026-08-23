@@ -1,0 +1,1 @@
+ALTER TABLE "deployment_tool_policies" ADD COLUMN "contract" jsonb;

@@ -1,0 +1,71 @@
+import { serve } from '@hono/node-server';
+import { loadConfig } from './config.js';
+import { Coordinator } from './coordination.js';
+import { createDatabase } from './database/index.js';
+import { createApp } from './http/app.js';
+import type { AppDependencies } from './http/context.js';
+import { BrowserEventBus } from './http/events.js';
+import { errorSummary, logger } from './logger.js';
+import { createHumanMcpHandler } from './mcp.js';
+import { OAuthService } from './oauth.js';
+import { assertPrefixInvariant, mountProviders } from './providers/registry.js';
+import { isAccessRestricted } from './security/access.js';
+import { shutdownServer } from './shutdown.js';
+
+async function main(): Promise<void> {
+  const config = loadConfig();
+  assertPrefixInvariant();
+  const mounts = mountProviders();
+  const database = createDatabase(config);
+  const coordinator = new Coordinator();
+  await coordinator.connect(config.REDIS_URL);
+  logDeploymentWarnings(config);
+
+  if (config.NODE_ENV === 'development' && config.BIFROST_DEV_USER_ID) {
+    await database.ensureDevelopmentUser(config.BIFROST_DEV_USER_ID);
+    logger.warn({ userId: config.BIFROST_DEV_USER_ID }, 'Development user header authentication is enabled');
+  }
+
+  const oauth = new OAuthService(config, database, coordinator);
+  const mcpHandler = createHumanMcpHandler({ config, database, coordinator, oauth, mounts });
+  const events = new BrowserEventBus();
+  const dependencies: AppDependencies = { config, database, coordinator, oauth, mounts, mcpHandler, events };
+  const app = createApp(dependencies);
+  const server = serve({
+    fetch: app.fetch,
+    hostname: '0.0.0.0',
+    port: config.PORT,
+  }, ({ port }) => logger.info({ port }, 'Bifrost listening'));
+
+  let shutdownPromise: Promise<void> | undefined;
+  const shutdown = (): Promise<void> => {
+    shutdownPromise ??= shutdownServer({
+      server,
+      dependencies: [
+        { name: 'MCP handler', close: () => mcpHandler.close() },
+        { name: 'coordinator', close: () => coordinator.close() },
+        { name: 'database', close: () => database.close() },
+      ],
+    });
+    return shutdownPromise;
+  };
+  const handleShutdownSignal = (): void => {
+    void shutdown().catch((error: unknown) => {
+      process.exitCode = 1;
+      logger.error(errorSummary(error), 'Graceful shutdown failed');
+    });
+  };
+  process.once('SIGTERM', handleShutdownSignal);
+  process.once('SIGINT', handleShutdownSignal);
+}
+
+function logDeploymentWarnings(config: ReturnType<typeof loadConfig>): void {
+  if (!isAccessRestricted(config.accessPolicy)) {
+    logger.warn({}, 'Sign-in is open to any verified Google account. Set ALLOWED_EMAIL_DOMAINS or ALLOWED_EMAILS to restrict it');
+  }
+  if (config.adminEmails.size === 0) {
+    logger.warn({}, 'No administrators configured. Every discovered provider tool remains blocked until ADMIN_EMAILS is set');
+  }
+}
+
+await main();

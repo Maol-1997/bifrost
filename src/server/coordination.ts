@@ -1,0 +1,188 @@
+import { randomUUID } from 'node:crypto';
+import { createClient, type RedisClientType } from 'redis';
+import { AgentFacingError } from './errors.js';
+import { errorSummary, logger } from './logger.js';
+
+const DEFAULT_LOCK_MS = 30_000;
+const RATE_WINDOW_SECONDS = 60;
+const RATE_WINDOW_MS = RATE_WINDOW_SECONDS * 1_000;
+// This must outlive expected tool calls so a dead worker cannot make live work
+// disappear from the shared count too early.
+const CONCURRENCY_LEASE_SECONDS = 120;
+const ACQUIRE_LEASE_SCRIPT = `
+local count = redis.call('incr', KEYS[1])
+redis.call('expire', KEYS[1], ARGV[1])
+return count`;
+// A late release after expiry must not recreate a negative counter and admit
+// an extra call.
+const RELEASE_LEASE_SCRIPT = `
+local current = redis.call('get', KEYS[1])
+if not current then return 0 end
+local remaining = redis.call('decr', KEYS[1])
+if remaining <= 0 then redis.call('del', KEYS[1]) end
+return remaining`;
+const RELEASE_LOCK_SCRIPT = `
+if redis.call('get', KEYS[1]) == ARGV[1] then
+  return redis.call('del', KEYS[1])
+end
+return 0`;
+
+type RateLimitRequest = {
+  provider: string;
+  userId: string;
+  maximumStarts: number;
+};
+
+type ConcurrencyLeaseRequest<T> = {
+  provider: string;
+  userId: string;
+  maximumInFlight: number;
+  operation: () => Promise<T>;
+};
+
+export class Coordinator {
+  private redis: RedisClientType | undefined;
+  private readonly localLocks = new Map<string, Promise<void>>();
+  private readonly localRates = new Map<string, { count: number; resetAt: number }>();
+  private readonly localConcurrency = new Map<string, number>();
+  private readonly localEphemeral = new Map<string, { value: string; expiresAt: number }>();
+
+  async connect(redisUrl?: string): Promise<void> {
+    if (!redisUrl) {
+      logger.warn({ mode: 'in-process' }, 'Redis is unconfigured; locks, rate limits, and concurrency leases are not shared across workers');
+      return;
+    }
+    try {
+      this.redis = createClient({ url: redisUrl });
+      this.redis.on('error', (error) => logger.error(errorSummary(error), 'Redis error'));
+      await this.redis.connect();
+    } catch (error) {
+      this.redis = undefined;
+      logger.warn(errorSummary(error), 'Redis unavailable; degraded to in-process coordination');
+    }
+  }
+
+  async close(): Promise<void> {
+    if (this.redis?.isOpen) await this.redis.quit();
+  }
+
+  async withLock<T>(key: string, operation: () => Promise<T>): Promise<T> {
+    if (this.redis) return this.withRedisLock(key, operation);
+    return this.withLocalLock(key, operation);
+  }
+
+  async enforceRateLimit(request: RateLimitRequest): Promise<void> {
+    const window = Math.floor(Date.now() / RATE_WINDOW_MS);
+    const scope = tenantProviderScope(request);
+    const key = `rate:${scope}:${window}`;
+    if (this.redis) {
+      const count = await this.redis.incr(key);
+      if (count === 1) await this.redis.expire(key, RATE_WINDOW_SECONDS);
+      if (count > request.maximumStarts) throw rateLimitReached(request.provider);
+      return;
+    }
+    const state = this.localRates.get(scope);
+    const current = !state || state.resetAt <= Date.now()
+      ? { count: 0, resetAt: (window + 1) * RATE_WINDOW_MS }
+      : state;
+    current.count += 1;
+    this.localRates.set(scope, current);
+    if (current.count > request.maximumStarts) throw rateLimitReached(request.provider);
+  }
+
+  async withConcurrencyLease<T>(request: ConcurrencyLeaseRequest<T>): Promise<T> {
+    const scope = tenantProviderScope(request);
+    const leaseKey = `concurrency:${scope}`;
+    if (this.redis) {
+      const redis = this.redis;
+      const count = await redis.eval(ACQUIRE_LEASE_SCRIPT, {
+        keys: [leaseKey],
+        arguments: [String(CONCURRENCY_LEASE_SECONDS)],
+      });
+      if (typeof count !== 'number') throw new Error('Redis returned an invalid concurrency lease count');
+      if (count > request.maximumInFlight) {
+        await redis.eval(RELEASE_LEASE_SCRIPT, { keys: [leaseKey] });
+        throw concurrencyLimitReached(request.provider);
+      }
+      try {
+        return await request.operation();
+      } finally {
+        await redis.eval(RELEASE_LEASE_SCRIPT, { keys: [leaseKey] });
+      }
+    }
+    const inFlight = this.localConcurrency.get(scope) ?? 0;
+    if (inFlight >= request.maximumInFlight) throw concurrencyLimitReached(request.provider);
+    this.localConcurrency.set(scope, inFlight + 1);
+    try {
+      return await request.operation();
+    } finally {
+      // Restoring the entry count would lose leases that started after it.
+      const remaining = (this.localConcurrency.get(scope) ?? 1) - 1;
+      if (remaining <= 0) this.localConcurrency.delete(scope);
+      else this.localConcurrency.set(scope, remaining);
+    }
+  }
+
+  async setEphemeral(key: string, value: string, ttlSeconds: number): Promise<void> {
+    if (this.redis) {
+      await this.redis.set(key, value, { EX: ttlSeconds });
+      return;
+    }
+    // Abandoned values (an OAuth start nobody finishes) are only ever read by
+    // their own key, so without this sweep they would accumulate until restart.
+    const now = Date.now();
+    for (const [existingKey, entry] of this.localEphemeral) {
+      if (entry.expiresAt <= now) this.localEphemeral.delete(existingKey);
+    }
+    this.localEphemeral.set(key, { value, expiresAt: now + ttlSeconds * 1000 });
+  }
+
+  async takeEphemeral(key: string): Promise<string | undefined> {
+    if (this.redis) {
+      const value = await this.redis.getDel(key);
+      return value ?? undefined;
+    }
+    const entry = this.localEphemeral.get(key);
+    this.localEphemeral.delete(key);
+    return entry && entry.expiresAt > Date.now() ? entry.value : undefined;
+  }
+
+  private async withRedisLock<T>(key: string, operation: () => Promise<T>): Promise<T> {
+    const lockKey = `lock:${key}`;
+    const owner = randomUUID();
+    const acquired = await this.redis?.set(lockKey, owner, { NX: true, PX: DEFAULT_LOCK_MS });
+    if (acquired !== 'OK') throw new AgentFacingError('Credential refresh already in progress; retry shortly');
+    try {
+      return await operation();
+    } finally {
+      await this.redis?.eval(RELEASE_LOCK_SCRIPT, { keys: [lockKey], arguments: [owner] });
+    }
+  }
+
+  private async withLocalLock<T>(key: string, operation: () => Promise<T>): Promise<T> {
+    const predecessor = this.localLocks.get(key) ?? Promise.resolve();
+    let release = (): void => undefined;
+    const current = new Promise<void>((resolve) => { release = resolve; });
+    const queued = predecessor.then(() => current);
+    this.localLocks.set(key, queued);
+    await predecessor;
+    try {
+      return await operation();
+    } finally {
+      release();
+      if (this.localLocks.get(key) === queued) this.localLocks.delete(key);
+    }
+  }
+}
+
+function tenantProviderScope(request: { provider: string; userId: string }): string {
+  return `${request.provider}:${request.userId}`;
+}
+
+function rateLimitReached(provider: string): AgentFacingError {
+  return new AgentFacingError(`${provider} outbound rate limit reached; retry later`);
+}
+
+function concurrencyLimitReached(provider: string): AgentFacingError {
+  return new AgentFacingError(`${provider} concurrency limit reached; retry later`);
+}
