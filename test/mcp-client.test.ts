@@ -2,8 +2,8 @@ import type { Tool } from '@modelcontextprotocol/client';
 import type { CallToolResult } from '@modelcontextprotocol/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  callCachedUpstreamTool,
   callUpstreamTool,
-  callVerifiedUpstreamTool,
   listUpstreamTools,
   type UpstreamToolExecutionClient,
 } from '../src/server/providers/mcp-client.js';
@@ -64,22 +64,18 @@ const toolResult: CallToolResult = {
   content: [{ type: 'text', text: 'Issue 42' }],
 };
 
-const verifiedCall: Parameters<typeof callVerifiedUpstreamTool>[1] = {
-  provider,
+const approvedCall: Parameters<typeof callCachedUpstreamTool>[1] = {
   tool: normalizeUpstreamTool(provider, approvedDefinition),
   arguments: { issueNumber: 42 },
 };
 
-function executionClient(tools: Tool[]): {
+function executionClient(): {
   client: UpstreamToolExecutionClient;
-  listTools: ReturnType<typeof vi.fn<UpstreamToolExecutionClient['listTools']>>;
   callTool: ReturnType<typeof vi.fn<UpstreamToolExecutionClient['callTool']>>;
 } {
-  const listTools = vi.fn<UpstreamToolExecutionClient['listTools']>();
   const callTool = vi.fn<UpstreamToolExecutionClient['callTool']>();
-  listTools.mockResolvedValue({ tools });
   callTool.mockResolvedValue(toolResult);
-  return { client: { listTools, callTool }, listTools, callTool };
+  return { client: { callTool }, callTool };
 }
 
 beforeEach(() => {
@@ -90,54 +86,47 @@ beforeEach(() => {
   sdkClient.callTool.mockResolvedValue(toolResult);
 });
 
-describe('execution-time upstream tool verification', () => {
-  it('denies a missing upstream definition without calling the tool', async () => {
-    const { client, callTool } = executionClient([]);
-
-    await expect(callVerifiedUpstreamTool(client, verifiedCall))
-      .rejects.toThrow('Upstream tool disappeared: get_issue');
-    expect(callTool).not.toHaveBeenCalled();
-  });
-
-  it('denies a changed normalized fingerprint without calling the tool', async () => {
-    const changedDefinition: Tool = { ...approvedDefinition, description: 'Changed after approval.' };
-    const { client, callTool } = executionClient([changedDefinition]);
-
-    await expect(callVerifiedUpstreamTool(client, verifiedCall))
-      .rejects.toThrow('Upstream tool changed after approval: get_issue');
-    expect(callTool).not.toHaveBeenCalled();
-  });
-
-  it('calls the current matching definition with the current name and arguments', async () => {
-    const currentDefinition: Tool = { ...approvedDefinition };
-    const { client, listTools, callTool } = executionClient([currentDefinition]);
+describe('calling an approved upstream tool', () => {
+  it('sends the approved contract as the definition instead of listing again', async () => {
+    const { client, callTool } = executionClient();
     const signal = new AbortController().signal;
 
-    await expect(callVerifiedUpstreamTool(client, { ...verifiedCall, signal })).resolves.toBe(toolResult);
-    expect(listTools).toHaveBeenCalledExactlyOnceWith(undefined, {
-      signal,
-      timeout: 15_000,
-      cacheMode: 'refresh',
-    });
+    await expect(callCachedUpstreamTool(client, { ...approvedCall, signal })).resolves.toBe(toolResult);
+
     expect(callTool).toHaveBeenCalledExactlyOnceWith(
-      { name: currentDefinition.name, arguments: verifiedCall.arguments },
-      { signal, timeout: 60_000, toolDefinition: currentDefinition },
+      { name: 'get_issue', arguments: approvedCall.arguments },
+      { signal, timeout: 60_000, toolDefinition: approvedCall.tool.contract.tool },
     );
+  });
+
+  it('calls the upstream name, not the prefixed Bifrost name', async () => {
+    const { client, callTool } = executionClient();
+
+    await callCachedUpstreamTool(client, approvedCall);
+
+    expect(approvedCall.tool.name).toBe('github_get_issue');
+    expect(callTool.mock.calls[0]?.[0]).toMatchObject({ name: 'get_issue' });
+  });
+
+  it('does not spend an upstream listing on every tool call', async () => {
+    await callUpstreamTool({ ...approvedCall, provider, accessToken: 'access-token' });
+
+    expect(sdkClient.listTools).not.toHaveBeenCalled();
+    expect(sdkClient.callTool).toHaveBeenCalledOnce();
   });
 });
 
 describe('upstream connection cleanup', () => {
-  it('verifies and calls through the real connection wrapper', async () => {
-    sdkClient.listTools.mockResolvedValue({ tools: [approvedDefinition] });
-
+  it('calls through the real connection wrapper and closes it', async () => {
     await expect(callUpstreamTool({
-      ...verifiedCall,
+      ...approvedCall,
+      provider,
       accessToken: 'access-token',
     })).resolves.toBe(toolResult);
 
     expect(sdkClient.callTool).toHaveBeenCalledExactlyOnceWith(
-      { name: approvedDefinition.name, arguments: verifiedCall.arguments },
-      { timeout: 60_000, toolDefinition: approvedDefinition },
+      { name: approvedDefinition.name, arguments: approvedCall.arguments },
+      { timeout: 60_000, toolDefinition: approvedCall.tool.contract.tool },
     );
     expect(sdkClient.close).toHaveBeenCalledOnce();
   });

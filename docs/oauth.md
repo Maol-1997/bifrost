@@ -11,6 +11,11 @@ The agent-facing half is why agent access does not expire the way a static key w
 holds a short access token (1h) and a rotating refresh token (90d, slid forward on each use), and
 replaces its own credential without anyone being asked to log in again.
 
+Google sign-in binds a Bifrost user to the ID token's immutable `sub`; email remains mutable profile
+and access-policy data. Rows created before this field existed link once by their verified email on
+the first post-migration sign-in. A later email collision with another subject is rejected rather
+than merging accounts.
+
 ## The client side
 
 The client side uses `openid-client` for authorization URLs, PKCE, provider code exchanges and
@@ -32,6 +37,9 @@ Worth knowing before touching `src/server/oauth-server/`:
   which one clients take, because advertising support is what makes them choose.
 - **Refresh tokens rotate with replay detection.** A spent token presented again destroys the
   entire grant rather than just declining, because a replay means the value leaked.
+- **Expired credentials are housekeeping-bounded.** Startup and hourly maintenance remove expired
+  sessions, access tokens and refresh tokens. Consumed refresh tokens stay until their own expiry so
+  replay detection remains available for the full validity window.
 - **Tokens are opaque, stored as SHA-256 hashes.** Not JWTs: this gives instant revocation and no
   key management, and the bearer regex in `authenticateAgent()` would not match a JWT's dots anyway.
 - **`redirect-uri.ts` implements the RFC 8252 loopback port exception.** It looks like a

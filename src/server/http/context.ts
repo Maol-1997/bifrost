@@ -7,6 +7,8 @@ import type { Database } from '../database/index.js';
 import type { AgentIdentity, BrowserIdentity } from '../mcp.js';
 import type { OAuthService } from '../oauth.js';
 import type { ProviderMount } from '../providers/types.js';
+import type { RedisRuntime } from '../redis.js';
+import type { ToolDiscoveryService } from '../tools/discovery.js';
 import type { BrowserEventBus } from './events.js';
 
 /** Everything built once at startup that a request handler may need. */
@@ -18,6 +20,8 @@ export type AppDependencies = {
   mounts: readonly ProviderMount[];
   mcpHandler: McpHttpHandler;
   events: BrowserEventBus;
+  toolDiscovery: ToolDiscoveryService;
+  redis?: Pick<RedisRuntime, 'isReady'>;
 };
 
 export type AppEnv = {

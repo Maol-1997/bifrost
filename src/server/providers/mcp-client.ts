@@ -4,7 +4,7 @@ import {
   type Tool,
 } from '@modelcontextprotocol/client';
 import type { CallToolResult } from '@modelcontextprotocol/server';
-import { normalizeUpstreamTool, type DiscoveredTool } from '../tools/catalog.js';
+import type { DiscoveredTool } from '../tools/catalog.js';
 import type { ProviderDefinition } from './types.js';
 
 const UPSTREAM_CONNECT_TIMEOUT_MS = 10_000;
@@ -36,42 +36,39 @@ type UpstreamToolCall = UpstreamConnectionRequest & {
 };
 
 export type UpstreamToolExecutionClient = {
-  listTools: Client['listTools'];
   callTool: Client['callTool'];
 };
 
-type VerifiedUpstreamToolCall = Pick<
-  UpstreamToolCall,
-  'provider' | 'tool' | 'arguments' | 'signal'
->;
+type CachedUpstreamToolCall = Pick<UpstreamToolCall, 'tool' | 'arguments' | 'signal'>;
 
 export async function callUpstreamTool(request: UpstreamToolCall): Promise<CallToolResult> {
-  return withUpstreamConnection(request, async ({ client }) => callVerifiedUpstreamTool(client, request));
+  return withUpstreamConnection(request, async ({ client }) => callCachedUpstreamTool(client, request));
 }
 
-export async function callVerifiedUpstreamTool(
+/**
+ * Calls the exact definition the deployment approved. That definition is the
+ * cached contract this tool's fingerprint was computed from, and execution has
+ * already re-checked that fingerprint against the stored policy — so listing
+ * upstream again would add a round trip to every tool call without proving
+ * anything the cache does not already bound. Drift is caught by the freshness
+ * window and by invalidating this user's listing whenever a call fails.
+ */
+export async function callCachedUpstreamTool(
   client: UpstreamToolExecutionClient,
-  request: VerifiedUpstreamToolCall,
+  request: CachedUpstreamToolCall,
 ): Promise<CallToolResult> {
-  const currentTools = await client.listTools(undefined, {
-    ...(request.signal ? { signal: request.signal } : {}),
-    timeout: UPSTREAM_LIST_TIMEOUT_MS,
-    cacheMode: 'refresh',
-  });
-  const currentDefinition = currentTools.tools.find((tool) => tool.name === request.tool.upstreamName);
-  if (!currentDefinition) throw new Error(`Upstream tool disappeared: ${request.tool.upstreamName}`);
-  const currentTool = normalizeUpstreamTool(request.provider, currentDefinition);
-  if (currentTool.fingerprint !== request.tool.fingerprint) {
-    throw new Error(`Upstream tool changed after approval: ${request.tool.upstreamName}`);
-  }
   return client.callTool(
-    { name: currentDefinition.name, arguments: request.arguments },
+    { name: request.tool.upstreamName, arguments: request.arguments },
     {
       ...(request.signal ? { signal: request.signal } : {}),
       timeout: UPSTREAM_CALL_TIMEOUT_MS,
-      toolDefinition: currentDefinition,
+      toolDefinition: approvedToolDefinition(request.tool),
     },
   );
+}
+
+function approvedToolDefinition(tool: DiscoveredTool): Tool {
+  return tool.contract.tool as unknown as Tool;
 }
 
 async function withUpstreamConnection<Result>(

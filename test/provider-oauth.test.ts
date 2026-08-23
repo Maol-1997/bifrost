@@ -203,7 +203,7 @@ function createHarness(initialCredential?: StoredCredential) {
     getCredential,
     saveCredential,
     setAccountLabel,
-    upsertUser: vi.fn(async () => USER_ID),
+    upsertGoogleUser: vi.fn(async () => USER_ID),
   };
   const coordinator = new Coordinator();
   const authorizationCodeGrant = vi.fn(async (): Promise<unknown> => ({ access_token: 'connected-access' }));

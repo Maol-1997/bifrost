@@ -15,22 +15,42 @@ import { createUserStore } from './users.js';
  */
 export function createDatabase(config: Config) {
   const { client, database } = createDatabaseConnection(config.DATABASE_URL);
+  const sessions = createSessionStore(database);
+  const grants = createOAuthGrantStore(database, config);
   return {
     ...createUserStore(database),
-    ...createSessionStore(database),
-    ...createOAuthGrantStore(database, config),
+    ...sessions,
+    ...grants,
     ...createConnectionStore(database, config),
     ...createPreferenceStore(database),
     ...createToolPolicyStore(database),
+
+    /**
+     * One sweep of everything that has lapsed. Composed here because it spans
+     * two aggregates, and reported per table so a sweep that stops collecting
+     * anything is visible in the logs rather than silent.
+     */
+    async deleteExpiredAuthState(): Promise<ExpiredAuthStateCounts> {
+      const deletedSessions = await sessions.deleteExpiredSessions();
+      return { sessions: deletedSessions, ...await grants.deleteExpiredOAuthTokens() };
+    },
+
     async close(): Promise<void> {
       await client.end();
     },
   };
 }
 
+export type ExpiredAuthStateCounts = {
+  sessions: number;
+  accessTokens: number;
+  refreshTokens: number;
+};
+
 export type Database = ReturnType<typeof createDatabase>;
 
 export { SESSION_TTL_SECONDS, type SessionRecord } from './sessions.js';
+export { GoogleAccountConflictError, type GoogleIdentity } from './users.js';
 export type { StoredCredential } from './connections.js';
 export type {
   OAuthGrantRecord,

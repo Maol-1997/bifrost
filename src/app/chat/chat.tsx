@@ -16,6 +16,7 @@ import { toast } from "sonner"
 
 import { BifrostNewChatContent, BifrostNewChatLoadingState } from "@app/components/bifrost-new-chat"
 import { BifrostMark } from "@app/components/ui/bifrost-mark"
+import { Button } from "@app/components/ui/button"
 import {
   AgentChat,
   AgentChatComposer,
@@ -119,13 +120,14 @@ function ChatHistory({
   const location = useLocation()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  // Never refetched: every write below goes through setQueryData, and a
+  // No background refetch: every write below goes through setQueryData, and a
   // background refetch could roll back a save still inside its debounce window.
-  const { data: conversations } = useQuery({
+  const conversationsQuery = useQuery({
     queryKey: conversationsQueryKey(owner),
-    queryFn: () => listConversations(owner).catch((): StoredConversation[] => []),
+    queryFn: () => listConversations(owner),
     staleTime: Infinity,
   })
+  const conversations = conversationsQuery.data
   const setConversations = useCallback(
     (updater: (current: StoredConversation[]) => StoredConversation[]): void => {
       queryClient.setQueryData<StoredConversation[]>(
@@ -141,7 +143,7 @@ function ChatHistory({
   const activeConversationRef = useRef(activeConversation)
   conversationsRef.current = conversations
   activeConversationRef.current = activeConversation
-  const historyReady = conversations !== undefined
+  const historyReady = conversationsQuery.isSuccess
   const requestedConversationId = active
     ? new URLSearchParams(location.search).get(CHAT_ID_QUERY_PARAMETER)
     : undefined
@@ -290,11 +292,41 @@ function ChatHistory({
     }
   }
 
-  if (!activeConversation || !conversations) {
+  if (conversationsQuery.isPending) {
     return active ? <BifrostNewChatLoadingState /> : null
   }
 
-  const toolbarHistoryItems = historyItems(conversations, floatingConversation?.conversation.id)
+  if (conversationsQuery.isError) {
+    return active ? (
+      <AgentChat className="h-full min-h-[540px] bg-transparent" title="Bifrost">
+        <AgentChatEmptyState>
+          <div
+            aria-busy={conversationsQuery.isFetching}
+            className="mx-auto max-w-md px-6 text-center"
+            role="alert"
+          >
+            <h1 className="text-xl font-semibold text-linear-bright">Chat history could not be opened</h1>
+            <p className="mt-2 text-sm leading-6 text-linear-muted">Nothing was deleted. Your history is still stored in this browser.</p>
+            <Button
+              className="mt-4 min-w-20"
+              disabled={conversationsQuery.isFetching}
+              onClick={() => { void conversationsQuery.refetch() }}
+              variant="outline"
+            >
+              Retry
+            </Button>
+          </div>
+        </AgentChatEmptyState>
+      </AgentChat>
+    ) : null
+  }
+
+  if (!activeConversation) {
+    return active ? <BifrostNewChatLoadingState /> : null
+  }
+
+  const loadedConversations = conversationsQuery.data
+  const toolbarHistoryItems = historyItems(loadedConversations, floatingConversation?.conversation.id)
 
   return (
     <>
@@ -314,7 +346,7 @@ function ChatHistory({
           }}
           record={{
             conversation: activeConversation,
-            history: conversations,
+            history: loadedConversations,
             onChange: updateConversation,
             onDelete: removeConversation,
           }}
@@ -334,7 +366,7 @@ function ChatHistory({
             }}
             record={{
               conversation: floatingConversation.conversation,
-              history: conversations,
+              history: loadedConversations,
               onChange: updateConversation,
               onDelete: removeConversation,
             }}

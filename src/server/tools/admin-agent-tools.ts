@@ -7,14 +7,14 @@ import { PROVIDER_REGISTRY, SUPPORTED_APPS } from '../providers/registry.js';
 import type { ProviderId } from '../providers/types.js';
 import { isAdministrator } from '../security/access.js';
 import {
-  contractForToolPolicyReview,
   effectivePolicyState,
+  mcpToolNameSchema,
   toolContractReview,
-  toolPolicyReviewsMatchCurrentDefinitions,
   TOOL_POLICY_STATES,
   type StoredToolPolicy,
 } from './catalog.js';
-import { discoverProviderTools, discoverProviderToolsFresh, mcpToolNameSchema } from './discovery.js';
+import type { ToolDiscoveryService } from './discovery.js';
+import { applyToolPolicies, countToolPolicyStates } from './policy.js';
 import { providerAgentNoteInstructions, providerAgentNoteSchema } from './provider-agent-notes.js';
 
 const ADMIN_TOOL_NAMESPACE = {
@@ -49,8 +49,14 @@ const setProviderNoteSchema = z.object({
 });
 const clearProviderNoteSchema = z.object({ providerId: providerIdSchema });
 
+/**
+ * The intersection is deliberate: once `toolDiscovery` is part of
+ * `AppDependencies` it collapses to `AppDependencies` and nothing here changes.
+ */
+type AdminAgentDependencies = AppDependencies & { toolDiscovery: ToolDiscoveryService };
+
 type AdminAgentToolRequest = {
-  dependencies: AppDependencies;
+  dependencies: AdminAgentDependencies;
   identity: BrowserIdentity;
   signal: AbortSignal;
 };
@@ -170,11 +176,9 @@ async function listMcpTools(request: AdminAgentToolRequest & {
     return { providerId: request.input.providerId, status: 'not-connected' as const, totalTools: 0, matchedTools: 0, tools: [] };
   }
   const [discovery, policies] = await Promise.all([
-    discoverProviderTools({
+    request.dependencies.toolDiscovery.discoverProvider({
       userId: request.identity.userId,
       providerId: request.input.providerId,
-      oauth: request.dependencies.oauth,
-      mounts: request.dependencies.mounts,
       signal: request.signal,
     }),
     request.dependencies.database.toolPolicies(),
@@ -214,43 +218,27 @@ async function setMcpToolPolicies(request: AdminAgentToolRequest & {
   if (!connectedProviders.has(request.input.providerId)) {
     throw new Error(`The admin account is not connected to ${request.input.providerId}`);
   }
-  const discovery = await discoverProviderToolsFresh({
+  const outcome = await applyToolPolicies({
     userId: request.identity.userId,
     providerId: request.input.providerId,
-    oauth: request.dependencies.oauth,
-    mounts: request.dependencies.mounts,
+    changes: request.input.changes,
     signal: request.signal,
+    dependencies: request.dependencies,
   });
-  if (!toolPolicyReviewsMatchCurrentDefinitions(discovery.tools, request.input.changes)) {
+  if (outcome.status === 'stale') {
     throw new Error('The batch was not saved because a selected tool changed, is unknown, or appears more than once. List the tools again before retrying.');
   }
-  await request.dependencies.database.setToolPolicies(request.input.changes.map((change) => ({
-    providerId: request.input.providerId,
-    toolName: change.toolName,
-    fingerprint: change.fingerprint,
-    contract: contractForToolPolicyReview(discovery.tools, change),
-    state: change.state,
-    updatedByUserId: request.identity.userId,
-  })));
   return {
-    providerId: request.input.providerId,
-    updatedTools: request.input.changes.length,
-    policyCounts: countChanges(request.input.changes),
+    providerId: outcome.providerId,
+    updatedTools: outcome.changes.length,
+    policyCounts: outcome.counts,
   };
 }
 
 function countProviderPolicies(providerId: ProviderId, policies: ReadonlyMap<string, StoredToolPolicy>) {
   const prefix = PROVIDER_REGISTRY.find((provider) => provider.id === providerId)?.prefix;
   if (!prefix) throw new Error(`Unknown provider: ${providerId}`);
-  return countChanges([...policies.values()].filter((policy) => policy.toolName.startsWith(prefix)));
-}
-
-function countChanges(changes: readonly { state: z.infer<typeof policyStateSchema> }[]) {
-  return {
-    blocked: changes.filter((change) => change.state === 'blocked').length,
-    allowedDefaultOff: changes.filter((change) => change.state === 'allowed_default_off').length,
-    allowedDefaultOn: changes.filter((change) => change.state === 'allowed_default_on').length,
-  };
+  return countToolPolicyStates([...policies.values()].filter((policy) => policy.toolName.startsWith(prefix)));
 }
 
 async function hasAdministratorAccess(request: AdminAgentToolRequest): Promise<boolean> {

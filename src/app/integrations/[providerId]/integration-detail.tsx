@@ -60,6 +60,7 @@ export default function IntegrationDetail(): React.JSX.Element {
         })),
       }));
     },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: providersQueryOptions.queryKey }),
   });
 
   // Falls back to the description rather than an empty line: before you connect
@@ -89,7 +90,7 @@ export default function IntegrationDetail(): React.JSX.Element {
       <div className="flex flex-wrap items-center gap-3">
         <ProviderIcon providerId={provider.id} monogram={provider.monogram} size="lg" />
         <div className="min-w-[220px] flex-1"><div className="flex items-center gap-2.5"><h1 className="text-lg font-semibold tracking-[-0.01em]">{provider.name}</h1><StatusBadge status={provider.status} /></div><div className="mt-0.5 text-[12.5px] text-app-text-tertiary">{accountLine}</div></div>
-        {provider.status === 'not-connected' || provider.status === 'needs-reconnect' ? <Button variant={provider.status === 'needs-reconnect' ? 'default' : 'ghost'} onClick={() => { if (isConnectableProvider(provider.id)) connectMutation.mutate(provider.id); }} className={provider.status === 'needs-reconnect' ? 'bg-warning text-app-bg-primary hover:bg-warning/90' : ''}>{provider.status === 'needs-reconnect' ? 'Reconnect' : `Connect ${provider.name}`}</Button> : null}
+        {provider.status === 'not-connected' || provider.status === 'needs-reconnect' ? <Button disabled={connectMutation.isPending || disconnectMutation.isPending} variant={provider.status === 'needs-reconnect' ? 'default' : 'ghost'} onClick={() => { if (isConnectableProvider(provider.id)) connectMutation.mutate(provider.id); }} className={provider.status === 'needs-reconnect' ? 'bg-warning text-app-bg-primary hover:bg-warning/90' : ''}>{provider.status === 'needs-reconnect' ? 'Reconnect' : `Connect ${provider.name}`}</Button> : null}
       </div>
       {banner ? <div className={`mt-[18px] rounded-[9px] border-[0.5px] px-3.5 py-3 text-[12.5px] leading-5 ${provider.status === 'unavailable' ? 'border-app-border-pane bg-white/3 text-app-text-tertiary' : 'border-warning/35 bg-warning/7 text-app-text-secondary'}`}>{banner}</div> : null}
 
@@ -104,11 +105,11 @@ export default function IntegrationDetail(): React.JSX.Element {
       {provider.toolDiscoveryFailed ? <p role="alert" className="mt-3 rounded-[9px] border-[0.5px] border-warning/35 bg-warning/7 px-3.5 py-3 text-[12.5px] text-app-text-secondary">Tools are temporarily unavailable. Reconnect if this continues.</p> : null}
       {!provider.toolDiscoveryFailed && provider.tools.length === 0 ? <p className="mt-3 rounded-[9px] border-[0.5px] border-app-border-pane px-3.5 py-3 text-[12.5px] text-app-text-tertiary">{isConnected ? 'No tools are available for your account.' : 'Tools will appear here after you connect.'}</p> : null}
       {provider.tools.length > 0 ? <SectionCard className="mt-3 overflow-hidden">
-        {readTools.length > 0 ? <><div className="bg-white/2.5 px-3.5 py-2 text-[11px] font-semibold uppercase tracking-[.07em] text-app-text-quaternary">Read, looks things up</div>{readTools.map((tool) => <ToolRow key={tool.name} tool={tool} isAvailable={isConnected} onToggle={(isEnabled) => { toolMutation.mutate({ toolName: tool.name, isEnabled }); }} />)}</> : null}
-        {writeTools.length > 0 ? <><div className="border-t-[0.5px] border-app-border-pane bg-warning/5 px-3.5 py-2 text-[11px] font-semibold uppercase tracking-[.07em] text-warning">Write, acts in your name</div>{writeTools.map((tool) => <ToolRow key={tool.name} tool={tool} isAvailable={isConnected} onToggle={(isEnabled) => { toolMutation.mutate({ toolName: tool.name, isEnabled }); }} />)}</> : null}
+        {readTools.length > 0 ? <><div className="bg-white/2.5 px-3.5 py-2 text-[11px] font-semibold uppercase tracking-[.07em] text-app-text-quaternary">Read, looks things up</div>{readTools.map((tool) => <ToolRow disabled={toolMutation.isPending} key={tool.name} tool={tool} isAvailable={isConnected} onToggle={(isEnabled) => { toolMutation.mutate({ toolName: tool.name, isEnabled }); }} />)}</> : null}
+        {writeTools.length > 0 ? <><div className="border-t-[0.5px] border-app-border-pane bg-warning/5 px-3.5 py-2 text-[11px] font-semibold uppercase tracking-[.07em] text-warning">Write, acts in your name</div>{writeTools.map((tool) => <ToolRow disabled={toolMutation.isPending} key={tool.name} tool={tool} isAvailable={isConnected} onToggle={(isEnabled) => { toolMutation.mutate({ toolName: tool.name, isEnabled }); }} />)}</> : null}
       </SectionCard> : null}
       {toolMutation.isError ? <p role="alert" className="mt-2 text-[12.5px] leading-5 text-danger">That change to {toolMutation.variables.toolName} was not saved. Try again.</p> : null}
-      {canDisconnect ? <div className="mt-6 flex flex-col items-start justify-between gap-3 rounded-[10px] border-[0.5px] border-app-border-pane p-3.5 sm:flex-row sm:items-center"><div className="text-[12.5px] leading-5 text-app-text-tertiary">Disconnecting cuts your agents' access immediately. Nothing gets deleted on {provider.name}.</div><Button variant="destructive" className="shrink-0" onClick={() => { disconnectMutation.mutate(provider.id); }}>Disconnect {provider.name}</Button></div> : null}
+      {canDisconnect ? <div className="mt-6 flex flex-col items-start justify-between gap-3 rounded-[10px] border-[0.5px] border-app-border-pane p-3.5 sm:flex-row sm:items-center"><div className="text-[12.5px] leading-5 text-app-text-tertiary">Disconnecting cuts your agents' access immediately. Nothing gets deleted on {provider.name}.</div><Button disabled={connectMutation.isPending || disconnectMutation.isPending} variant="destructive" className="shrink-0" onClick={() => { disconnectMutation.mutate(provider.id); }}>Disconnect {provider.name}</Button></div> : null}
     </section>
   );
 }

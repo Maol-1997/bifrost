@@ -11,6 +11,8 @@ import { MAX_REQUEST_BODY_BYTES } from '../src/server/http/request-body.js';
 import { createHumanMcpHandler } from '../src/server/mcp.js';
 import { OAuthService } from '../src/server/oauth.js';
 import type { ProviderMount } from '../src/server/providers/types.js';
+import { createInMemoryToolCacheStore } from '../src/server/tools/cache-store.js';
+import { ToolDiscoveryService } from '../src/server/tools/discovery.js';
 
 const PUBLIC_HOST = 'bifrost.example.test';
 const DEVELOPMENT_USER_ID = randomUUID();
@@ -24,13 +26,22 @@ const database = createDatabase(config);
 const coordinator = new Coordinator();
 const oauth = new OAuthService(config, database, coordinator);
 const mounts: readonly ProviderMount[] = [];
-const mcpHandler = createHumanMcpHandler({ config, database, coordinator, oauth, mounts });
-const dependencies: AppDependencies = { config, database, coordinator, oauth, mounts, mcpHandler, events: new BrowserEventBus() };
+const toolDiscovery = new ToolDiscoveryService({ oauth, mounts, store: createInMemoryToolCacheStore() });
+const mcpHandler = createHumanMcpHandler({ config, database, coordinator, oauth, mounts, toolDiscovery });
+const dependencies: AppDependencies = {
+  config,
+  database,
+  coordinator,
+  oauth,
+  mounts,
+  mcpHandler,
+  events: new BrowserEventBus(),
+  toolDiscovery,
+};
 const app = createApp(dependencies);
 
 afterAll(async () => {
   await mcpHandler.close();
-  await coordinator.close();
   await database.close();
 });
 
@@ -41,6 +52,23 @@ async function request(path: string, init?: RequestInit): Promise<Response> {
 }
 
 describe('HTTP security boundaries', () => {
+  it('reports unavailable while configured Redis is not ready', async () => {
+    const redisConfig = loadConfig({
+      NODE_ENV: 'test',
+      PUBLIC_URL: `https://${PUBLIC_HOST}`,
+      REDIS_URL: 'redis://redis:6379',
+      ENCRYPTION_KEY: Buffer.alloc(32, 1).toString('base64'),
+    });
+    const redisApp = createApp({ ...dependencies, config: redisConfig, redis: { isReady: false } });
+
+    const response = await redisApp.request(`https://${PUBLIC_HOST}/healthz`, {
+      headers: { Host: PUBLIC_HOST },
+    });
+
+    expect(response.status).toBe(503);
+    expect(await response.json()).toEqual({ status: 'unavailable' });
+  });
+
   it('allows the public hostname with any port', async () => {
     const response = await app.request(`https://${PUBLIC_HOST}:8443/healthz`, {
       headers: { Host: `${PUBLIC_HOST}:8443` },

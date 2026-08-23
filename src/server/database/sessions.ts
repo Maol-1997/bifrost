@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto';
-import { and, desc, eq, gt, sql } from 'drizzle-orm';
+import { and, desc, eq, gt, lte, sql } from 'drizzle-orm';
 import type { AppDatabase } from './client.js';
 import { sessions } from './schema.js';
 import { hashToken } from './token-hash.js';
@@ -53,6 +53,15 @@ export function createSessionStore(database: AppDatabase) {
         .where(and(eq(sessions.tokenHash, hashToken(token)), gt(sessions.expiresAt, sql`now()`)))
         .returning({ sessionId: sessions.id, userId: sessions.userId, clientId: sessions.clientId, expiresAt: sessions.expiresAt });
       return row;
+    },
+
+    /**
+     * Housekeeping only: every read path already refuses an expired session, so
+     * this bounds table growth rather than revoking anything.
+     */
+    async deleteExpiredSessions(): Promise<number> {
+      const result = await database.delete(sessions).where(lte(sessions.expiresAt, sql`now()`));
+      return result.rowCount ?? 0;
     },
 
     async deleteSession(token: string): Promise<void> {

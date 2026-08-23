@@ -1,7 +1,6 @@
 import { randomUUID } from 'node:crypto';
-import { createClient, type RedisClientType } from 'redis';
 import { AgentFacingError } from './errors.js';
-import { errorSummary, logger } from './logger.js';
+import type { RedisCommandsClient } from './redis.js';
 
 const DEFAULT_LOCK_MS = 30_000;
 const RATE_WINDOW_SECONDS = 60;
@@ -12,6 +11,10 @@ const CONCURRENCY_LEASE_SECONDS = 120;
 const ACQUIRE_LEASE_SCRIPT = `
 local count = redis.call('incr', KEYS[1])
 redis.call('expire', KEYS[1], ARGV[1])
+return count`;
+const RATE_LIMIT_SCRIPT = `
+local count = redis.call('incr', KEYS[1])
+if count == 1 then redis.call('expire', KEYS[1], ARGV[1]) end
 return count`;
 // A late release after expiry must not recreate a negative counter and admit
 // an extra call.
@@ -41,30 +44,12 @@ type ConcurrencyLeaseRequest<T> = {
 };
 
 export class Coordinator {
-  private redis: RedisClientType | undefined;
   private readonly localLocks = new Map<string, Promise<void>>();
   private readonly localRates = new Map<string, { count: number; resetAt: number }>();
   private readonly localConcurrency = new Map<string, number>();
   private readonly localEphemeral = new Map<string, { value: string; expiresAt: number }>();
 
-  async connect(redisUrl?: string): Promise<void> {
-    if (!redisUrl) {
-      logger.warn({ mode: 'in-process' }, 'Redis is unconfigured; locks, rate limits, and concurrency leases are not shared across workers');
-      return;
-    }
-    try {
-      this.redis = createClient({ url: redisUrl });
-      this.redis.on('error', (error) => logger.error(errorSummary(error), 'Redis error'));
-      await this.redis.connect();
-    } catch (error) {
-      this.redis = undefined;
-      logger.warn(errorSummary(error), 'Redis unavailable; degraded to in-process coordination');
-    }
-  }
-
-  async close(): Promise<void> {
-    if (this.redis?.isOpen) await this.redis.quit();
-  }
+  constructor(private readonly redis?: RedisCommandsClient) {}
 
   async withLock<T>(key: string, operation: () => Promise<T>): Promise<T> {
     if (this.redis) return this.withRedisLock(key, operation);
@@ -76,8 +61,11 @@ export class Coordinator {
     const scope = tenantProviderScope(request);
     const key = `rate:${scope}:${window}`;
     if (this.redis) {
-      const count = await this.redis.incr(key);
-      if (count === 1) await this.redis.expire(key, RATE_WINDOW_SECONDS);
+      const count = await this.redis.eval(RATE_LIMIT_SCRIPT, {
+        keys: [key],
+        arguments: [String(RATE_WINDOW_SECONDS)],
+      });
+      if (typeof count !== 'number') throw new Error('Redis returned an invalid rate limit count');
       if (count > request.maximumStarts) throw rateLimitReached(request.provider);
       return;
     }
@@ -148,7 +136,7 @@ export class Coordinator {
   }
 
   private async withRedisLock<T>(key: string, operation: () => Promise<T>): Promise<T> {
-    const lockKey = `lock:${key}`;
+    const lockKey = key.startsWith('bifrost:v1:') ? key : `lock:${key}`;
     const owner = randomUUID();
     const acquired = await this.redis?.set(lockKey, owner, { NX: true, PX: DEFAULT_LOCK_MS });
     if (acquired !== 'OK') throw new AgentFacingError('Credential refresh already in progress; retry shortly');

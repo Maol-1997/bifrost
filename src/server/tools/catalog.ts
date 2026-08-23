@@ -1,9 +1,12 @@
 import { createHash } from 'node:crypto';
 import type { Tool } from '@modelcontextprotocol/client';
+import { z } from 'zod';
 import type { ProviderDefinition, ProviderId, ToolMutability } from '../providers/types.js';
 
 export const TOOL_POLICY_STATES = ['blocked', 'allowed_default_off', 'allowed_default_on'] as const;
 export type ToolPolicyState = (typeof TOOL_POLICY_STATES)[number];
+/** The names an MCP client will accept, which is narrower than what a provider may publish. */
+export const mcpToolNameSchema = z.string().regex(/^[A-Za-z0-9_.-]{1,128}$/);
 const MAX_CONTRACT_CHANGES = 100;
 
 export type ToolContractSnapshot = {
@@ -170,6 +173,26 @@ export function isToolEnabled(
   const state = effectivePolicyState(tool, policies);
   if (state === 'blocked') return false;
   return userPreferences.get(tool.name) ?? state === 'allowed_default_on';
+}
+
+/**
+ * What a policy change does to the per-user overrides for that tool. Consent is
+ * given to a definition, not to a name: once the contract behind a name changes
+ * nobody has agreed to the new one, and a blocked tool must not keep an
+ * override waiting to come back to life the moment it is allowed again. What is
+ * left over is the override that now only restates the deployment default, and
+ * keeping those would silently pin a user to a default that later moved.
+ */
+export type ToolPreferenceReconciliation =
+  | { kind: 'clear-all' }
+  | { kind: 'clear-redundant'; isEnabled: boolean };
+
+export function reconcileToolPreferences(
+  policy: Pick<StoredToolPolicy, 'fingerprint' | 'state'>,
+  previousFingerprint: string | undefined,
+): ToolPreferenceReconciliation {
+  if (previousFingerprint !== policy.fingerprint || policy.state === 'blocked') return { kind: 'clear-all' };
+  return { kind: 'clear-redundant', isEnabled: policy.state === 'allowed_default_on' };
 }
 
 export function toolPolicyReviewsMatchCurrentDefinitions(

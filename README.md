@@ -47,7 +47,7 @@ Tools are discovered from GitHub, Linear, Sentry, Slack, Notion and Granola's of
 
 Discovery never grants access by itself. A new tool, or any change to a tool's contract, produces a new fingerprint and stays blocked until an administrator approves that exact version. Missing `readOnlyHint: true` metadata is treated as write-capable.
 
-Discovered catalogs use a one-hour server-side stale-while-revalidate cache. Browser queries receive the remaining server freshness and use it as their own TanStack Query lifetime, so the two caches never add two independent hours. Calls and policy approvals still validate against a fresh upstream definition.
+Discovered catalogs use a shared Redis stale-while-revalidate cache that is fresh for one hour and retained stale for at most 24 hours. Browser queries receive the remaining server freshness and use it as their own TanStack Query lifetime, so the two caches never add two independent hours. Tool calls reuse that cached contract; an upstream error invalidates it without retrying the call. Policy approvals always refresh upstream first.
 
 ## Quick start
 
@@ -80,7 +80,7 @@ All settings are environment variables, validated at startup by `src/server/conf
 | `ENCRYPTION_KEY` | yes | 32-byte base64 key for provider credentials. No dev default, on purpose. |
 | `PUBLIC_URL` | yes in prod | The origin agents and OAuth redirects use. Default `http://localhost:3000`. |
 | `DATABASE_URL` | yes | Postgres. Outside Docker, point it at `localhost:5432`, not `postgres`. |
-| `REDIS_URL` | no | Shares locks, rate limits and concurrency leases across workers. Empty degrades to in-process state with a startup warning. |
+| `REDIS_URL` | production | Shares locks, atomic rate limits, concurrency leases, tool catalogs and browser invalidations across workers. Production refuses to start without it; development and tests can use local state. |
 | `GOOGLE_CLIENT_ID` / `_SECRET` | yes | Sign-in. |
 | `GITHUB_*`, `SLACK_*` | per provider | Provider OAuth apps. A provider without credentials still mounts; connecting it fails until they are set. Linear, Sentry, Notion and Granola use their MCP servers' dynamic client registration instead. |
 | `OPENAI_API_KEY` | for chat | Enables the built-in agent chat. The rest of Bifrost still starts when it is absent. |
@@ -127,7 +127,9 @@ test/                vitest, pure units
 ## Security notes
 
 - Browser sessions (cookie) and agent access (bearer token) resolve against different tables through different functions. A leaked cookie is not an API credential and vice versa.
+- Google accounts are bound to the immutable ID-token `sub`. Existing rows link once by verified email on their first post-migration sign-in; later email changes keep the same Bifrost user.
 - OAuth tokens are opaque and stored as SHA-256 hashes; a replayed refresh token destroys its whole grant, because a replay means the value leaked.
+- Expired browser sessions and OAuth tokens are deleted on startup and hourly. Consumed refresh tokens remain until expiry so replay detection keeps working.
 - The one server-side fetch of a caller-supplied URL (Client ID Metadata Documents) is HTTPS-only, refuses private and link-local address ranges, follows no redirects, and is capped at 5 s and 64 KB, and it only happens for a signed-in user.
 - Logs redact tokens, secrets, cookies, API keys and JWT-shaped strings, and only errors written for the agent are ever returned to it.
 

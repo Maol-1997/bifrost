@@ -1,12 +1,12 @@
 import { createMcpHandler, fromJsonSchema, LATEST_PROTOCOL_VERSION, McpServer, type AuthInfo, type JsonSchemaType, type McpHttpHandler } from '@modelcontextprotocol/server';
-import type { Config } from './config.js';
-import { Coordinator } from './coordination.js';
-import type { Database } from './database/index.js';
 import { errorSummary, logger } from './logger.js';
-import { OAuthService } from './oauth.js';
-import type { ProviderMount } from './providers/types.js';
 import type { DiscoveredTool } from './tools/catalog.js';
-import { executeUserTool, loadVisibleUserTools } from './tools/user-toolset.js';
+import {
+  executeUserTool,
+  loadVisibleUserTools,
+  type ToolExecutionDependencies,
+  type UserToolDependencies,
+} from './tools/user-toolset.js';
 
 type HumanIdentityCommon = {
   userId: string;
@@ -29,13 +29,7 @@ export function toAuthInfo(identity: AgentIdentity): AuthInfo {
   };
 }
 
-export function createHumanMcpHandler(dependencies: {
-  config: Config;
-  database: Database;
-  coordinator: Coordinator;
-  oauth: OAuthService;
-  mounts: readonly ProviderMount[];
-}): McpHttpHandler {
+export function createHumanMcpHandler(dependencies: UserToolDependencies): McpHttpHandler {
   return createMcpHandler(async (requestContext) => {
     const userId = requestContext.authInfo?.extra?.userId;
     if (typeof userId !== 'string') throw new Error('Authenticated user identity is missing');
@@ -60,7 +54,7 @@ export function createHumanMcpHandler(dependencies: {
 type ToolRegistration = {
   userId: string;
   authInfo: AuthInfo | undefined;
-  dependencies: { config: Config; database: Database; coordinator: Coordinator; oauth: OAuthService };
+  dependencies: ToolExecutionDependencies;
 };
 
 function registerTool(server: McpServer, tool: DiscoveredTool, { userId, authInfo, dependencies }: ToolRegistration): void {

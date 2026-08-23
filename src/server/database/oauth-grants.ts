@@ -274,10 +274,14 @@ export function createOAuthGrantStore(database: AppDatabase, config: Config) {
     /**
      * Clears tokens that can no longer authenticate anything. Expiry is enforced
      * by every read path, so this is housekeeping rather than a security control.
+     *
+     * Consumed refresh tokens stay until they expire on purpose: they are what
+     * turns a replayed token into a detected leak instead of an unknown token.
      */
-    async deleteExpiredOAuthTokens(): Promise<void> {
-      await database.delete(oauthAccessTokens).where(lte(oauthAccessTokens.expiresAt, sql`now()`));
-      await database.delete(oauthRefreshTokens).where(lte(oauthRefreshTokens.expiresAt, sql`now()`));
+    async deleteExpiredOAuthTokens(): Promise<{ accessTokens: number; refreshTokens: number }> {
+      const accessTokens = await database.delete(oauthAccessTokens).where(lte(oauthAccessTokens.expiresAt, sql`now()`));
+      const refreshTokens = await database.delete(oauthRefreshTokens).where(lte(oauthRefreshTokens.expiresAt, sql`now()`));
+      return { accessTokens: accessTokens.rowCount ?? 0, refreshTokens: refreshTokens.rowCount ?? 0 };
     },
   };
 }

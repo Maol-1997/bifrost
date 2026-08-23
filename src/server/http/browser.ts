@@ -9,11 +9,12 @@ import { describeClient } from '../clients/describe.js';
 import { errorSummary, logger } from '../logger.js';
 import { PROVIDER_REGISTRY, SUPPORTED_APPS } from '../providers/registry.js';
 import type { ProviderId } from '../providers/types.js';
-import { contractForToolPolicyReview, effectivePolicyState, isToolEnabled, toolContractReview, toolPolicyReviewsMatchCurrentDefinitions, TOOL_POLICY_STATES } from '../tools/catalog.js';
-import { discoverConnectedTools, discoverProviderTools, discoverProviderToolsFresh, invalidateProviderToolDiscovery, mcpToolNameSchema } from '../tools/discovery.js';
-import { aggregateToolCacheHints, toolCacheHintFromError } from '../tools/discovery-cache.js';
+import { effectivePolicyState, isToolEnabled, toolContractReview, TOOL_POLICY_STATES } from '../tools/catalog.js';
+import { mcpToolNameSchema, type ProviderDiscoveryRequest } from '../tools/discovery.js';
+import { aggregateToolCacheHints, toolCacheHintFromError, type CachedToolDiscovery } from '../tools/discovery-cache.js';
+import { applyToolPolicies } from '../tools/policy.js';
 import { isAdministrator } from '../security/access.js';
-import { authenticateBrowser, clearSessionCookie } from './auth.js';
+import { authenticateBrowser, clearSessionCookie, setSessionCookie } from './auth.js';
 import type { AppContext, AppEnv } from './context.js';
 import { callbackParameters } from './public.js';
 import { limitRequestBody, readJsonBody } from './request-body.js';
@@ -128,16 +129,14 @@ export function createBrowserRoutes() {
       (context) => adminProviderToolList(
         context,
         context.req.valid('param').providerId,
-        discoverProviderTools,
       ),
     )
     .post(
       '/api/admin/providers/:providerId/tools/refresh',
       validateProviderPath,
-      (context) => adminProviderToolList(
+      (context) => refreshAdminProviderToolList(
         context,
         context.req.valid('param').providerId,
-        discoverProviderToolsFresh,
       ),
     )
     .post(
@@ -219,8 +218,8 @@ async function finishProviderAuthorization(context: AppContext, expectedProvider
     const parameters = callbackParameters(url);
     const result = await context.get('dependencies').oauth.finishProvider(parameters.code, parameters.state);
     if (result.providerId !== expectedProvider) throw new Error('OAuth provider callback mismatch');
-    invalidateProviderToolDiscovery(result.userId, result.providerId);
-    context.get('dependencies').events.emit(result.userId, 'providers-changed');
+    await context.get('dependencies').toolDiscovery.invalidateProvider(result.userId, result.providerId);
+    await context.get('dependencies').events.emit(result.userId, 'providers-changed');
     return context.redirect(APP_ROUTES.integrations);
   } catch (error) {
     logger.warn(errorSummary(error), 'Provider OAuth callback failed');
@@ -229,11 +228,11 @@ async function finishProviderAuthorization(context: AppContext, expectedProvider
 }
 
 async function disconnectProvider(context: AppContext, providerId: ProviderId) {
-  const { database, events } = context.get('dependencies');
+  const { database, events, toolDiscovery } = context.get('dependencies');
   const userId = context.get('browserIdentity').userId;
   await database.deleteCredential(userId, providerId);
-  invalidateProviderToolDiscovery(userId, providerId);
-  events.emit(userId, 'providers-changed');
+  await toolDiscovery.invalidateProvider(userId, providerId);
+  await events.emit(userId, 'providers-changed');
   return context.json({ connected: false });
 }
 
@@ -245,7 +244,7 @@ async function setProviderPreference(
   const { database, events } = context.get('dependencies');
   const userId = context.get('browserIdentity').userId;
   await database.setProviderHidden(userId, providerId, preference.isHidden);
-  events.emit(userId, 'providers-changed');
+  await events.emit(userId, 'providers-changed');
   return context.json(preference);
 }
 
@@ -255,17 +254,15 @@ async function setToolPreference(
   preference: z.infer<typeof toolPreferenceSchema>,
 ) {
   const identity = context.get('browserIdentity');
-  const { database, events, mounts, oauth } = context.get('dependencies');
+  const { database, events, toolDiscovery } = context.get('dependencies');
   const [connectedProviders, policies] = await Promise.all([
     database.connectedProviders(identity.userId),
     database.toolPolicies(),
   ]);
-  const discovery = await discoverConnectedTools({
+  const discovery = await toolDiscovery.discoverConnected({
     userId: identity.userId,
     connectedProviders,
     hiddenProviders: new Set(),
-    oauth,
-    mounts,
     signal: context.req.raw.signal,
   });
   const tool = discovery.tools.find((entry) => entry.name === toolName);
@@ -280,19 +277,38 @@ async function setToolPreference(
   } else {
     await database.setToolPreference(identity.userId, toolName, preference.isEnabled);
   }
-  events.emit(identity.userId, 'providers-changed');
+  await events.emit(identity.userId, 'providers-changed');
   return context.json(preference);
 }
 
-type ProviderToolDiscoverer = typeof discoverProviderTools;
+type ProviderToolDiscoverer = (request: ProviderDiscoveryRequest) => Promise<CachedToolDiscovery>;
+
+async function refreshAdminProviderToolList(context: AppContext, providerId: ProviderId) {
+  return renderAdminProviderToolList(
+    context,
+    providerId,
+    (request) => context.get('dependencies').toolDiscovery.discoverProviderFresh(request),
+  );
+}
 
 async function adminProviderToolList(
+  context: AppContext,
+  providerId: ProviderId,
+) {
+  return renderAdminProviderToolList(
+    context,
+    providerId,
+    (request) => context.get('dependencies').toolDiscovery.discoverProvider(request),
+  );
+}
+
+async function renderAdminProviderToolList(
   context: AppContext,
   providerId: ProviderId,
   discover: ProviderToolDiscoverer,
 ) {
   const identity = context.get('browserIdentity');
-  const { database, mounts, oauth } = context.get('dependencies');
+  const { database } = context.get('dependencies');
   const [connectedProviders, policies] = await Promise.all([
     database.connectedProviders(identity.userId),
     database.toolPolicies(),
@@ -307,8 +323,6 @@ async function adminProviderToolList(
     const discovery = await discover({
       userId: identity.userId,
       providerId,
-      oauth,
-      mounts,
       signal: context.req.raw.signal,
     });
     return context.json({
@@ -350,29 +364,17 @@ async function setDeploymentToolPolicies(
   policies: z.infer<typeof toolPolicyBatchSchema>['tools'],
 ) {
   const identity = context.get('browserIdentity');
-  const { database, events, mounts, oauth } = context.get('dependencies');
-  const discovery = await discoverProviderToolsFresh({
+  const outcome = await applyToolPolicies({
     userId: identity.userId,
     providerId,
-    oauth,
-    mounts,
+    changes: policies,
     signal: context.req.raw.signal,
+    dependencies: context.get('dependencies'),
   });
-  if (!toolPolicyReviewsMatchCurrentDefinitions(discovery.tools, policies)) {
+  if (outcome.status === 'stale') {
     return context.json({ error: 'A selected tool changed. Refresh and review it again' }, 409);
   }
-  await database.setToolPolicies(policies.map((policy) => ({
-    providerId,
-    toolName: policy.toolName,
-    fingerprint: policy.fingerprint,
-    contract: contractForToolPolicyReview(discovery.tools, policy),
-    state: policy.state,
-    updatedByUserId: identity.userId,
-  })));
-  // Policies are deployment-wide: every user's tool list may just have changed.
-  events.broadcast('providers-changed');
-  events.broadcast('admin-tools-changed');
-  return context.json({ tools: policies, cache: discovery.cache });
+  return context.json({ tools: policies, cache: outcome.cache });
 }
 
 async function handleClientAction(
@@ -386,11 +388,15 @@ async function handleClientAction(
     if (request.kind === 'agent') {
       return context.json({ error: 'This client keeps itself connected and does not need renewing' }, 400);
     }
+    if (request.id !== identity.sessionId) {
+      return context.json({ error: 'A browser session can only renew itself' }, 409);
+    }
     const renewedUntil = await database.renewSession(identity.userId, request.id);
     if (!renewedUntil) {
       return context.json({ error: 'That client has to sign in again before it can keep working' }, 409);
     }
-    events.emit(identity.userId, 'clients-changed');
+    setSessionCookie(context, identity.token);
+    await events.emit(identity.userId, 'clients-changed');
     return context.json({ expiresAt: renewedUntil.toISOString() });
   }
 
@@ -401,7 +407,7 @@ async function handleClientAction(
   const wasCurrentClient = request.kind === 'browser'
     && request.id === identity.sessionId;
   if (wasCurrentClient) clearSessionCookie(context);
-  events.emit(identity.userId, 'clients-changed');
+  await events.emit(identity.userId, 'clients-changed');
   return context.json({ revoked: true, wasCurrentClient });
 }
 
@@ -440,7 +446,7 @@ async function clientList(context: AppContext) {
 
 async function appConnections(context: AppContext) {
   const identity = context.get('browserIdentity');
-  const { database, mounts, oauth } = context.get('dependencies');
+  const { database, toolDiscovery } = context.get('dependencies');
   const [connections, hidden, preferences, policies, connectedProviders] = await Promise.all([
     database.listConnections(identity.userId),
     database.hiddenProviders(identity.userId),
@@ -448,12 +454,10 @@ async function appConnections(context: AppContext) {
     database.toolPolicies(),
     database.connectedProviders(identity.userId),
   ]);
-  const discovery = await discoverConnectedTools({
+  const discovery = await toolDiscovery.discoverConnected({
     userId: identity.userId,
     connectedProviders,
     hiddenProviders: new Set(),
-    oauth,
-    mounts,
     signal: context.req.raw.signal,
   });
   const byProvider = new Map(connections.map((connection) => [connection.providerId, connection]));

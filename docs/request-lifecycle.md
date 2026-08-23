@@ -39,6 +39,9 @@ That makes filtering *the* enforcement mechanism, not a display concern. A tool 
 registered on the object handling this request. There is no second check to keep in sync.
 See [tool-visibility.md](tool-visibility.md) for the axes that can hide a tool.
 
-Each registered tool is a proxy to the provider's official MCP server. Execution reloads the
-upstream definition and verifies its fingerprint before forwarding the call. A contract that changes
-between discovery and execution is denied even if the request-local server already registered it.
+Each registered tool is a proxy to the provider's official MCP server. Execution uses the exact
+upstream definition from the shared one-hour Redis catalog while reloading Bifrost's own policy and
+preference state from PostgreSQL. An upstream error invalidates that catalog and is never retried
+automatically; the next request discovers fresh, and a changed fingerprint remains blocked until
+approved. This deliberately permits an undetected compatible upstream contract change for at most
+the cache freshness window.

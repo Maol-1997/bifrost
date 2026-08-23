@@ -10,7 +10,7 @@ import { callUpstreamTool } from '../providers/mcp-client.js';
 import { PROVIDER_REGISTRY } from '../providers/registry.js';
 import type { ProviderId, ProviderMount } from '../providers/types.js';
 import { effectivePolicyState, isToolEnabled, type DiscoveredTool } from './catalog.js';
-import { discoverConnectedTools } from './discovery.js';
+import type { ToolDiscoveryService } from './discovery.js';
 import { visibleTools } from './filter.js';
 
 const RATE_LIMITS_PER_MINUTE: Readonly<Record<ProviderId, number>> = { github: 80, linear: 120, sentry: 50, slack: 50, notion: 50, granola: 100 };
@@ -21,29 +21,28 @@ export type UserToolDependencies = {
   database: Database;
   coordinator: Coordinator;
   oauth: OAuthService;
+  toolDiscovery: ToolDiscoveryService;
   mounts: readonly ProviderMount[];
 };
 
-type ToolExecutionDependencies = Omit<UserToolDependencies, 'mounts'>;
+export type ToolExecutionDependencies = Omit<UserToolDependencies, 'mounts'>;
 
 export async function loadVisibleUserTools(request: {
   userId: string;
   signal?: AbortSignal;
   dependencies: UserToolDependencies;
 }): Promise<readonly DiscoveredTool[]> {
-  const { database, mounts, oauth } = request.dependencies;
+  const { database, mounts, toolDiscovery } = request.dependencies;
   const [connectedProviders, hiddenProviders, toolPreferences, toolPolicies] = await Promise.all([
     database.connectedProviders(request.userId),
     database.hiddenProviders(request.userId),
     database.toolPreferences(request.userId),
     database.toolPolicies(),
   ]);
-  const discovery = await discoverConnectedTools({
+  const discovery = await toolDiscovery.discoverConnected({
     userId: request.userId,
     connectedProviders,
     hiddenProviders,
-    oauth,
-    mounts,
     ...(request.signal ? { signal: request.signal } : {}),
   });
   const enabledTools = new Set(discovery.tools
@@ -67,6 +66,9 @@ export async function executeUserTool(request: {
   const requestId = request.requestId ?? randomUUID();
 
   try {
+    // Policies come from the database on every call, never from the cache: an
+    // administrator blocking a tool has to take effect now, not once a listing
+    // somewhere expires.
     const currentPolicies = await request.dependencies.database.toolPolicies();
     if (effectivePolicyState(request.tool, currentPolicies) === 'blocked') {
       throw new Error(`Tool ${request.tool.name} is not permitted by this deployment`);
@@ -81,11 +83,13 @@ export async function executeUserTool(request: {
       provider: provider.id,
       userId: request.userId,
       maximumInFlight: CONCURRENCY_LIMITS[provider.id],
-      operation: () => callUpstreamTool({
-        provider,
-        accessToken,
+      operation: () => callProviderTool({
+        userId: request.userId,
         tool: request.tool,
-        arguments: request.input,
+        input: request.input,
+        accessToken,
+        provider,
+        toolDiscovery: request.dependencies.toolDiscovery,
         ...(request.signal ? { signal: request.signal } : {}),
       }),
     });
@@ -95,7 +99,7 @@ export async function executeUserTool(request: {
       clientId: request.clientId,
       toolName: request.tool.name,
       requestId,
-      status: 'ok',
+      status: result.isError === true ? 'error' : 'ok',
     }, request.dependencies.config.SLOW_TOOL_MS);
     return result;
   } catch (error) {
@@ -111,6 +115,50 @@ export async function executeUserTool(request: {
       content: [{ type: 'text', text: error instanceof AgentFacingError ? error.message : 'Tool call failed' }],
       isError: true,
     };
+  }
+}
+
+type ProviderToolCall = {
+  userId: string;
+  tool: DiscoveredTool;
+  input: Record<string, unknown>;
+  accessToken: string;
+  provider: (typeof PROVIDER_REGISTRY)[number];
+  toolDiscovery: ToolDiscoveryService;
+  signal?: AbortSignal;
+};
+
+/**
+ * A failed call is the one strong signal that this user's cached listing may no
+ * longer describe reality — the tool may have been renamed, withdrawn, or had
+ * its permissions changed upstream. Dropping the listing makes the next request
+ * rediscover it. The call itself is never retried: the failure may well be a
+ * side effect that already happened.
+ */
+async function callProviderTool(request: ProviderToolCall): Promise<CallToolResult> {
+  try {
+    const result = await callUpstreamTool({
+      provider: request.provider,
+      accessToken: request.accessToken,
+      tool: request.tool,
+      arguments: request.input,
+      ...(request.signal ? { signal: request.signal } : {}),
+    });
+    if (result.isError === true) await invalidateAfterFailedCall(request);
+    return result;
+  } catch (error) {
+    await invalidateAfterFailedCall(request);
+    throw error;
+  }
+}
+
+async function invalidateAfterFailedCall(request: ProviderToolCall): Promise<void> {
+  try {
+    await request.toolDiscovery.invalidateProvider(request.userId, request.tool.providerId);
+  } catch (error) {
+    // The tool failure is the news; losing the invalidation only costs a stale
+    // listing until it expires, and must not replace the original error.
+    logger.warn({ providerId: request.tool.providerId, ...errorSummary(error) }, 'Failed to invalidate cached MCP tools after a tool call failure');
   }
 }
 

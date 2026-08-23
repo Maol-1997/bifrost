@@ -70,6 +70,10 @@ export function loadConfig(environment: NodeJS.ProcessEnv = process.env): Config
     throw new Error(`Invalid configuration: ${parsed.error.issues.map((issue) => issue.path.join('.')).join(', ')}`);
   }
 
+  if (parsed.data.NODE_ENV === 'production' && !parsed.data.REDIS_URL) {
+    throw new Error('REDIS_URL is required in production');
+  }
+
   const encryptionKey = Buffer.from(parsed.data.ENCRYPTION_KEY, 'base64');
   if (encryptionKey.length !== 32) {
     throw new Error('ENCRYPTION_KEY must decode to exactly 32 bytes. Generate one with: openssl rand -base64 32');

@@ -2,6 +2,7 @@ import { serve } from '@hono/node-server';
 import { loadConfig } from './config.js';
 import { Coordinator } from './coordination.js';
 import { createDatabase } from './database/index.js';
+import { DatabaseMaintenance } from './database/maintenance.js';
 import { createApp } from './http/app.js';
 import type { AppDependencies } from './http/context.js';
 import { BrowserEventBus } from './http/events.js';
@@ -9,16 +10,22 @@ import { errorSummary, logger } from './logger.js';
 import { createHumanMcpHandler } from './mcp.js';
 import { OAuthService } from './oauth.js';
 import { assertPrefixInvariant, mountProviders } from './providers/registry.js';
+import { RedisRuntime } from './redis.js';
 import { isAccessRestricted } from './security/access.js';
 import { shutdownServer } from './shutdown.js';
+import { createInMemoryToolCacheStore, createRedisToolCacheStore } from './tools/cache-store.js';
+import { ToolDiscoveryService } from './tools/discovery.js';
 
 async function main(): Promise<void> {
   const config = loadConfig();
   assertPrefixInvariant();
   const mounts = mountProviders();
   const database = createDatabase(config);
-  const coordinator = new Coordinator();
-  await coordinator.connect(config.REDIS_URL);
+  const redis = await RedisRuntime.connect({
+    required: config.NODE_ENV === 'production',
+    ...(config.REDIS_URL ? { url: config.REDIS_URL } : {}),
+  });
+  const coordinator = new Coordinator(redis?.commands);
   logDeploymentWarnings(config);
 
   if (config.NODE_ENV === 'development' && config.BIFROST_DEV_USER_ID) {
@@ -27,9 +34,37 @@ async function main(): Promise<void> {
   }
 
   const oauth = new OAuthService(config, database, coordinator);
-  const mcpHandler = createHumanMcpHandler({ config, database, coordinator, oauth, mounts });
-  const events = new BrowserEventBus();
-  const dependencies: AppDependencies = { config, database, coordinator, oauth, mounts, mcpHandler, events };
+  const events = new BrowserEventBus(redis);
+  await events.start();
+  const toolDiscovery = new ToolDiscoveryService({
+    oauth,
+    mounts,
+    store: redis ? createRedisToolCacheStore(redis.commands) : createInMemoryToolCacheStore(),
+  });
+  const maintenance = new DatabaseMaintenance({
+    deleteExpiredAuthState: () => database.deleteExpiredAuthState(),
+    withLock: (key, operation) => coordinator.withLock(key, operation),
+  });
+  maintenance.start();
+  const mcpHandler = createHumanMcpHandler({
+    config,
+    database,
+    coordinator,
+    oauth,
+    mounts,
+    toolDiscovery,
+  });
+  const dependencies: AppDependencies = {
+    config,
+    database,
+    coordinator,
+    oauth,
+    mounts,
+    mcpHandler,
+    events,
+    toolDiscovery,
+    ...(redis ? { redis } : {}),
+  };
   const app = createApp(dependencies);
   const server = serve({
     fetch: app.fetch,
@@ -42,8 +77,10 @@ async function main(): Promise<void> {
     shutdownPromise ??= shutdownServer({
       server,
       dependencies: [
+        { name: 'database maintenance', close: () => maintenance.close() },
         { name: 'MCP handler', close: () => mcpHandler.close() },
-        { name: 'coordinator', close: () => coordinator.close() },
+        { name: 'browser events', close: () => events.close() },
+        ...(redis ? [{ name: 'Redis', close: () => redis.close() }] : []),
         { name: 'database', close: () => database.close() },
       ],
     });

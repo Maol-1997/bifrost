@@ -27,6 +27,7 @@ export default function Agents(): React.JSX.Element {
   const clients = isEmptyDemo ? [] : clientsQuery.data ?? [];
   const isLoading = !isEmptyDemo && clientsQuery.isPending;
   const hasLoadError = !isEmptyDemo && clientsQuery.isError;
+  const clientActionPending = renewMutation.isPending || revokeMutation.isPending;
   return (
     <section>
       <div className="flex flex-wrap items-start justify-between gap-4">
@@ -36,7 +37,7 @@ export default function Agents(): React.JSX.Element {
       {isLoading ? <LoadingState label="Loading agents and sessions…" /> : null}
       {!isLoading && hasLoadError ? <ErrorState title="We couldn't load your agents and sessions" body="Nothing has changed on your account — this page just failed to load the list. It usually fixes itself on retry." onRetry={() => { void clientsQuery.refetch(); }} /> : null}
       {!isLoading && !hasLoadError && clients.length === 0 ? <EmptyState title="Nothing is using your account yet" body="Add an agent to start using Bifrost. Every program and browser session with access will appear here, where you can revoke it at any time." /> : null}
-      {!isLoading && !hasLoadError && clients.length > 0 ? <><SectionCard className="mt-[22px]">{clients.map((client) => <ClientRow key={client.id} client={client} onRenew={() => { renewMutation.mutate(client); }} onRevoke={() => { revokeMutation.mutate(client); }} />)}</SectionCard><p className="mt-3.5 text-xs leading-[1.55] text-app-text-quaternary text-pretty">Don't recognize one? Revoke it — that program loses access immediately, and nothing else changes. Connected programs keep themselves signed in, so they never need renewing; <strong className="font-medium text-app-text-tertiary">needs renewal</strong> only ever means a browser you'll have to log into again.</p></> : null}
+      {!isLoading && !hasLoadError && clients.length > 0 ? <><SectionCard className="mt-[22px]">{clients.map((client) => <ClientRow actionsDisabled={clientActionPending} key={client.id} client={client} onRenew={() => { renewMutation.mutate(client); }} onRevoke={() => { revokeMutation.mutate(client); }} />)}</SectionCard><p className="mt-3.5 text-xs leading-[1.55] text-app-text-quaternary text-pretty">Don't recognize one? Revoke it — that program loses access immediately, and nothing else changes. Connected programs keep themselves signed in. A browser session can only renew itself: if another browser needs renewal, open Bifrost there and use Renew. The Renew button appears only for this browser.</p></> : null}
     </section>
   );
 }

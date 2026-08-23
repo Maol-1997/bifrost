@@ -1,4 +1,4 @@
-import { afterAll, afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { loadConfig } from '../src/server/config.js';
 import { Coordinator } from '../src/server/coordination.js';
 import type { Database } from '../src/server/database/index.js';
@@ -19,7 +19,6 @@ const config = loadConfig({
 const coordinator = new Coordinator();
 const oauth = new OAuthService(config, {} as Database, coordinator);
 
-afterAll(async () => coordinator.close());
 afterEach(() => vi.restoreAllMocks());
 
 describe('OAuth authorization requests', () => {

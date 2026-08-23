@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { APP_ROUTES } from '../../features/utils/routes.js';
+import { GoogleAccountConflictError } from '../database/users.js';
 import { EmailNotAllowedError } from '../oauth.js';
 import { PROVIDER_REGISTRY } from '../providers/registry.js';
 import type { ProviderMount } from '../providers/types.js';
@@ -19,7 +20,11 @@ export function createPublicRoutes() {
   const routes = new Hono<AppEnv>();
 
   return routes
-    .get('/healthz', (context) => context.json({ status: 'ok' }))
+    .get('/healthz', (context) => {
+      const { config, redis } = context.get('dependencies');
+      if (config.REDIS_URL && !redis?.isReady) return context.json({ status: 'unavailable' }, 503);
+      return context.json({ status: 'ok' });
+    })
     .get('/api/status.json', (context) => context.json(providerStatus(context.get('dependencies').mounts)))
     .get('/api/provider-health.json', async (context) => context.json(await readAppHealth()))
     .get('/api/sign-in-policy.json', (context) => {
@@ -50,8 +55,9 @@ async function finishGoogle(context: AppContext): Promise<Response> {
     setSessionCookie(context, result.sessionToken);
     returnTo = result.returnTo;
   } catch (error) {
-    if (!(error instanceof EmailNotAllowedError)) throw error;
-    returnTo = `${APP_ROUTES.signIn}?denied=true`;
+    if (error instanceof EmailNotAllowedError) returnTo = `${APP_ROUTES.signIn}?denied=true`;
+    else if (error instanceof GoogleAccountConflictError) returnTo = `${APP_ROUTES.signIn}?conflict=true`;
+    else throw error;
   } finally {
     clearGoogleOAuthNonceCookie(context);
   }

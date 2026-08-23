@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { describe, expect, expectTypeOf, it, vi } from 'vitest';
 import { loadConfig, type Config } from '../src/server/config.js';
 import type { Database } from '../src/server/database/index.js';
+import { GoogleAccountConflictError } from '../src/server/database/users.js';
 import {
   authenticateAgent,
   authenticateBrowser,
@@ -145,12 +146,26 @@ describe('Google OAuth browser nonce cookie', () => {
     expect(response.status).toBe(500);
     expect(response.headers.get('set-cookie')).toContain('bifrost_google_oauth_nonce=; Max-Age=0');
   });
+
+  it('redirects an identity conflict to an actionable sign-in state', async () => {
+    const finishGoogle = vi.fn().mockRejectedValue(new GoogleAccountConflictError());
+    const app = googleCallbackTestApp(finishGoogle);
+
+    const response = await app.request('/auth/google/callback?code=code&state=state', {
+      headers: { cookie: 'bifrost_google_oauth_nonce=browser-nonce' },
+    });
+
+    expect(response.status).toBe(302);
+    expect(response.headers.get('location')).toBe('/sign-in?conflict=true');
+    expect(response.headers.get('set-cookie')).toContain('bifrost_google_oauth_nonce=; Max-Age=0');
+  });
 });
 
 function testConfig(nodeEnvironment: 'development' | 'test' | 'production' = 'test'): Config {
   return loadConfig({
     NODE_ENV: nodeEnvironment,
     PUBLIC_URL,
+    REDIS_URL: nodeEnvironment === 'production' ? 'redis://redis:6379' : undefined,
     ENCRYPTION_KEY: Buffer.alloc(32, 1).toString('base64'),
     BIFROST_DEV_USER_ID: nodeEnvironment === 'development' ? USER_ID : '',
   });

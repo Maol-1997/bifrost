@@ -1,7 +1,7 @@
-import type { RedisClientType } from 'redis';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Coordinator } from '../src/server/coordination.js';
 import { AgentFacingError } from '../src/server/errors.js';
+import type { RedisCommandsClient } from '../src/server/redis.js';
 
 function deferred(): { promise: Promise<void>; resolve: () => void } {
   let resolve = (): void => undefined;
@@ -31,6 +31,15 @@ function rateRequest(overrides: {
     provider: overrides.provider ?? 'github',
     userId: overrides.userId ?? 'user-a',
     maximumStarts: overrides.maximumStarts ?? 1,
+  };
+}
+
+function redisCommands(evalCommand: RedisCommandsClient['eval']): RedisCommandsClient {
+  return {
+    eval: evalCommand,
+    getDel: vi.fn().mockResolvedValue(null),
+    publish: vi.fn().mockResolvedValue(0),
+    set: vi.fn().mockResolvedValue(null),
   };
 }
 
@@ -143,12 +152,11 @@ describe('in-process concurrency leases', () => {
 
 describe('Redis concurrency leases', () => {
   it('acquires the count and TTL in one atomic script', async () => {
-    const coordinator = new Coordinator();
     const evalCommand = vi.fn<(script: string, options: {
       keys: string[];
       arguments?: string[];
     }) => Promise<number>>().mockResolvedValueOnce(1).mockResolvedValueOnce(0);
-    (coordinator as unknown as { redis: RedisClientType }).redis = { eval: evalCommand } as unknown as RedisClientType;
+    const coordinator = new Coordinator(redisCommands(evalCommand));
 
     await coordinator.withConcurrencyLease(leaseRequest(() => Promise.resolve()));
 
@@ -158,7 +166,6 @@ describe('Redis concurrency leases', () => {
   });
 
   it('releases only the rejected lease while another call remains active', async () => {
-    const coordinator = new Coordinator();
     const counts = new Map<string, number>();
     const evalCommand = vi.fn<(script: string, options: {
       keys: string[];
@@ -175,7 +182,7 @@ describe('Redis concurrency leases', () => {
       else counts.set(key, remaining);
       return remaining;
     });
-    (coordinator as unknown as { redis: RedisClientType }).redis = { eval: evalCommand } as unknown as RedisClientType;
+    const coordinator = new Coordinator(redisCommands(evalCommand));
     const gate = deferred();
     const active = coordinator.withConcurrencyLease(leaseRequest(() => gate.promise));
 
@@ -185,6 +192,34 @@ describe('Redis concurrency leases', () => {
     gate.resolve();
     await active;
     await expect(coordinator.withConcurrencyLease(leaseRequest(() => Promise.resolve()))).resolves.toBeUndefined();
+  });
+});
+
+describe('Redis rate limits', () => {
+  it('increments and sets the 60-second TTL in one atomic script', async () => {
+    const evalCommand = vi.fn<(script: string, options: {
+      keys: string[];
+      arguments?: string[];
+    }) => Promise<number>>().mockResolvedValue(1);
+    const coordinator = new Coordinator(redisCommands(evalCommand));
+
+    await coordinator.enforceRateLimit(rateRequest({ maximumStarts: 2 }));
+
+    expect(evalCommand).toHaveBeenCalledOnce();
+    const [script, options] = evalCommand.mock.calls[0]!;
+    expect(script).toMatch(/redis\.call\('incr'.*if count == 1 then redis\.call\('expire'/s);
+    expect(options).toEqual({
+      keys: [expect.stringMatching(/^rate:github:user-a:\d+$/)],
+      arguments: ['60'],
+    });
+  });
+
+  it('rejects a count above the configured limit', async () => {
+    const redis = redisCommands(vi.fn().mockResolvedValue(3));
+    const coordinator = new Coordinator(redis);
+
+    await expect(coordinator.enforceRateLimit(rateRequest({ maximumStarts: 2 })))
+      .rejects.toBeInstanceOf(AgentFacingError);
   });
 });
 

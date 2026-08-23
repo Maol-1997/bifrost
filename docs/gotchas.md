@@ -15,6 +15,8 @@
 - **Never rename a constraint in an already-applied migration.** Rolling back to fix it destroys
   real rows. Write a new migration, or `ALTER ... RENAME CONSTRAINT` in place.
 - `ENCRYPTION_KEY` has no dev default by design and the server refuses to start without it.
+- `REDIS_URL` is mandatory in production. Redis owns distributed tool catalogs, browser events,
+  locks and limits, so silently falling back to per-process state would make replicas disagree.
 
 ## Known gaps
 

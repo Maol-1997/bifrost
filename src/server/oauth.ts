@@ -52,10 +52,16 @@ const tokenResponseSchema = z.object({
   error: z.string().optional(),
 }).loose();
 const returnToSchema = z.string().refine(isSafeReturnTo);
+export const googleIdentityClaimsSchema = z.object({
+  sub: z.string().min(1),
+  email: z.email(),
+  name: z.string().min(1),
+  email_verified: z.boolean(),
+});
 
 type ProviderTokenResponse = z.infer<typeof tokenResponseSchema>;
 type OAuthDatabase = Pick<Database,
-  'createSession' | 'getCredential' | 'saveCredential' | 'setAccountLabel' | 'upsertUser'
+  'createSession' | 'getCredential' | 'saveCredential' | 'setAccountLabel' | 'upsertGoogleUser'
 >;
 type OAuthCoordinator = Pick<Coordinator, 'setEphemeral' | 'takeEphemeral' | 'withLock'>;
 
@@ -185,7 +191,10 @@ export class OAuthService {
     const verified = await jwtVerify(tokens.id_token, googleJwks, {
       issuer: ['https://accounts.google.com', 'accounts.google.com'], audience: this.requiredConfig('GOOGLE_CLIENT_ID'),
     });
-    const claims = z.object({ email: z.email(), name: z.string().min(1).default('Bifrost user'), email_verified: z.boolean() }).parse(verified.payload);
+    // `sub` is required, not optional: it is the only stable Google identifier —
+    // an email can be renamed or reassigned, so an account keyed on it alone
+    // could be handed to the wrong person.
+    const claims = googleIdentityClaimsSchema.parse(verified.payload);
     if (!claims.email_verified) throw new Error('Google account email is not verified');
     // Checked before the upsert on purpose: a rejected account must leave no
     // row behind, or "who has an account here" stops meaning anything.
@@ -193,7 +202,11 @@ export class OAuthService {
       logger.warn({ domain: emailDomain(claims.email.toLowerCase()) }, 'Rejected sign-in from a domain that is not allowed');
       throw new EmailNotAllowedError();
     }
-    const userId = await this.database.upsertUser(claims.email, claims.name);
+    const userId = await this.database.upsertGoogleUser({
+      googleSubject: claims.sub,
+      email: claims.email,
+      name: claims.name,
+    });
     const session = await this.database.createSession(userId, WEB_CLIENT_ID);
     return { userId, sessionToken: session.token, returnTo: storedState.returnTo };
   }

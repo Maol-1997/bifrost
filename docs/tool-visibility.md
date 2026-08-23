@@ -21,6 +21,11 @@ atomically and rejected when any submitted fingerprint is stale.
 User preferences store only deviations from the approved deployment default. This keeps deployment
 approval and user choice as separate authorities and makes absence meaningful.
 
+Policy writes reconcile those deviations in the same transaction. A new fingerprint or blocked
+tool clears all prior user choices; otherwise rows equal to the new default are removed. Both the
+HTTP admin screen and chat administration use the same write path and broadcast Redis-backed browser
+invalidations after commit.
+
 ## Admin tools stay off `/mcp`
 
 The built-in web chat adds a separate `bifrost_admin` tool namespace only when the cookie-backed

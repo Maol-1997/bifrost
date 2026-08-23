@@ -23,5 +23,13 @@
 `user_tool_preferences`, `deployment_tool_policies`, and the OAuth server's `oauth_clients`, `oauth_grants`,
 `oauth_access_tokens`, `oauth_refresh_tokens`.
 
+`users.google_subject` is the immutable Google identity key. It is nullable only for legacy and
+development rows; a real Google login sets it before issuing a session. Browser sessions can only
+be renewed by the browser that owns their cookie, so the renewal response extends the row and emits
+the matching 30-day cookie together.
+
+`GET /healthz` returns `503` whenever configured Redis is not ready. Production requires
+`REDIS_URL`, so load balancers remove a replica whose shared coordination state is unavailable.
+
 Preference tables store **only deviations from the default**, keyed `(user_id, thing)`. Absence
 of a row is meaningful, so never backfill them.

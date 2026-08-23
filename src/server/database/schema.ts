@@ -19,6 +19,9 @@ const timestampWithTimezone = (name: string) => timestamp(name, { withTimezone: 
 
 export const users = pgTable('users', {
   id: uuid().primaryKey(),
+  // Nullable because accounts created before Google identities were recorded
+  // have no subject yet; they are linked on their owner's next sign-in.
+  googleSubject: text('google_subject').unique(),
   email: text().notNull().unique(),
   name: text().notNull(),
   createdAt: timestampWithTimezone('created_at').defaultNow().notNull(),
@@ -33,7 +36,10 @@ export const sessions = pgTable('sessions', {
   expiresAt: timestampWithTimezone('expires_at').notNull(),
   createdAt: timestampWithTimezone('created_at').defaultNow().notNull(),
   lastUsedAt: timestampWithTimezone('last_used_at').defaultNow().notNull(),
-}, (table) => [index('sessions_user_id_last_used_at_index').on(table.userId, table.lastUsedAt)]);
+}, (table) => [
+  index('sessions_user_id_last_used_at_index').on(table.userId, table.lastUsedAt),
+  index('sessions_expires_at_index').on(table.expiresAt),
+]);
 
 export const providerCredentials = pgTable('provider_credentials', {
   userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
@@ -115,4 +121,7 @@ export const oauthRefreshTokens = pgTable('oauth_refresh_tokens', {
   grantId: uuid('grant_id').notNull().references(() => oauthGrants.id, { onDelete: 'cascade' }),
   expiresAt: timestampWithTimezone('expires_at').notNull(),
   consumedAt: timestampWithTimezone('consumed_at'),
-}, (table) => [index('oauth_refresh_tokens_grant_id_index').on(table.grantId)]);
+}, (table) => [
+  index('oauth_refresh_tokens_grant_id_index').on(table.grantId),
+  index('oauth_refresh_tokens_expires_at_index').on(table.expiresAt),
+]);

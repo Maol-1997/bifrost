@@ -1,81 +1,41 @@
-import { z } from 'zod';
 import { errorSummary, logger } from '../logger.js';
+import type { OAuthService } from '../oauth.js';
 import { listUpstreamTools } from '../providers/mcp-client.js';
 import { PROVIDER_REGISTRY } from '../providers/registry.js';
 import type { ProviderId, ProviderMount } from '../providers/types.js';
-import type { OAuthService } from '../oauth.js';
-import { normalizeUpstreamTool, type DiscoveredTool } from './catalog.js';
+import { mcpToolNameSchema, normalizeUpstreamTool, type DiscoveredTool } from './catalog.js';
+import type { ToolCacheStore } from './cache-store.js';
 import {
   aggregateToolCacheHints,
-  TOOL_DISCOVERY_CACHE_OPTIONS,
   ToolDiscoveryCache,
   toolCacheHintFromError,
   type CachedToolDiscovery,
   type ToolCacheHint,
+  type ToolCacheKey,
+  type ToolDiscoveryCacheOptions,
 } from './discovery-cache.js';
 
-export const mcpToolNameSchema = z.string().regex(/^[A-Za-z0-9_.-]{1,128}$/);
-const providerToolDiscoveryCache = new ToolDiscoveryCache({
-  ...TOOL_DISCOVERY_CACHE_OPTIONS,
-  onBackgroundError: (error) => {
-    logger.warn(errorSummary(error), 'Official MCP background revalidation failed');
-  },
-});
+export { mcpToolNameSchema } from './catalog.js';
 
-type ProviderDiscoveryRequest = {
-  userId: string;
-  providerId: ProviderId;
+export type ToolDiscoveryDependencies = {
   oauth: OAuthService;
   mounts: readonly ProviderMount[];
+  store: ToolCacheStore;
+  now?: () => number;
+  delay?: (ms: number) => Promise<void>;
+};
+
+export type ProviderDiscoveryRequest = {
+  userId: string;
+  providerId: ProviderId;
   signal?: AbortSignal;
 };
 
-export async function discoverProviderTools(request: ProviderDiscoveryRequest): Promise<CachedToolDiscovery> {
-  const key = providerCacheKey(request.userId, request.providerId);
-  return providerToolDiscoveryCache.read(key, {
-    blocking: () => loadProviderTools(request),
-    background: () => loadProviderTools({
-      userId: request.userId,
-      providerId: request.providerId,
-      oauth: request.oauth,
-      mounts: request.mounts,
-    }),
-  });
-}
-
-export async function discoverProviderToolsFresh(request: ProviderDiscoveryRequest): Promise<CachedToolDiscovery> {
-  return providerToolDiscoveryCache.readFresh(
-    providerCacheKey(request.userId, request.providerId),
-    () => loadProviderTools(request),
-  );
-}
-
-export function invalidateProviderToolDiscovery(userId: string, providerId: ProviderId): void {
-  providerToolDiscoveryCache.invalidate(providerCacheKey(userId, providerId));
-}
-
-async function loadProviderTools(request: ProviderDiscoveryRequest): Promise<readonly DiscoveredTool[]> {
-  const provider = PROVIDER_REGISTRY.find((entry) => entry.id === request.providerId);
-  if (!provider) throw new Error(`Unknown provider: ${request.providerId}`);
-  if (!request.mounts.some((mount) => mount.providerId === provider.id && mount.isMounted)) {
-    throw new Error(`Provider is not mounted: ${provider.id}`);
-  }
-  const accessToken = await request.oauth.getOrRefreshAccessToken(request.userId, provider.id);
-  const upstreamTools = await listUpstreamTools(provider, accessToken, request.signal);
-  return upstreamTools
-    .map((tool) => normalizeUpstreamTool(provider, tool))
-    .filter((tool) => {
-      if (!mcpToolNameSchema.safeParse(tool.name).success) {
-        logger.warn({ providerId: provider.id, upstreamToolName: tool.upstreamName }, 'Ignored upstream tool with an invalid Bifrost name');
-        return false;
-      }
-      return true;
-    });
-}
-
-type ConnectedDiscoveryRequest = Omit<ProviderDiscoveryRequest, 'providerId'> & {
+export type ConnectedDiscoveryRequest = {
+  userId: string;
   connectedProviders: ReadonlySet<ProviderId>;
   hiddenProviders: ReadonlySet<ProviderId>;
+  signal?: AbortSignal;
 };
 
 export type ToolDiscoveryResult = {
@@ -84,38 +44,106 @@ export type ToolDiscoveryResult = {
   cache: ToolCacheHint;
 };
 
-export async function discoverConnectedTools(request: ConnectedDiscoveryRequest): Promise<ToolDiscoveryResult> {
-  const providerIds = PROVIDER_REGISTRY
-    .map((provider) => provider.id)
-    .filter((providerId) => request.connectedProviders.has(providerId) && !request.hiddenProviders.has(providerId));
-  const results = await Promise.allSettled(providerIds.map(async (providerId) => ({
-    providerId,
-    discovery: await discoverProviderTools({
-      userId: request.userId,
-      providerId,
-      oauth: request.oauth,
-      mounts: request.mounts,
-      ...(request.signal ? { signal: request.signal } : {}),
-    }),
-  })));
-  const tools: DiscoveredTool[] = [];
-  const failures: { providerId: ProviderId; message: string }[] = [];
-  const cacheHints: ToolCacheHint[] = [];
-  for (const [index, result] of results.entries()) {
-    const providerId = providerIds[index];
-    if (!providerId) continue;
-    if (result.status === 'fulfilled') {
-      tools.push(...result.value.discovery.tools);
-      cacheHints.push(result.value.discovery.cache);
-      continue;
-    }
-    logger.warn({ providerId, ...errorSummary(result.reason) }, 'Official MCP tool discovery failed');
-    failures.push({ providerId, message: 'Tool discovery failed' });
-    cacheHints.push(toolCacheHintFromError(result.reason));
+/**
+ * Discovery for one deployment, held by the dependency graph rather than by the
+ * module. A per-request MCP server is only ever as correct as the listing
+ * behind it, and that listing is shared across workers through the injected
+ * store — so who owns the cache has to be a decision the caller makes, not a
+ * module-level singleton nothing can replace or reset.
+ */
+export class ToolDiscoveryService {
+  private readonly cache: ToolDiscoveryCache;
+
+  constructor(
+    private readonly dependencies: ToolDiscoveryDependencies,
+    options?: ToolDiscoveryCacheOptions,
+  ) {
+    this.cache = new ToolDiscoveryCache({
+      store: dependencies.store,
+      ...(dependencies.now ? { now: dependencies.now } : {}),
+      ...(dependencies.delay ? { delay: dependencies.delay } : {}),
+      onBackgroundError: (error) => {
+        logger.warn(errorSummary(error), 'Official MCP background revalidation failed');
+      },
+      onUnreadableEntry: (error) => {
+        logger.warn(errorSummary(error), 'Discarded an unreadable cached MCP tool listing');
+      },
+    }, options);
   }
-  return { tools, failures, cache: aggregateToolCacheHints(cacheHints) };
+
+  async discoverProvider(request: ProviderDiscoveryRequest): Promise<CachedToolDiscovery> {
+    return this.cache.read(cacheKeyFor(request), {
+      blocking: () => this.loadProviderTools(request),
+      // The background loader deliberately drops the signal: the revalidation
+      // outlives the request that noticed the entry had gone stale.
+      background: () => this.loadProviderTools({
+        userId: request.userId,
+        providerId: request.providerId,
+      }),
+    });
+  }
+
+  async discoverProviderFresh(request: ProviderDiscoveryRequest): Promise<CachedToolDiscovery> {
+    return this.cache.readFresh(cacheKeyFor(request), () => this.loadProviderTools(request));
+  }
+
+  async invalidateProvider(userId: string, providerId: ProviderId): Promise<void> {
+    await this.cache.invalidate({ userId, providerId });
+  }
+
+  async discoverConnected(request: ConnectedDiscoveryRequest): Promise<ToolDiscoveryResult> {
+    const providerIds = PROVIDER_REGISTRY
+      .map((provider) => provider.id)
+      .filter((providerId) => (
+        request.connectedProviders.has(providerId) && !request.hiddenProviders.has(providerId)
+      ));
+    const results = await Promise.allSettled(providerIds.map(async (providerId) => ({
+      providerId,
+      discovery: await this.discoverProvider({
+        userId: request.userId,
+        providerId,
+        ...(request.signal ? { signal: request.signal } : {}),
+      }),
+    })));
+
+    const tools: DiscoveredTool[] = [];
+    const failures: { providerId: ProviderId; message: string }[] = [];
+    const cacheHints: ToolCacheHint[] = [];
+    for (const [index, result] of results.entries()) {
+      const providerId = providerIds[index];
+      if (!providerId) continue;
+      if (result.status === 'fulfilled') {
+        tools.push(...result.value.discovery.tools);
+        cacheHints.push(result.value.discovery.cache);
+        continue;
+      }
+      logger.warn({ providerId, ...errorSummary(result.reason) }, 'Official MCP tool discovery failed');
+      failures.push({ providerId, message: 'Tool discovery failed' });
+      cacheHints.push(toolCacheHintFromError(result.reason));
+    }
+    return { tools, failures, cache: aggregateToolCacheHints(cacheHints) };
+  }
+
+  private async loadProviderTools(request: ProviderDiscoveryRequest): Promise<readonly DiscoveredTool[]> {
+    const provider = PROVIDER_REGISTRY.find((entry) => entry.id === request.providerId);
+    if (!provider) throw new Error(`Unknown provider: ${request.providerId}`);
+    if (!this.dependencies.mounts.some((mount) => mount.providerId === provider.id && mount.isMounted)) {
+      throw new Error(`Provider is not mounted: ${provider.id}`);
+    }
+    const accessToken = await this.dependencies.oauth.getOrRefreshAccessToken(request.userId, provider.id);
+    const upstreamTools = await listUpstreamTools(provider, accessToken, request.signal);
+    return upstreamTools
+      .map((tool) => normalizeUpstreamTool(provider, tool))
+      .filter((tool) => {
+        if (!mcpToolNameSchema.safeParse(tool.name).success) {
+          logger.warn({ providerId: provider.id, upstreamToolName: tool.upstreamName }, 'Ignored upstream tool with an invalid Bifrost name');
+          return false;
+        }
+        return true;
+      });
+  }
 }
 
-function providerCacheKey(userId: string, providerId: ProviderId): string {
-  return `${userId}:${providerId}`;
+function cacheKeyFor(request: ProviderDiscoveryRequest): ToolCacheKey {
+  return { userId: request.userId, providerId: request.providerId };
 }
