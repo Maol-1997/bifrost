@@ -4,7 +4,7 @@
 
 You sign in once with Google, connect your own GitHub, Linear, Sentry, Slack, Notion and Granola accounts, and point Claude Code (or any MCP client) at `POST /mcp`. From then on the agent reads pull requests, searches issues and meeting notes, and posts messages under your identity and permissions, while you decide, tool by tool, what it is allowed to do.
 
-Bifrost also includes a streaming, multi-step chat powered by the Vercel AI SDK and OpenAI. It receives the signed-in user's currently visible Bifrost tools automatically, and stores chat history locally in the browser with IndexedDB.
+Bifrost also includes a streaming, multi-step chat powered by the Vercel AI SDK and OpenAI. It receives the signed-in user's currently visible Bifrost tools automatically, can search the live web through OpenAI Web Search, and stores chat history locally in the browser with IndexedDB.
 
 Administrators can also ask the web chat to review an MCP provider's tool catalog and apply deployment policies in a fingerprint-checked batch. These internal administration tools exist only in the web chat and are never exposed through `POST /mcp`.
 
@@ -84,7 +84,7 @@ All settings are environment variables, validated at startup by `src/server/conf
 | `GOOGLE_CLIENT_ID` / `_SECRET` | yes | Sign-in. |
 | `GITHUB_*`, `SLACK_*` | per provider | Provider OAuth apps. A provider without credentials still mounts; connecting it fails until they are set. Linear, Sentry, Notion and Granola use their MCP servers' dynamic client registration instead. |
 | `OPENAI_API_KEY` | for chat | Enables the built-in agent chat. The rest of Bifrost still starts when it is absent. |
-| `OPENAI_BASE_URL` | no | Chat API host. Defaults to `https://api.openai.com/v1`; overrides must support Responses and Tool Search. |
+| `OPENAI_BASE_URL` | no | Chat API host. Defaults to `https://api.openai.com/v1`; overrides must support Responses, Tool Search and Web Search. |
 | `OPENAI_MODEL` | no | Chat model. Default `gpt-5.6-luna`. |
 | `OPENAI_REASONING_EFFORT` | no | Chat reasoning effort. Default `medium`; accepts `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, or `max` when supported by the model. |
 | `ALLOWED_EMAIL_DOMAINS`, `ALLOWED_EMAILS` | recommended | Who may sign in. The two lists OR together. **Both empty lets any verified Google account in**; the server warns and the sign-in screen says so. |

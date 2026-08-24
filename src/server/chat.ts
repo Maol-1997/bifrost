@@ -105,6 +105,7 @@ export async function createBifrostChatResponse(request: {
     },
     tools: {
       tool_search: openai.tools.toolSearch(),
+      web_search: openai.tools.webSearch(),
       ...deferredTools,
       ...adminContext.tools,
     },
