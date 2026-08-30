@@ -11,7 +11,7 @@ import { PROVIDER_REGISTRY, SUPPORTED_APPS } from '../providers/registry.js';
 import type { ProviderId } from '../providers/types.js';
 import { effectivePolicyState, isToolEnabled, toolContractReview, TOOL_POLICY_STATES } from '../tools/catalog.js';
 import { mcpToolNameSchema, type ProviderDiscoveryRequest } from '../tools/discovery.js';
-import { aggregateToolCacheHints, toolCacheHintFromError, type CachedToolDiscovery } from '../tools/discovery-cache.js';
+import { aggregateToolCacheHints, failedToolCacheHint, toolCacheHintFromError, type CachedToolDiscovery } from '../tools/discovery-cache.js';
 import { applyToolPolicies } from '../tools/policy.js';
 import { isAdministrator } from '../security/access.js';
 import { authenticateBrowser, clearSessionCookie, setSessionCookie } from './auth.js';
@@ -446,23 +446,31 @@ async function clientList(context: AppContext) {
 
 async function appConnections(context: AppContext) {
   const identity = context.get('browserIdentity');
-  const { database, toolDiscovery } = context.get('dependencies');
-  const [connections, hidden, preferences, policies, connectedProviders] = await Promise.all([
+  const { database, oauth, toolDiscovery } = context.get('dependencies');
+  const connectedProviders = await database.connectedProviders(identity.userId);
+  const connectionHealth = new Map(await Promise.all([...connectedProviders].map(async (providerId) => [
+    providerId,
+    await oauth.refreshProviderConnectionIfNeeded(identity.userId, providerId),
+  ] as const)));
+  const [connections, hidden, preferences, policies, discovery] = await Promise.all([
     database.listConnections(identity.userId),
     database.hiddenProviders(identity.userId),
     database.toolPreferences(identity.userId),
     database.toolPolicies(),
-    database.connectedProviders(identity.userId),
+    toolDiscovery.discoverConnected({
+      userId: identity.userId,
+      connectedProviders,
+      hiddenProviders: new Set(),
+      signal: context.req.raw.signal,
+    }),
   ]);
-  const discovery = await toolDiscovery.discoverConnected({
-    userId: identity.userId,
-    connectedProviders,
-    hiddenProviders: new Set(),
-    signal: context.req.raw.signal,
-  });
   const byProvider = new Map(connections.map((connection) => [connection.providerId, connection]));
+  const hasUnknownConnectionHealth = [...connectionHealth.values()].some((health) => health === 'unknown');
   return {
-    cache: discovery.cache,
+    cache: aggregateToolCacheHints([
+      discovery.cache,
+      ...(hasUnknownConnectionHealth ? [failedToolCacheHint()] : []),
+    ]),
     apps: SUPPORTED_APPS.map((providerId) => {
       const connection = byProvider.get(providerId);
       return {
@@ -470,7 +478,8 @@ async function appConnections(context: AppContext) {
         isConnected: connection !== undefined,
         isHidden: hidden.has(providerId),
         needsReconnect: connection !== undefined && (
-          connection.needsReconnect || !hasRequiredScopes(providerId, connection.scopes)
+          connectionHealth.get(providerId) === 'needs-reconnect'
+          || !hasRequiredScopes(providerId, connection.scopes)
         ),
         tools: discovery.tools
           .filter((tool) => tool.providerId === providerId && effectivePolicyState(tool, policies) !== 'blocked')

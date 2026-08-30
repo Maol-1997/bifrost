@@ -140,6 +140,40 @@ describe('provider credential refresh', () => {
     });
     expect(harness.saveCredential).not.toHaveBeenCalled();
   });
+
+  it('reports a refreshable expired credential as connected', async () => {
+    setCurrentTime();
+    const harness = createHarness(credentialExpiringIn(0));
+    harness.refreshTokenGrant.mockResolvedValue({ access_token: 'refreshed-access', expires_in: 3_600 });
+
+    await expect(harness.oauth.refreshProviderConnectionIfNeeded(USER_ID, PROVIDER_ID)).resolves.toBe('connected');
+  });
+
+  it('reports reconnect only when the provider rejects the refresh grant', async () => {
+    setCurrentTime();
+    const harness = createHarness(credentialExpiringIn(0));
+    harness.refreshTokenGrant.mockRejectedValue(providerRejection());
+
+    await expect(harness.oauth.refreshProviderConnectionIfNeeded(USER_ID, PROVIDER_ID)).resolves.toBe('needs-reconnect');
+  });
+
+  it('keeps connection health unknown during a transient refresh failure', async () => {
+    setCurrentTime();
+    const harness = createHarness(credentialExpiringIn(0));
+    harness.refreshTokenGrant.mockRejectedValue(providerTimeout());
+
+    await expect(harness.oauth.refreshProviderConnectionIfNeeded(USER_ID, PROVIDER_ID)).resolves.toBe('unknown');
+  });
+
+  it('does not hide an invalid provider token response as unknown health', async () => {
+    setCurrentTime();
+    const harness = createHarness(credentialExpiringIn(0));
+    harness.refreshTokenGrant.mockResolvedValue({});
+
+    await expect(harness.oauth.refreshProviderConnectionIfNeeded(USER_ID, PROVIDER_ID)).rejects.toThrow(
+      'Provider token response did not include a user access token',
+    );
+  });
 });
 
 describe('provider authorization completion', () => {

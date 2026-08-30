@@ -195,6 +195,52 @@ describe('request handling', () => {
     }
   });
 
+  it('refreshes provider credentials before reading connection metadata', async () => {
+    const callOrder: string[] = [];
+    const spies = [
+      vi.spyOn(database, 'connectedProviders').mockResolvedValue(new Set(['linear'])),
+      vi.spyOn(oauth, 'refreshProviderConnectionIfNeeded').mockImplementation(async () => {
+        callOrder.push('refresh');
+        return 'connected';
+      }),
+      vi.spyOn(database, 'listConnections').mockImplementation(async () => {
+        callOrder.push('list');
+        return [{
+          providerId: 'linear',
+          connectedAt: new Date('2026-08-30T00:00:00.000Z'),
+          accountLabel: undefined,
+          scopes: ['read', 'write'],
+        }];
+      }),
+      vi.spyOn(database, 'hiddenProviders').mockResolvedValue(new Set()),
+      vi.spyOn(database, 'toolPreferences').mockResolvedValue(new Map()),
+      vi.spyOn(database, 'toolPolicies').mockResolvedValue(new Map()),
+      vi.spyOn(toolDiscovery, 'discoverConnected').mockResolvedValue({
+        tools: [],
+        failures: [],
+        cache: { state: 'fresh', freshForMs: 3_600_000, nextCheckInMs: 3_600_000 },
+      }),
+    ];
+    try {
+      const response = await request('/api/app-connections.json', {
+        headers: { 'X-Bifrost-Dev-User': DEVELOPMENT_USER_ID },
+      });
+      const payload = await response.json() as { apps: { providerId: string; needsReconnect: boolean }[] };
+
+      expect({
+        callOrder,
+        linear: payload.apps.find((provider) => provider.providerId === 'linear'),
+        status: response.status,
+      }).toMatchObject({
+        callOrder: ['refresh', 'list'],
+        linear: { providerId: 'linear', needsReconnect: false },
+        status: 200,
+      });
+    } finally {
+      for (const spy of spies) spy.mockRestore();
+    }
+  });
+
   it('passes the web-standard request, parsed body, and agent identity directly to the MCP handler', async () => {
     let captured: { request: Request; options?: McpHandlerRequestOptions } | undefined;
     const testMcpHandler: AppDependencies['mcpHandler'] = {

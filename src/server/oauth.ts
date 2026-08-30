@@ -114,6 +114,8 @@ type ProviderOAuthClient = {
   oauthClientId?: string;
 };
 
+type ProviderConnectionHealth = 'connected' | 'needs-reconnect' | 'unknown';
+
 export type GoogleAuthorizationStart = {
   location: string;
   browserNonce: string;
@@ -271,6 +273,20 @@ export class OAuthService {
       await this.database.setAccountLabel(userId, provider.id, label);
     } catch (error) {
       logger.warn({ ...errorSummary(error), providerId: provider.id }, 'Could not read the connected account handle');
+    }
+  }
+
+  async refreshProviderConnectionIfNeeded(userId: string, providerId: ProviderId): Promise<ProviderConnectionHealth> {
+    try {
+      await this.getOrRefreshAccessToken(userId, providerId);
+      return 'connected';
+    } catch (error) {
+      if (error instanceof ReconnectRequiredError) return 'needs-reconnect';
+      if (isTransientProviderFailure(error)) {
+        logger.warn({ ...errorSummary(error), providerId }, 'Could not verify provider connection');
+        return 'unknown';
+      }
+      throw error;
     }
   }
 
@@ -444,6 +460,10 @@ function isProviderRejection(error: unknown): boolean {
     && error.code !== 'OAUTH_TIMEOUT'
     && error.code !== 'OAUTH_ABORT'
     && error.message !== 'something went wrong';
+}
+
+function isTransientProviderFailure(error: unknown): boolean {
+  return error instanceof TypeError || (error instanceof ClientError && !isProviderRejection(error));
 }
 
 function fetchOptions(options: CustomFetchOptions): RequestInit {

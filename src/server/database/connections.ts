@@ -85,19 +85,13 @@ export function createConnectionStore(database: AppDatabase, config: Config) {
       return new Set(rows.map((row) => row.providerId));
     },
 
-    /**
-     * Everything Integrations needs to describe a live connection: when it was
-     * made, who it was made as, and whether the token has already lapsed.
-     * `needsReconnect` is derived here rather than in the UI so the rule lives
-     * next to the column that decides it.
-     */
-    async listConnections(userId: string): Promise<readonly { providerId: ProviderId; connectedAt: Date; accountLabel: string | undefined; needsReconnect: boolean; scopes: readonly string[] }[]> {
+    /** Everything Integrations needs after OAuth has verified the credential. */
+    async listConnections(userId: string): Promise<readonly { providerId: ProviderId; connectedAt: Date; accountLabel: string | undefined; scopes: readonly string[] }[]> {
       const rows = await database
         .select({
           providerId: providerCredentials.providerId,
           connectedAt: providerCredentials.createdAt,
           accountLabel: providerCredentials.accountLabel,
-          needsReconnect: sql<boolean>`${providerCredentials.expiresAt} is not null and ${providerCredentials.expiresAt} <= now()`,
           scopes: providerCredentials.scopes,
         })
         .from(providerCredentials)
