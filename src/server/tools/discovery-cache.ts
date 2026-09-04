@@ -159,10 +159,10 @@ export class ToolDiscoveryCache {
   private readonly onUnreadableEntry: ((error: unknown) => void) | undefined;
   private readonly blockingLoads = new Map<string, Promise<readonly DiscoveredTool[]>>();
   private readonly backgroundRefreshes = new Set<string>();
-  // Rebuilding tools from their contracts costs a hash each, and the stored
-  // bytes only change once an hour. Keyed by those exact bytes, so a refresh by
-  // any worker drops this for free.
-  private readonly decoded = new Map<string, { raw: string; tools: readonly DiscoveredTool[] }>();
+  // Exact-byte hits skip JSON parsing, validation and contract hashing. Store
+  // reads and generation checks still run, so another worker can invalidate
+  // or replace the record without waiting for a local cache lifetime.
+  private readonly decoded = new Map<string, { raw: string; entry: CacheEntry }>();
 
   constructor(
     dependencies: ToolDiscoveryCacheDependencies,
@@ -220,9 +220,18 @@ export class ToolDiscoveryCache {
 
   private async readState(key: ToolCacheKey): Promise<CacheState> {
     const generation = await this.readGeneration(key);
-    const rawRecord = await this.store.read(toolCacheKey(key, 'entry', generation));
+    const entryKey = toolCacheKey(key, 'entry', generation);
+    const rawRecord = await this.store.read(entryKey);
     if (await this.readGeneration(key) !== generation) return this.readState(key);
     if (rawRecord === undefined) return { generation, entry: undefined };
+
+    const memo = this.decoded.get(entryKey);
+    if (memo?.raw === rawRecord) {
+      if (memo.entry.tools && this.now() >= memo.entry.freshUntil + this.options.retentionMs) {
+        return this.discard(key, generation);
+      }
+      return { generation, entry: memo.entry };
+    }
 
     const record = this.parseRecord(rawRecord);
     if (!record) return this.discard(key, generation);
@@ -239,9 +248,11 @@ export class ToolDiscoveryCache {
     if (this.now() >= record.freshUntil + this.options.retentionMs) {
       return this.discard(key, generation);
     }
-    const tools = this.decodeTools(key, rawRecord, record);
+    const tools = this.decodeTools(key.providerId, record.contracts);
     if (!tools) return this.discard(key, generation);
-    return { generation, entry: { tools, ...timings } };
+    const entry = { tools, ...timings };
+    this.rememberDecoded(entryKey, rawRecord, entry);
+    return { generation, entry };
   }
 
   /**
@@ -249,7 +260,9 @@ export class ToolDiscoveryCache {
    * make every request pay for the same failed decode until it expired.
    */
   private async discard(key: ToolCacheKey, generation: number): Promise<CacheState> {
-    await this.store.remove(toolCacheKey(key, 'entry', generation));
+    const entryKey = toolCacheKey(key, 'entry', generation);
+    this.decoded.delete(entryKey);
+    await this.store.remove(entryKey);
     return { generation, entry: undefined };
   }
 
@@ -265,26 +278,20 @@ export class ToolDiscoveryCache {
   }
 
   private decodeTools(
-    key: ToolCacheKey,
-    rawRecord: string,
-    record: { generation: number; contracts: readonly CachedContract[] | null },
+    providerId: ProviderId,
+    contracts: readonly CachedContract[],
   ): readonly DiscoveredTool[] | undefined {
-    const memoKey = toolCacheKey(key, 'entry', record.generation);
-    const memo = this.decoded.get(memoKey);
-    if (memo?.raw === rawRecord) return memo.tools;
     try {
-      const tools = (record.contracts ?? []).map((contract) => decodeTool(key.providerId, contract));
-      this.rememberDecoded(memoKey, rawRecord, tools);
-      return tools;
+      return contracts.map((contract) => decodeTool(providerId, contract));
     } catch (error) {
       this.onUnreadableEntry?.(error);
       return undefined;
     }
   }
 
-  private rememberDecoded(memoKey: string, raw: string, tools: readonly DiscoveredTool[]): void {
+  private rememberDecoded(memoKey: string, raw: string, entry: CacheEntry): void {
     this.decoded.delete(memoKey);
-    this.decoded.set(memoKey, { raw, tools });
+    this.decoded.set(memoKey, { raw, entry });
     while (this.decoded.size > MAX_DECODED_ENTRIES) {
       const oldestKey = this.decoded.keys().next().value;
       if (oldestKey === undefined) return;

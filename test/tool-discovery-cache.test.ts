@@ -97,6 +97,60 @@ describe('shared tool discovery cache', () => {
     expect(load).toHaveBeenCalledOnce();
   });
 
+  it('revalidates changed bytes after warming the decoded entry', async () => {
+    const { cache, store } = harness();
+    const load = loaders(async () => [tool]);
+    await cache.read(key, load);
+    await cache.read(key, load);
+    const record = await storedRecord(store);
+    const changed = { ...definition, description: 'Changed by another worker.' };
+    await store.write(toolCacheKey(key, 'entry', 0), JSON.stringify({
+      ...record,
+      contracts: [{ providerId: 'github', tool: changed }],
+    }), 86_400_000);
+
+    const result = await cache.read(key, load);
+
+    expect(result.tools[0]?.fingerprint).toBe(fingerprintToolDefinition('github', changed));
+  });
+
+  it('does not let a warmed entry hide corrupt replacement bytes', async () => {
+    const { cache, store } = harness();
+    await cache.read(key, loaders(async () => [tool]));
+    await cache.read(key, loaders(async () => [tool]));
+    await store.write(toolCacheKey(key, 'entry', 0), 'not json', 86_400_000);
+
+    const result = await cache.read(key, loaders(async () => [otherTool]));
+
+    expect(result.tools).toEqual([otherTool]);
+  });
+
+  it('expires a warmed entry even when the backend retains its bytes', async () => {
+    const { cache, store, clock } = harness();
+    const load = loaders(async () => [tool]);
+    await cache.read(key, load);
+    await cache.read(key, load);
+    const raw = await store.read(toolCacheKey(key, 'entry', 0));
+    await store.write(toolCacheKey(key, 'entry', 0), raw!, 100_000_000);
+    clock.now += 3_600_000 + 86_400_000;
+
+    const result = await cache.read(key, loaders(async () => [otherTool]));
+
+    expect(result.tools).toEqual([otherTool]);
+  });
+
+  it('does not reuse a warmed entry after another worker advances the generation', async () => {
+    const { cache, store } = harness();
+    await cache.read(key, loaders(async () => [tool]));
+    await cache.read(key, loaders(async () => [tool]));
+    const otherWorker = harness({ store }).cache;
+    await otherWorker.invalidate(key);
+
+    const result = await cache.read(key, loaders(async () => [otherTool]));
+
+    expect(result.tools).toEqual([otherTool]);
+  });
+
   it('returns stale immediately and deduplicates background revalidation', async () => {
     const { cache, clock } = harness();
     const blocking = vi.fn(async () => [tool]);
