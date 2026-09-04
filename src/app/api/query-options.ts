@@ -1,6 +1,6 @@
 import { queryOptions } from '@tanstack/react-query';
 import { getAdminProviderTools, getConnectedClients, getProviders } from './bifrost';
-import type { ConnectableProviderId } from './types';
+import type { ProviderId } from './types';
 
 const MAX_FRONTEND_STALE_MS = 60 * 60 * 1_000;
 // Persistence silently drops queries whose gcTime is shorter than the
@@ -35,7 +35,7 @@ export const connectedClientsQueryOptions = queryOptions({
   queryFn: getConnectedClients,
 });
 
-export function adminToolsQueryOptions(providerId: ConnectableProviderId) {
+export function adminToolsQueryOptions(providerId: ProviderId) {
   return queryOptions({
     queryKey: ['admin-tools', providerId],
     queryFn: () => getAdminProviderTools(providerId),

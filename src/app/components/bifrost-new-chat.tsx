@@ -7,33 +7,6 @@ import {
 } from "@app/components/ui/agent-chat/agent-chat"
 import { AgentChatComposer } from "@app/components/ui/agent-chat/agent-chat-composer"
 
-type BifrostNewChatContentProps = {
-  input: string
-  onChange: (value: string) => void
-  onStop: () => void
-  onSubmit: (value: string) => void
-  submitting: boolean
-}
-
-function BifrostNewChatContent({
-  input,
-  onChange,
-  onStop,
-  onSubmit,
-  submitting,
-}: BifrostNewChatContentProps): React.JSX.Element {
-  return (
-    <AgentChatComposer
-      autoFocus
-      onChange={onChange}
-      onStop={onStop}
-      onSubmit={onSubmit}
-      submitting={submitting}
-      value={input}
-    />
-  )
-}
-
 function BifrostNewChatLoadingState(): React.JSX.Element {
   return (
     <div aria-busy="true" className="min-h-0 w-full flex-1" role="status">
@@ -49,4 +22,4 @@ function BifrostNewChatLoadingState(): React.JSX.Element {
   )
 }
 
-export { BifrostNewChatContent, BifrostNewChatLoadingState }
+export { BifrostNewChatLoadingState }

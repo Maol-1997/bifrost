@@ -1,5 +1,5 @@
 import { isConnectableProvider, providerCatalog } from './catalog';
-import type { AdminToolProvider, BifrostApi, ConnectableProviderId, ConnectedClient, Provider, QueryCacheHint, ToolMutability, ToolPolicyState } from './types';
+import type { AdminToolProvider, BifrostApi, ProviderId, ConnectedClient, Provider, QueryCacheHint, ToolMutability, ToolPolicyState } from './types';
 
 const DAY_MS = 86_400_000;
 const HOUR_MS = 3_600_000;
@@ -67,8 +67,8 @@ let mockProviders: Provider[] = providerCatalog.map((provider) => ({
     name, title, description: `${title}.`, mutability, isEnabled: mutability === 'read',
   })),
 }));
-const mockAdminProviders = new Map<ConnectableProviderId, AdminToolProvider>(mockProviders
-  .filter((provider): provider is Provider & { id: ConnectableProviderId } => isConnectableProvider(provider.id))
+const mockAdminProviders = new Map<ProviderId, AdminToolProvider>(mockProviders
+  .filter((provider): provider is Provider & { id: ProviderId } => isConnectableProvider(provider.id))
   .map((provider) => [provider.id, {
     providerId: provider.id,
     status: 'ready' as const,

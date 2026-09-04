@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ChevronDown } from 'lucide-react';
 import { Link, Navigate, useParams } from 'react-router-dom';
-import { getProviderCatalog, isConnectableProvider, refreshAdminProviderTools, setToolPolicies, type AdminTool, type AdminToolProvider, type CachedResult, type ConnectableProviderId, type ToolContractChange, type ToolContractReview, type ToolMutability, type ToolPolicyBatchChange, type ToolPolicyChange, type ToolPolicyState } from '@app/api/bifrost';
+import { getProviderCatalog, isConnectableProvider, refreshAdminProviderTools, setToolPolicies, type AdminTool, type AdminToolProvider, type CachedResult, type ProviderId, type ToolContractChange, type ToolContractReview, type ToolMutability, type ToolPolicyBatchChange, type ToolPolicyChange, type ToolPolicyState } from '@app/api/bifrost';
 import { adminToolsQueryOptions } from '@app/api/query-options';
 import { Button } from '@app/components/ui/button';
 import { Checkbox, type CheckboxState } from '@app/components/ui/checkbox';
@@ -29,7 +29,7 @@ function isToolPolicyState(value: string): value is ToolPolicyState {
   return POLICY_OPTIONS.some((option) => option.value === value);
 }
 
-function providerName(providerId: ConnectableProviderId): string {
+function providerName(providerId: ProviderId): string {
   return PROVIDER_NAMES.get(providerId) ?? providerId;
 }
 
@@ -151,14 +151,6 @@ function ReviewBadge({ review }: { review: ToolContractReview }): React.JSX.Elem
   );
 }
 
-function formatContractValue(value: unknown): string {
-  return JSON.stringify(value, null, 2);
-}
-
-function ContractChangeValue({ label, value }: { label: string; value: unknown }): React.JSX.Element {
-  return <ContractBlock label={label} value={formatContractValue(value)} />;
-}
-
 function ContractChangeRow({ change }: { change: ToolContractChange }): React.JSX.Element {
   return (
     <div className="rounded-[9px] border-[0.5px] border-app-border-pane p-3">
@@ -167,8 +159,8 @@ function ContractChangeRow({ change }: { change: ToolContractChange }): React.JS
         <span className="rounded-full bg-linear-card-hover px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[.04em] text-app-text-tertiary">{change.kind}</span>
       </div>
       <div className="mt-3 grid gap-3 sm:grid-cols-2">
-        {change.kind === 'added' ? null : <ContractChangeValue label="Previous" value={change.before} />}
-        {change.kind === 'removed' ? null : <ContractChangeValue label="Current" value={change.after} />}
+        {change.kind === 'added' ? null : <ContractBlock label="Previous" value={JSON.stringify(change.before, null, 2)} />}
+        {change.kind === 'removed' ? null : <ContractBlock label="Current" value={JSON.stringify(change.after, null, 2)} />}
       </div>
     </div>
   );
@@ -204,7 +196,7 @@ function ContractReviewDetails({ review }: { review: ToolContractReview }): Reac
   );
 }
 
-function ToolRow({ tool, providerId, controller }: { tool: AdminTool; providerId: ConnectableProviderId; controller: ToolAdministrationController }): React.JSX.Element {
+function ToolRow({ tool, providerId, controller }: { tool: AdminTool; providerId: ProviderId; controller: ToolAdministrationController }): React.JSX.Element {
   const currentPolicy = POLICY_OPTIONS.find((option) => option.value === tool.state);
   const { disabled, selection } = controller;
   return (
@@ -257,7 +249,6 @@ function ToolRowSkeleton(): React.JSX.Element {
   );
 }
 
-/** Mirrors the ready layout: Read and Write groups of checkbox + text + policy rows. */
 function ToolAdministrationSkeleton(): React.JSX.Element {
   return (
     <div aria-live="polite" aria-busy="true" className="mt-7">
@@ -277,7 +268,7 @@ function ToolAdministrationSkeleton(): React.JSX.Element {
   );
 }
 
-type ToolGroupModel = { mutability: ToolMutability; tools: readonly AdminTool[]; providerId: ConnectableProviderId };
+type ToolGroupModel = { mutability: ToolMutability; tools: readonly AdminTool[]; providerId: ProviderId };
 
 function ToolGroup({ group, controller }: { group: ToolGroupModel; controller: ToolAdministrationController }): React.JSX.Element | null {
   const { mutability, tools, providerId } = group;
@@ -327,7 +318,7 @@ function BatchActions({ controller, onChange }: { controller: ToolAdministration
   return <div aria-label="Batch actions" className="flex min-h-11 items-center justify-between gap-3"><div aria-live="polite" className="text-[12.5px] font-medium tabular-nums">{selection.selectedCount} selected</div><div className="flex items-center gap-1.5"><Button type="button" variant="ghost" size="large" disabled={disabled} onClick={selection.clear}>Clear</Button><PolicyMenu ariaLabel={`Set policy for ${selection.selectedCount} selected tools`} disabled={disabled} triggerLabel={disabled ? 'Applying…' : 'Set policy'} className="w-40" onChange={onChange} /></div></div>;
 }
 
-function AdminProviderTools({ providerId }: { providerId: ConnectableProviderId }): React.JSX.Element {
+function AdminProviderTools({ providerId }: { providerId: ProviderId }): React.JSX.Element {
   const [search, setSearch] = useState('');
   const selection = useToolSelection();
   const queryClient = useQueryClient();

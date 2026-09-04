@@ -1,4 +1,4 @@
-import type { ConnectableProviderId, Provider } from './types';
+import type { ProviderId, Provider } from './types';
 
 /**
  * The curated prose the screens need: what an app is, and what connecting it
@@ -64,6 +64,6 @@ export function getProviderCatalog(): readonly Provider[] {
   return providerCatalog.map((provider) => ({ ...structuredClone(provider), tools: [] }));
 }
 
-export function isConnectableProvider(providerId: string): providerId is ConnectableProviderId {
+export function isConnectableProvider(providerId: string): providerId is ProviderId {
   return providerId === 'github' || providerId === 'linear' || providerId === 'sentry' || providerId === 'slack' || providerId === 'notion' || providerId === 'granola';
 }
