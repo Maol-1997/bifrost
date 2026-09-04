@@ -1,5 +1,5 @@
-import { isConnectableProvider, providerCatalog } from './catalog';
-import type { AdminToolProvider, BifrostApi, ProviderId, ConnectedClient, Provider, QueryCacheHint, ToolMutability, ToolPolicyState } from './types';
+import { providerCatalog } from './catalog';
+import type { AdminToolProvider, BifrostApi, ProviderId, ConnectedClient, Provider, QueryCacheHint, ToolMutability } from './types';
 
 const DAY_MS = 86_400_000;
 const HOUR_MS = 3_600_000;
@@ -68,7 +68,6 @@ let mockProviders: Provider[] = providerCatalog.map((provider) => ({
   })),
 }));
 const mockAdminProviders = new Map<ProviderId, AdminToolProvider>(mockProviders
-  .filter((provider): provider is Provider & { id: ProviderId } => isConnectableProvider(provider.id))
   .map((provider) => [provider.id, {
     providerId: provider.id,
     status: 'ready' as const,
@@ -76,7 +75,7 @@ const mockAdminProviders = new Map<ProviderId, AdminToolProvider>(mockProviders
       ...tool,
       upstreamName: tool.name.replace(`${provider.id}_`, ''),
       fingerprint: tool.name.padEnd(64, '0').slice(0, 64),
-      state: (tool.isEnabled ? 'allowed_default_on' : 'blocked') as ToolPolicyState,
+      state: tool.isEnabled ? 'allowed_default_on' : 'blocked',
       needsReview: !tool.isEnabled,
       review: tool.isEnabled ? { kind: 'approved' } : { kind: 'new' },
       annotations: tool.mutability === 'read' ? { readOnlyHint: true } : {},
