@@ -20,6 +20,19 @@ type ToolPolicyWrite = {
 
 export function createToolPolicyStore(database: AppDatabase) {
   return {
+    // Enforcement needs the current fingerprint and default, not the potentially
+    // large review snapshot. Both reads stay live; only review screens need it.
+    async toolPolicyDecisions(): Promise<ReadonlyMap<string, Omit<StoredToolPolicy, 'contract'>>> {
+      const rows = await database
+        .select({
+          toolName: deploymentToolPolicies.toolName,
+          fingerprint: deploymentToolPolicies.fingerprint,
+          state: deploymentToolPolicies.state,
+        })
+        .from(deploymentToolPolicies);
+      return new Map(rows.map((row) => [row.toolName, row]));
+    },
+
     async toolPolicies(): Promise<ReadonlyMap<string, StoredToolPolicy>> {
       const rows = await database
         .select({

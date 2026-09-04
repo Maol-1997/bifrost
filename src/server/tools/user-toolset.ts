@@ -37,7 +37,7 @@ export async function loadVisibleUserTools(request: {
     database.connectedProviders(request.userId),
     database.hiddenProviders(request.userId),
     database.toolPreferences(request.userId),
-    database.toolPolicies(),
+    database.toolPolicyDecisions(),
   ]);
   const discovery = await toolDiscovery.discoverConnected({
     userId: request.userId,
@@ -69,7 +69,7 @@ export async function executeUserTool(request: {
     // Policies come from the database on every call, never from the cache: an
     // administrator blocking a tool has to take effect now, not once a listing
     // somewhere expires.
-    const currentPolicies = await request.dependencies.database.toolPolicies();
+    const currentPolicies = await request.dependencies.database.toolPolicyDecisions();
     if (effectivePolicyState(request.tool, currentPolicies) === 'blocked') {
       throw new Error(`Tool ${request.tool.name} is not permitted by this deployment`);
     }

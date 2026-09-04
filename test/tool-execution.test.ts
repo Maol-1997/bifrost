@@ -26,7 +26,7 @@ const success: CallToolResult = { content: [{ type: 'text', text: 'Issue 42' }] 
 type Harness = {
   dependencies: ToolExecutionDependencies;
   invalidateProvider: ReturnType<typeof vi.fn>;
-  toolPolicies: ReturnType<typeof vi.fn>;
+  toolPolicyDecisions: ReturnType<typeof vi.fn>;
 };
 
 function harness(): Harness {
@@ -34,17 +34,17 @@ function harness(): Harness {
   const withConcurrencyLease = vi.fn(async (request: { operation: () => Promise<unknown> }) => (
     request.operation()
   ));
-  const toolPolicies = vi.fn(async () => new Map([[discoveredTool.name, {
+  const toolPolicyDecisions = vi.fn(async () => new Map([[discoveredTool.name, {
     toolName: discoveredTool.name,
     fingerprint: discoveredTool.fingerprint,
     state: 'allowed_default_on' as const,
   }]]));
   return {
     invalidateProvider,
-    toolPolicies,
+    toolPolicyDecisions,
     dependencies: {
       config: { SLOW_TOOL_MS: Number.MAX_SAFE_INTEGER } as Config,
-      database: { toolPolicies } as unknown as Database,
+      database: { toolPolicyDecisions } as unknown as Database,
       coordinator: {
         enforceRateLimit: vi.fn(async () => undefined),
         withConcurrencyLease,
@@ -73,7 +73,7 @@ beforeEach(() => {
 describe('cached tool execution', () => {
   it('checks the current database policy before making an upstream call', async () => {
     const testHarness = harness();
-    testHarness.toolPolicies.mockResolvedValue(new Map([[discoveredTool.name, {
+    testHarness.toolPolicyDecisions.mockResolvedValue(new Map([[discoveredTool.name, {
       toolName: discoveredTool.name,
       fingerprint: '0'.repeat(64),
       state: 'allowed_default_on',

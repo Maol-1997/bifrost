@@ -1,3 +1,14 @@
+export type ToolCacheSnapshotKey = {
+  generationKey: string;
+  entryKeyPrefix: string;
+};
+
+export type ToolCacheSnapshot = {
+  generationBefore: string | undefined;
+  value: string | undefined;
+  generationAfter: string | undefined;
+};
+
 /**
  * The whole storage surface the shared tool cache needs. Redis in a deployment,
  * an in-process map in tests and single-worker development. Keeping it this
@@ -6,6 +17,8 @@
  */
 export type ToolCacheStore = {
   read(key: string): Promise<string | undefined>;
+  /** Observes generation on both sides of its entry; canonical reads are atomic. */
+  readSnapshot(key: ToolCacheSnapshotKey): Promise<ToolCacheSnapshot>;
   write(key: string, value: string, ttlMs: number): Promise<void>;
   /** Resolves false when the key already exists; this is the refresh lock. */
   writeIfAbsent(key: string, value: string, ttlMs: number): Promise<boolean>;
@@ -27,6 +40,15 @@ export type ToolCacheRedisCommands = {
 
 const DEFAULT_MAX_ENTRIES = 4_096;
 const READ_SCRIPT = "return redis.call('get', KEYS[1])";
+// The entry key depends on the generation just read. This targets the existing
+// standalone Redis runtime, not Redis Cluster (which needs fixed, same-slot keys).
+// Both generation observations share one Redis execution: no invalidation or
+// refresh can interleave between them and the entry read.
+const READ_SNAPSHOT_SCRIPT = `
+local before = redis.call('get', KEYS[1])
+local entry = redis.call('get', ARGV[1] .. (before or '0'))
+local after = redis.call('get', KEYS[1])
+return {before, entry, after}`;
 const REMOVE_SCRIPT = "return redis.call('del', KEYS[1])";
 // A lock must only be released by the worker that took it; a plain del would
 // let a slow worker drop the lock a later refresh is relying on.
@@ -43,10 +65,31 @@ redis.call('pexpire', KEYS[1], ARGV[1])
 return value`;
 
 export function createRedisToolCacheStore(commands: ToolCacheRedisCommands): ToolCacheStore {
+  const read = async (key: string): Promise<string | undefined> => {
+    const value = await commands.eval(READ_SCRIPT, { keys: [key] });
+    return typeof value === 'string' ? value : undefined;
+  };
   return {
-    async read(key) {
-      const value = await commands.eval(READ_SCRIPT, { keys: [key] });
-      return typeof value === 'string' ? value : undefined;
+    read,
+
+    async readSnapshot(key) {
+      const result = await commands.eval(READ_SNAPSHOT_SCRIPT, {
+        keys: [key.generationKey],
+        arguments: [key.entryKeyPrefix],
+      });
+      if (!Array.isArray(result) || result.length !== 3) throw new Error('Redis returned an invalid tool cache snapshot');
+      const generationBefore = snapshotString(result[0]);
+      const generation = parseToolCacheGeneration(generationBefore);
+      // INCR writes canonical decimal integers. Preserve the old normalization
+      // for noncanonical/corrupt generations without selecting the wrong key.
+      if ((generationBefore ?? '0') !== String(generation)) {
+        return {
+          generationBefore,
+          value: await read(`${key.entryKeyPrefix}${generation}`),
+          generationAfter: await read(key.generationKey),
+        };
+      }
+      return { generationBefore, value: snapshotString(result[1]), generationAfter: snapshotString(result[2]) };
     },
 
     async write(key, value, ttlMs) {
@@ -117,6 +160,13 @@ export function createInMemoryToolCacheStore(options: InMemoryToolCacheOptions =
       return live(key)?.value;
     },
 
+    async readSnapshot(key) {
+      // No await: JavaScript writers cannot run between these observations.
+      const generationBefore = live(key.generationKey)?.value;
+      const value = live(`${key.entryKeyPrefix}${parseToolCacheGeneration(generationBefore)}`)?.value;
+      return { generationBefore, value, generationAfter: live(key.generationKey)?.value };
+    },
+
     async write(key, value, ttlMs) {
       store(key, value, ttlMs);
     },
@@ -142,4 +192,16 @@ export function createInMemoryToolCacheStore(options: InMemoryToolCacheOptions =
       return next;
     },
   };
+}
+
+function snapshotString(value: unknown): string | undefined {
+  if (value === null) return undefined;
+  if (typeof value === 'string') return value;
+  throw new Error('Redis returned an invalid tool cache snapshot field');
+}
+
+export function parseToolCacheGeneration(raw: string | undefined): number {
+  if (raw === undefined) return 0;
+  const generation = Number.parseInt(raw, 10);
+  return Number.isSafeInteger(generation) && generation >= 0 ? generation : 0;
 }
