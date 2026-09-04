@@ -83,6 +83,45 @@ describe('browser and agent authentication', () => {
     expect(resolveSessionAndTouch).not.toHaveBeenCalled();
   });
 
+  it.each(['production', 'test'] as const)('rejects development headers in %s even when configured', async (environment) => {
+    const config = { ...testConfig(environment), BIFROST_DEV_USER_ID: USER_ID };
+    const context = authenticationContext(
+      new Request(PUBLIC_URL, { headers: { 'x-bifrost-dev-user': USER_ID } }),
+      databaseWithResolvers(vi.fn(), vi.fn()),
+      config,
+    );
+
+    expect(await Promise.all([authenticateBrowser(context), authenticateAgent(context)])).toEqual([undefined, undefined]);
+  });
+
+  it('rejects a development header naming a different user', async () => {
+    const context = authenticationContext(
+      new Request(PUBLIC_URL, { headers: { 'x-bifrost-dev-user': '00000000-0000-4000-8000-000000000001' } }),
+      databaseWithResolvers(vi.fn(), vi.fn()),
+      testConfig('development'),
+    );
+
+    expect(await Promise.all([authenticateBrowser(context), authenticateAgent(context)])).toEqual([undefined, undefined]);
+  });
+
+  it('rejects a resolved agent token bound to another resource', async () => {
+    const resolveOAuthAccessTokenAndTouch = vi.fn().mockResolvedValue({
+      grantId: 'other-grant',
+      userId: USER_ID,
+      clientId: CLIENT_ID,
+      resource: 'https://other.example/mcp',
+      scopes: ['mcp'],
+      expiresAt: new Date('2030-01-01T00:00:00.000Z'),
+    });
+    const context = authenticationContext(
+      new Request(PUBLIC_URL, { headers: { authorization: 'Bearer other-resource-token' } }),
+      databaseWithResolvers(vi.fn(), resolveOAuthAccessTokenAndTouch),
+      testConfig(),
+    );
+
+    await expect(authenticateAgent(context)).resolves.toBeUndefined();
+  });
+
   it('creates separate development identities for browser and agent paths', async () => {
     const config = testConfig('development');
     const request = new Request(PUBLIC_URL, {
