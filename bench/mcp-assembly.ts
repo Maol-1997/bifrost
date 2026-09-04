@@ -51,7 +51,7 @@ const dependencies: UserToolDependencies = {
     connectedProviders: async () => new Set(PROVIDER_REGISTRY.map((provider) => provider.id)),
     hiddenProviders: async () => new Set(),
     toolPreferences: async () => new Map(),
-    toolPolicies: async () => policies,
+    toolPolicyDecisions: async () => policies,
   } as unknown as Database,
   toolDiscovery: new ToolDiscoveryService({ oauth, mounts, store }),
 };
