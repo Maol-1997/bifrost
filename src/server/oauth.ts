@@ -493,7 +493,7 @@ function browserNonceMatches(browserNonce: string | undefined, expectedHash: str
   return actual.length === expected.length && timingSafeEqual(actual, expected);
 }
 
-export function isSafeReturnTo(returnTo: string): boolean {
+function isSafeReturnTo(returnTo: string): boolean {
   if (!returnTo.startsWith('/') || returnTo.startsWith('//')) return false;
   if (returnTo.includes('\\') || /%5c/i.test(returnTo) || /^\/%2f/i.test(returnTo)) return false;
   try {

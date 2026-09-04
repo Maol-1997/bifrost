@@ -49,12 +49,9 @@ export type ExpiredAuthStateCounts = {
 
 export type Database = ReturnType<typeof createDatabase>;
 
-export { SESSION_TTL_SECONDS, type SessionRecord } from './sessions.js';
-export { GoogleAccountConflictError, type GoogleIdentity } from './users.js';
+export { SESSION_TTL_SECONDS } from './sessions.js';
 export type { StoredCredential } from './connections.js';
 export type {
-  OAuthGrantRecord,
-  OAuthIdentity,
   OAuthTokenPair,
   RefreshOutcome,
   StoredOAuthClient,

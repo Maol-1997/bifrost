@@ -102,7 +102,7 @@ const SettingsLinkRow = React.forwardRef<HTMLAnchorElement, SettingsLinkRowProps
         className={cn(
           "relative flex h-[65px] cursor-default items-center gap-3 rounded-none p-4 text-inherit no-underline outline-none",
           "first:rounded-t-[10px] last:rounded-b-[10px]",
-          "hover:bg-linear-settings-row-hover data-[preview=hover]:bg-linear-settings-row-hover",
+          "hover:bg-linear-settings-row-hover",
           "focus-visible:z-[2] focus-visible:[outline:1px_solid_var(--linear-primary)] focus-visible:[outline-offset:0]",
           "after:pointer-events-none after:absolute after:bottom-0 after:left-4 after:right-4 after:z-[1] after:h-[0.5px] after:bg-linear-settings-divider after:content-[''] last:after:hidden",
           className,
@@ -151,6 +151,4 @@ export {
   SettingsRowContent,
   SettingsRowDescription,
   SettingsRowTitle,
-  type SettingsGroupProps,
-  type SettingsLinkRowProps,
 }

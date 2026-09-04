@@ -7,10 +7,6 @@ import { APP_ROUTES } from '@features/utils/routes';
 
 const providers = getProviderCatalog().filter((provider) => isConnectableProvider(provider.id));
 
-function providerRoute(providerId: string): string {
-  return `${APP_ROUTES.adminTools}/${providerId}`;
-}
-
 export function AdminToolNavigation(): React.JSX.Element {
   const location = useLocation();
   const isAdminRoute = location.pathname.startsWith(APP_ROUTES.adminTools);
@@ -28,7 +24,7 @@ export function AdminToolNavigation(): React.JSX.Element {
             const isActive = isAdminRoute && activeProviderId === provider.id;
             return (
               <SidebarNestedLink key={provider.id} asChild active={isActive}>
-                <NavLink to={providerRoute(provider.id)}>
+                <NavLink to={`${APP_ROUTES.adminTools}/${provider.id}`}>
                   <ProviderIcon providerId={provider.id} monogram={provider.monogram} size="sidebar" />
                   <span>{provider.name}</span>
                 </NavLink>

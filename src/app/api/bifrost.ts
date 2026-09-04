@@ -30,8 +30,6 @@ export async function getSignInPolicy(): Promise<SignInPolicy> {
 }
 
 /**
- * Who is signed in, or `undefined` when nobody is.
- *
  * Deliberately does not go through `parseRpcResponse`: a 401 here must not bounce the
  * visitor to sign-in, because Service status is public and has to stay readable
  * when you cannot log in — which is exactly when you need it.

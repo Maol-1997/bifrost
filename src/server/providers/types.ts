@@ -6,14 +6,14 @@ export type ProviderRequestContext = {
   signal: AbortSignal;
 };
 
-export type StaticProviderOAuth = {
+type StaticProviderOAuth = {
   kind: 'static';
   authorizationUrl: string;
   tokenUrl: string;
   scopes: readonly string[];
 };
 
-export type DynamicProviderOAuth = {
+type DynamicProviderOAuth = {
   kind: 'dynamic';
   issuer: string;
   discoveryAlgorithm: 'oidc' | 'oauth2';
@@ -23,7 +23,7 @@ export type DynamicProviderOAuth = {
   scopes: readonly string[];
 };
 
-export type ProviderOAuth = StaticProviderOAuth | DynamicProviderOAuth;
+type ProviderOAuth = StaticProviderOAuth | DynamicProviderOAuth;
 
 export type ProviderDefinition = {
   id: ProviderId;

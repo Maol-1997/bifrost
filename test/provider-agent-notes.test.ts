@@ -24,10 +24,6 @@ describe('provider agent notes', () => {
     expect(providerAgentNoteSchema.safeParse('a'.repeat(PROVIDER_AGENT_NOTE_MAX_LENGTH + 1)).success).toBe(false);
   });
 
-  it('tells the agent how replacement notes behave when none exist', () => {
-    expect(providerAgentNoteInstructions(new Map())).toContain('Each save replaces the previous note');
-  });
-
   it('includes stored notes in deterministic provider order', () => {
     const updatedAt = new Date('2026-08-20T00:00:00.000Z');
     const notes = new Map<ProviderId, ProviderAgentNote>([

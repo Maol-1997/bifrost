@@ -13,7 +13,7 @@ export type ToolContractSnapshot = {
   readonly providerId: ProviderId;
   readonly tool: Readonly<Record<string, unknown>>;
 };
-export type ToolContractChange =
+type ToolContractChange =
   | { kind: 'added'; path: string; after: unknown }
   | { kind: 'removed'; path: string; before: unknown }
   | { kind: 'changed'; path: string; before: unknown; after: unknown };

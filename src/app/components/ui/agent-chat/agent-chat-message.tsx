@@ -1,4 +1,3 @@
-import { X, Zap } from "lucide-react"
 import { memo, type ReactNode, useLayoutEffect, useRef } from "react"
 
 import { cn } from "@app/lib/cn"
@@ -16,7 +15,6 @@ type AgentChatMessageProps = {
   className?: string
   onCopyMessage?: () => void
   onEditMessage?: () => void
-  queued?: boolean
   role: AgentChatMessageRole
 }
 
@@ -30,26 +28,12 @@ function AssistantMessageActions({ onCopyMessage }: { onCopyMessage: () => void 
   )
 }
 
-function QueuedMessageActions() {
-  return (
-    <div className="flex h-6 justify-end gap-0.5">
-      <AgentChatMessageActionButton label="Send immediately (steer)">
-        <Zap className="size-3.5" />
-      </AgentChatMessageActionButton>
-      <AgentChatMessageActionButton label="Remove from queue">
-        <X className="size-3.5" />
-      </AgentChatMessageActionButton>
-    </div>
-  )
-}
-
 const AgentChatMessage = memo(function AgentChatMessage({
   actions = true,
   children,
   className,
   onCopyMessage,
   onEditMessage,
-  queued = false,
   role,
 }: AgentChatMessageProps) {
   const isUser = role === "user"
@@ -61,7 +45,6 @@ const AgentChatMessage = memo(function AgentChatMessage({
         isUser ? "items-end" : "items-start gap-1.5",
         className,
       )}
-      data-queued={queued || undefined}
       data-role={role}
     >
       <div
@@ -70,18 +53,16 @@ const AgentChatMessage = memo(function AgentChatMessage({
           !isUser && "ml-2.5 w-[calc(100%-20px)]",
           isUser &&
             "max-w-[75%] overflow-clip rounded-lg bg-linear-agent-message px-3 py-2 text-linear-bright",
-          queued && "opacity-70",
         )}
       >
         {children}
       </div>
-      {actions && isUser && !queued && (
+      {actions && isUser && (
         <AgentChatUserActions
           {...(onCopyMessage ? { onCopyMessage } : {})}
           {...(onEditMessage ? { onEditMessage } : {})}
         />
       )}
-      {actions && isUser && queued && <QueuedMessageActions />}
       {actions && !isUser && onCopyMessage
         ? <AssistantMessageActions onCopyMessage={onCopyMessage} />
         : null}
@@ -221,6 +202,4 @@ function AgentChatMessages({
 export {
   AgentChatMessage,
   AgentChatMessages,
-  type AgentChatMessageProps,
-  type AgentChatMessageRole,
 }

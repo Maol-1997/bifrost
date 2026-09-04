@@ -246,5 +246,4 @@ MermaidDiagram.displayName = "MermaidDiagram"
 
 export {
   MermaidDiagram,
-  type MermaidDiagramProps,
 }

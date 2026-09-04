@@ -6,7 +6,7 @@ import { SUPPORTED_GRANT_TYPES } from './clients.js';
  */
 export const MCP_SCOPE = 'mcp';
 
-export const MCP_PATH = '/mcp';
+const MCP_PATH = '/mcp';
 export const AUTHORIZE_PATH = '/oauth/authorize';
 export const CONSENT_PATH = '/oauth/consent';
 export const TOKEN_PATH = '/oauth/token';

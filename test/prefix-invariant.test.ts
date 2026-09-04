@@ -15,51 +15,47 @@ const aligned: PrefixInvariantInputs = {
   credentialMapping: { github_: 'github' },
 };
 
-function callInvariant(input: PrefixInvariantInputs = {}): void {
-  assertPrefixInvariant(input);
-}
-
 describe('provider prefix invariant', () => {
   it('accepts aligned registry, namespace, app, and credential mapping', () => {
-    expect(() => { callInvariant(aligned); }).not.toThrow();
+    expect(() => { assertPrefixInvariant(aligned); }).not.toThrow();
   });
 
   it('passes on the registry the server actually boots with', () => {
-    expect(() => { callInvariant(); }).not.toThrow();
+    expect(() => { assertPrefixInvariant(); }).not.toThrow();
   });
 
   it('fails startup when one character drifts', () => {
-    expect(() => { callInvariant({ ...aligned, namespaces: { github: 'github-' } }); })
+    expect(() => { assertPrefixInvariant({ ...aligned, namespaces: { github: 'github-' } }); })
       .toThrow('github: namespace differs from registry prefix');
   });
 
   it('fails startup when a provider is absent from the supported apps', () => {
-    expect(() => { callInvariant({ ...aligned, apps: [] }); })
+    expect(() => { assertPrefixInvariant({ ...aligned, apps: [] }); })
       .toThrow('github: missing from supported apps');
   });
 
   it('fails startup when supported apps contain a provider absent from the registry', () => {
-    expect(() => { callInvariant({ ...aligned, apps: ['github', 'linear'] }); })
+    expect(() => { assertPrefixInvariant({ ...aligned, apps: ['github', 'linear'] }); })
       .toThrow('linear: supported app has no registry entry');
   });
 
   it('fails startup when the registry is missing an otherwise configured provider', () => {
-    expect(() => { callInvariant({ ...aligned, registry: [] }); })
+    expect(() => { assertPrefixInvariant({ ...aligned, registry: [] }); })
       .toThrow('github: namespace has no registry entry');
   });
 
   it('fails startup when the credential mapping points the prefix elsewhere', () => {
-    expect(() => { callInvariant({ ...aligned, credentialMapping: { github_: 'linear' } }); })
+    expect(() => { assertPrefixInvariant({ ...aligned, credentialMapping: { github_: 'linear' } }); })
       .toThrow('github: credential mapping differs from prefix');
   });
 
   it('fails startup when two providers claim the same prefix', () => {
-    expect(() => { callInvariant({ ...aligned, registry: [...registry, ...registry] }); })
+    expect(() => { assertPrefixInvariant({ ...aligned, registry: [...registry, ...registry] }); })
       .toThrow('provider prefixes are not unique');
   });
 
   it('fails startup when supported apps repeat a provider', () => {
-    expect(() => { callInvariant({ ...aligned, apps: ['github', 'github'] }); })
+    expect(() => { assertPrefixInvariant({ ...aligned, apps: ['github', 'github'] }); })
       .toThrow('supported apps are not unique');
   });
 });

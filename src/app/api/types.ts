@@ -3,7 +3,6 @@
  * the live and mock implementations describe the same shapes.
  */
 export type ProviderId = 'github' | 'linear' | 'sentry' | 'slack' | 'notion' | 'granola';
-export type ConnectableProviderId = ProviderId;
 export type ConnectionStatus = 'connected' | 'needs-reconnect' | 'not-connected' | 'unavailable';
 export type ToolMutability = 'read' | 'write';
 export type ClientHealth = 'healthy' | 'needs-renewal';
@@ -39,7 +38,7 @@ export type Provider = {
 };
 
 export type ToolPolicyState = 'blocked' | 'allowed_default_off' | 'allowed_default_on';
-export type ToolCacheState = 'fresh' | 'revalidating' | 'refresh_failed';
+type ToolCacheState = 'fresh' | 'revalidating' | 'refresh_failed';
 export type ToolContractChange =
   | { kind: 'added'; path: string; after: unknown }
   | { kind: 'removed'; path: string; before: unknown }
@@ -77,20 +76,20 @@ export type AdminTool = {
 };
 
 export type AdminToolProvider = {
-  providerId: ConnectableProviderId;
+  providerId: ProviderId;
   status: 'ready' | 'not-connected' | 'error';
   tools: readonly AdminTool[];
 };
 
 export type ToolPolicyChange = {
-  providerId: ConnectableProviderId;
+  providerId: ProviderId;
   toolName: string;
   fingerprint: string;
   state: ToolPolicyState;
 };
 
 export type ToolPolicyBatchChange = {
-  providerId: ConnectableProviderId;
+  providerId: ProviderId;
   tools: readonly Omit<ToolPolicyChange, 'providerId'>[];
 };
 
@@ -99,7 +98,7 @@ export type ToolPolicyBatchChange = {
  * They are separate records server-side, so the kind travels with the id and
  * decides which one an action applies to.
  */
-export type ClientKind = 'browser' | 'agent';
+type ClientKind = 'browser' | 'agent';
 
 /**
  * Clients we ship a brand mark for. Mirrors `ClientLogoId` in
@@ -148,12 +147,12 @@ export type SignInPolicy = { allowedDomains: readonly string[]; isRestricted: bo
  */
 export type BifrostApi = {
   getProviders: () => Promise<CachedResult<readonly Provider[]>>;
-  startProviderConnection: (providerId: ConnectableProviderId) => Promise<void>;
+  startProviderConnection: (providerId: ProviderId) => Promise<void>;
   disconnectProvider: (providerId: ProviderId) => Promise<void>;
   setProviderHidden: (providerId: ProviderId, isHidden: boolean) => Promise<void>;
   setToolEnabled: (toolName: string, isEnabled: boolean) => Promise<void>;
-  getAdminProviderTools: (providerId: ConnectableProviderId) => Promise<CachedResult<AdminToolProvider>>;
-  refreshAdminProviderTools: (providerId: ConnectableProviderId) => Promise<CachedResult<AdminToolProvider>>;
+  getAdminProviderTools: (providerId: ProviderId) => Promise<CachedResult<AdminToolProvider>>;
+  refreshAdminProviderTools: (providerId: ProviderId) => Promise<CachedResult<AdminToolProvider>>;
   setToolPolicies: (change: ToolPolicyBatchChange) => Promise<QueryCacheHint>;
   getConnectedClients: () => Promise<readonly ConnectedClient[]>;
   renewClient: (client: ConnectedClient) => Promise<void>;

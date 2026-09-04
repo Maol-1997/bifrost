@@ -49,7 +49,7 @@ export function createApp(dependencies: AppDependencies) {
 
 export type AppType = ReturnType<typeof createApp>;
 
-export function allowedHostnames(publicUrl: string): string[] {
+function allowedHostnames(publicUrl: string): string[] {
   return [...new Set([new URL(publicUrl).hostname, 'localhost', '127.0.0.1'])];
 }
 

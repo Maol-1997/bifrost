@@ -115,8 +115,5 @@ function AgentChatDock({
 
 export {
   AgentChatDock,
-  type AgentChatDockConversation,
-  type AgentChatDockProps,
   type AgentChatPlacement,
-  type AgentChatPlacementControl,
 }

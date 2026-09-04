@@ -351,11 +351,7 @@ export {
   AgentChat,
   AgentChatEmptyState,
   AgentChatGlobalToolbar,
-  AgentChatHeader,
   type AgentChatConversation,
   type AgentChatHistory,
-  type AgentChatProps,
-  type AgentChatGlobalToolbarProps,
-  type AgentChatToolbarTab,
   type AgentHistoryItem,
 }

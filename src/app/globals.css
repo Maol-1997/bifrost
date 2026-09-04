@@ -165,11 +165,9 @@
 }
 
 @keyframes pulse { 0%, 100% { opacity: .35; } 50% { opacity: .7; } }
-@keyframes spin { to { transform: rotate(360deg); } }
 @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: .3; } }
 
 .animate-design-pulse { animation: pulse 1.4s ease-in-out infinite; }
-.animate-design-spin { animation: spin .8s linear infinite; }
 .animate-design-blink { animation: blink 1.6s ease-in-out infinite; }
 
 @media (prefers-reduced-motion: reduce) {

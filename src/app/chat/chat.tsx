@@ -14,7 +14,7 @@ import {
 import { useLocation, useNavigate } from "react-router-dom"
 import { toast } from "sonner"
 
-import { BifrostNewChatContent, BifrostNewChatLoadingState } from "@app/components/bifrost-new-chat"
+import { BifrostNewChatLoadingState } from "@app/components/bifrost-new-chat"
 import { BifrostMark } from "@app/components/ui/bifrost-mark"
 import { Button } from "@app/components/ui/button"
 import {
@@ -495,8 +495,9 @@ function ChatConversation({
     >
       {messages.length === 0 && !isMiniChat ? (
         <AgentChatEmptyState>
-          <BifrostNewChatContent
-            input={input}
+          <AgentChatComposer
+            autoFocus
+            value={input}
             onChange={setInput}
             onStop={() => { void stop() }}
             onSubmit={submit}

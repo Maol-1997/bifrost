@@ -152,4 +152,4 @@ const CodeBlock = React.memo(
 
 CodeBlock.displayName = "CodeBlock"
 
-export { CodeBlock, type CodeBlockProps }
+export { CodeBlock }

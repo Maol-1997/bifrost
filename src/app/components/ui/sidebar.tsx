@@ -452,11 +452,4 @@ export {
   SidebarNestedLink,
   SidebarSpacer,
   SidebarTrigger,
-  type SidebarBackdropProps,
-  type SidebarCollapsibleProps,
-  type SidebarCollapsibleTriggerProps,
-  type SidebarLinkProps,
-  type SidebarNestedLinkProps,
-  type SidebarProps,
-  type SidebarSpacerProps,
 }

@@ -8,7 +8,7 @@ import {
 import type { ToolDiscoveryService } from './discovery.js';
 import type { ToolCacheHint } from './discovery-cache.js';
 
-export type ToolPolicyChange = {
+type ToolPolicyChange = {
   toolName: string;
   fingerprint: string;
   state: ToolPolicyState;
@@ -25,7 +25,7 @@ export type ToolPolicyCounts = {
  * policy flow does not reach into the HTTP layer, and so a caller can hand it
  * anything that fans the two events out.
  */
-export type ToolPolicyBroadcaster = {
+type ToolPolicyBroadcaster = {
   broadcast(event: 'providers-changed' | 'admin-tools-changed'): Promise<void>;
 };
 
