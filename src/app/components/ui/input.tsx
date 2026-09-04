@@ -8,18 +8,11 @@ const inputVariants = cva(
   {
     variants: {
       variant: {
-        standard:
-          "h-8 border-linear-input-border bg-linear-input px-3 py-1.5 font-normal placeholder:text-linear-input-placeholder transition-[border] duration-150 ease-[ease] hover:border-linear-input-border-hover focus:border-linear-input-border-hover disabled:text-linear-input-disabled disabled:hover:border-linear-input-border data-[preview=hover]:border-linear-input-border-hover",
-        compact:
-          "h-[26px] border-linear-input-border bg-linear-input px-3 py-1.5 text-xs font-normal placeholder:text-linear-input-placeholder transition-[border] duration-150 ease-[ease] hover:border-linear-input-border-hover focus:border-linear-input-border-hover disabled:text-linear-input-disabled disabled:hover:border-linear-input-border data-[preview=hover]:border-linear-input-border-hover",
         searchSidebar:
           "h-7 border-linear-search-sidebar-border bg-linear-search-sidebar py-1.5 pl-8 pr-[25px] font-medium shadow-linear-control placeholder:text-linear-search-placeholder transition-[border-color] duration-150 ease-[ease] disabled:text-linear-muted",
         searchContent:
-          "h-8 border-linear-search-content-border bg-linear-subtle py-1.5 pl-8 pr-[25px] font-medium placeholder:text-linear-select-chevron transition-[border-color] duration-150 ease-[ease] hover:border-linear-search-content-border-hover focus:border-linear-search-content-border-hover disabled:text-linear-select-chevron disabled:hover:border-linear-search-content-border data-[preview=hover]:border-linear-search-content-border-hover",
+          "h-8 border-linear-search-content-border bg-linear-subtle py-1.5 pl-8 pr-[25px] font-medium placeholder:text-linear-select-chevron transition-[border-color] duration-150 ease-[ease] hover:border-linear-search-content-border-hover focus:border-linear-search-content-border-hover disabled:text-linear-select-chevron disabled:hover:border-linear-search-content-border",
       },
-    },
-    defaultVariants: {
-      variant: "standard",
     },
   },
 )
