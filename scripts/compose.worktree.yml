@@ -1,0 +1,32 @@
+# Independent infrastructure: never starts or stops the root checkout's app.
+services:
+  postgres:
+    image: postgres:17-bookworm
+    environment:
+      POSTGRES_USER: bifrost
+      POSTGRES_PASSWORD: bifrost
+      POSTGRES_DB: bifrost
+    ports:
+      - "127.0.0.1:${WORKTREE_POSTGRES_PORT:?Initialize the worktree}:5432"
+    volumes:
+      - postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bifrost -d bifrost"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+  redis:
+    image: redis:8-bookworm
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "127.0.0.1:${WORKTREE_REDIS_PORT:?Initialize the worktree}:6379"
+    volumes:
+      - redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+volumes:
+  postgres:
+  redis:
