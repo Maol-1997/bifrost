@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { describe, expect, it, vi } from 'vitest';
 import { authorizationCodeKey, handleAuthorize, handleConsent } from '../src/server/oauth-server/authorize.js';
 import type { OAuthHttpResult, OAuthServerContext } from '../src/server/oauth-server/context.js';
-import { handleRevoke, handleToken } from '../src/server/oauth-server/token.js';
+import { handleRegister, handleRevoke, handleToken } from '../src/server/oauth-server/token.js';
 import type { Coordinator } from '../src/server/coordination.js';
 import type { Database, OAuthTokenPair, RefreshOutcome, StoredOAuthClient } from '../src/server/database/index.js';
 
@@ -47,6 +47,7 @@ type DatabaseFake = Pick<Database,
   | 'hasOAuthGrant'
   | 'revokeOAuthToken'
   | 'rotateOAuthRefreshToken'
+  | 'upsertOAuthClient'
 >;
 
 type CoordinatorFake = Pick<Coordinator, 'setEphemeral' | 'takeEphemeral'>;
@@ -67,6 +68,7 @@ function createHarness(options: HarnessOptions = {}): HandlerHarness {
   const ephemeralValues = new Map(options.ephemeralValues);
   const database: DatabaseFake = {
     authorizeOAuthGrant: vi.fn(async () => TOKEN_PAIR),
+    upsertOAuthClient: vi.fn(async () => undefined),
     getOAuthClient: vi.fn(async () => REGISTERED_CLIENT),
     getUser: vi.fn(async () => ({ name: 'Test User', email: 'user@example.com' })),
     hasOAuthGrant: vi.fn(async () => false),
@@ -197,6 +199,70 @@ function tokenResponseSummary(result: OAuthHttpResult): Record<string, unknown> 
 }
 
 describe('authorization requests', () => {
+  it('requires sign-in before resolving a caller-supplied metadata document', async () => {
+    const harness = createHarness();
+    const url = authorizationUrl({ client_id: 'https://client.example/metadata.json' });
+
+    const result = await handleAuthorize(harness.context, url, undefined);
+
+    expect({ result, lookups: vi.mocked(harness.database.getOAuthClient).mock.calls.length }).toEqual({
+      result: { kind: 'sign-in-required', returnTo: `${url.pathname}${url.search}` },
+      lookups: 0,
+    });
+  });
+
+  it('creates consent bound to the signed-in user with a short lifetime', async () => {
+    const harness = createHarness();
+
+    const result = await handleAuthorize(harness.context, authorizationUrl(), USER_ID);
+    const stored = vi.mocked(harness.coordinator.setEphemeral).mock.calls[0];
+
+    expect({ status: htmlSummary(result).status, payload: JSON.parse(stored?.[1] ?? 'null') as unknown, ttl: stored?.[2] }).toMatchObject({
+      status: 200,
+      payload: { userId: USER_ID, clientId: CLIENT_ID, codeChallenge: CODE_CHALLENGE, resource: RESOURCE, scopes: ['mcp'] },
+      ttl: 600,
+    });
+  });
+
+  it('does not create consent for an account that no longer exists', async () => {
+    const harness = createHarness();
+    vi.mocked(harness.database.getUser).mockResolvedValue(undefined);
+
+    const result = await handleAuthorize(harness.context, authorizationUrl(), USER_ID);
+
+    expect({ result: htmlErrorSummary(result, 'Account not found'), stored: harness.ephemeralValues.size })
+      .toEqual({ result: { kind: 'html', status: 400, includesExpectedText: true }, stored: 0 });
+  });
+
+  it('reuses an existing grant without issuing another consent token', async () => {
+    const harness = createHarness();
+    vi.mocked(harness.database.hasOAuthGrant).mockResolvedValue(true);
+
+    const result = await handleAuthorize(harness.context, authorizationUrl(), USER_ID);
+
+    expect({ redirect: redirectSummary(result), keys: [...harness.ephemeralValues.keys()] }).toMatchObject({
+      redirect: { hasCode: true, state: STATE, issuer: PUBLIC_URL },
+      keys: [expect.stringMatching(/^oauth:code:/)],
+    });
+  });
+
+  it('rejects metadata-document clients when that feature is disabled', async () => {
+    const harness = createHarness();
+
+    const result = await handleAuthorize(harness.context, authorizationUrl({ client_id: 'https://client.example/metadata.json' }), USER_ID);
+
+    expect(htmlErrorSummary(result, 'not accepting client metadata documents')).toMatchObject({ status: 400, includesExpectedText: true });
+  });
+
+  it('keeps unknown clients on a local error page', async () => {
+    const harness = createHarness();
+    vi.mocked(harness.database.getOAuthClient).mockResolvedValue(undefined);
+
+    const result = await handleAuthorize(harness.context, authorizationUrl(), USER_ID);
+
+    expect(htmlErrorSummary(result, 'not registered with Bifrost')).toMatchObject({ status: 400, includesExpectedText: true });
+  });
+
   it('keeps a malformed request on an error page without resolving a redirect target', async () => {
     const harness = createHarness();
     const result = await handleAuthorize(harness.context, new URL(`${PUBLIC_URL}/oauth/authorize?client_id=${CLIENT_ID}`), USER_ID);
@@ -236,6 +302,14 @@ describe('authorization requests', () => {
 });
 
 describe('consent submissions', () => {
+  it('does not consume consent while the browser is signed out', async () => {
+    const harness = createHarness({ ephemeralValues: new Map([[`oauth:consent:${CONSENT_TOKEN}`, pendingConsent()]]) });
+
+    const result = await handleConsent(harness.context, consentBody(), undefined);
+
+    expect({ status: htmlSummary(result).status, stored: harness.ephemeralValues.size }).toEqual({ status: 401, stored: 1 });
+  });
+
   it('rejects a form with no consent token', async () => {
     const harness = createHarness();
     const result = await handleConsent(harness.context, new URLSearchParams({ decision: 'approve' }), USER_ID);
@@ -421,5 +495,56 @@ describe('token revocation', () => {
 
     expect({ response: jsonSummary(result), revocations: vi.mocked(harness.database.revokeOAuthToken).mock.calls.length })
       .toEqual({ response: { kind: 'json', status: 200, body: {} }, revocations: 1 });
+  });
+});
+
+describe('dynamic client registration handlers', () => {
+  it('persists a public client before returning its registration', async () => {
+    const harness = createHarness();
+
+    const result = await handleRegister(harness.context, { client_name: 'Local client', redirect_uris: [REDIRECT_URI] });
+
+    expect({ response: jsonSummary(result), stored: vi.mocked(harness.database.upsertOAuthClient).mock.calls[0]?.[0] }).toMatchObject({
+      response: { status: 201, body: { token_endpoint_auth_method: 'none', redirect_uris: [REDIRECT_URI] } },
+      stored: { clientName: 'Local client', registrationKind: 'dynamic', redirectUris: [REDIRECT_URI], metadataExpiresAt: undefined },
+    });
+  });
+
+  it('does not persist an unsafe redirect URI', async () => {
+    const harness = createHarness();
+
+    const result = await handleRegister(harness.context, { redirect_uris: ['http://attacker.example/callback'] });
+
+    expect({ response: jsonSummary(result), writes: vi.mocked(harness.database.upsertOAuthClient).mock.calls.length })
+      .toMatchObject({ response: { status: 400 }, writes: 0 });
+  });
+
+  it('propagates a storage failure instead of reporting a successful registration', async () => {
+    const harness = createHarness();
+    const failure = new Error('storage unavailable');
+    vi.mocked(harness.database.upsertOAuthClient).mockRejectedValue(failure);
+
+    await expect(handleRegister(harness.context, { redirect_uris: [REDIRECT_URI] })).rejects.toBe(failure);
+  });
+});
+
+describe('token request validation', () => {
+  it('rejects unsupported grants without issuing tokens', async () => {
+    const harness = createHarness();
+
+    const result = await handleToken(harness.context, new URLSearchParams({ grant_type: 'password' }));
+
+    expect(jsonSummary(result)).toMatchObject({ status: 400, body: { error: 'unsupported_grant_type' } });
+  });
+
+  it.each(['code', 'client_id', 'redirect_uri', 'code_verifier'])('requires %s before consuming a code', async (parameter) => {
+    const harness = authorizationCodeHarness();
+    const body = authorizationCodeBody();
+    body.delete(parameter);
+
+    const result = await handleToken(harness.context, body);
+
+    expect({ response: jsonSummary(result), stored: harness.ephemeralValues.size })
+      .toMatchObject({ response: { status: 400, body: { error: 'invalid_request' } }, stored: 1 });
   });
 });

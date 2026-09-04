@@ -21,7 +21,9 @@
     "test": "vitest run --coverage",
     "test:coverage": "vitest run --coverage",
     "db:generate": "drizzle-kit generate",
-    "migrate": "tsx --env-file-if-exists=.env src/server/database/migrate.ts"
+    "migrate": "tsx --env-file-if-exists=.env src/server/database/migrate.ts",
+    "verify": "bash scripts/verify.sh",
+    "worktree": "bash scripts/worktree.sh"
   },
   "dependencies": {
     "@ai-sdk/openai": "^4.0.43",

@@ -33,6 +33,7 @@ The details live in `docs/`, one file per topic. Read the relevant one before to
 | [docs/http.md](docs/http.md) | Hono routers, validation, security headers, data model |
 | [docs/conventions.md](docs/conventions.md) | Code conventions and the verification commands |
 | [docs/gotchas.md](docs/gotchas.md) | Gotchas that cost real time, known gaps |
+| [docs/verification.md](docs/verification.md) | Verification scope, isolated worktrees, existing dev identity and MCP probes |
 
 ## Layout
 
@@ -75,5 +76,18 @@ bucket directly under `src`.
 ## Verification
 
 ```bash
-npm run lint && npm run typecheck && npm test && npm run build
+npm run verify
 ```
+
+This runs lint, both typechecks, database-free unit tests with coverage, and both production
+builds, stopping on failure. Coverage includes selected modules, not the whole repository.
+Integration and browser tiers are proposed, not implemented; passing this command is not
+end-to-end proof. For auth/OAuth, persistence, MCP or UI changes, also exercise the affected
+runtime path and report the evidence or exact blocker. Do not weaken authentication or tool
+visibility to make a check pass.
+
+For concurrent worktrees, initialize a distinct slot with `npm run worktree -- init 41`, then
+use `npm run worktree -- dev`. Plain `npm run dev` still uses fixed ports and stops the Compose
+`app`. The existing `BIFROST_DEV_USER_ID` seed/header path does not create browser cookies or
+provider connections. See [docs/verification.md](docs/verification.md) for working local
+recipes, complete MCP request headers, current boot/preview gotchas, and cleanup.

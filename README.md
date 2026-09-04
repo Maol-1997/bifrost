@@ -101,11 +101,15 @@ All settings are environment variables, validated at startup by `src/server/conf
 npm ci
 npm run dev        # Postgres + Redis containers, migrations, watched API on :3000, Vite on :5173
 npm run db:generate # Generate a Drizzle migration after changing src/server/database/schema.ts
-npm run lint && npm run typecheck && npm test
+npm run verify     # Lint, both typechecks, unit coverage, server/client build
 npm run build      # Node server to dist/server, React bundle to dist/client
 ```
 
-Work against <http://localhost:5173>; Vite proxies `/api`, `/auth`, `/oauth` and `/mcp` to the API. `npm run dev` stops the `app` container because both want port 3000. For UI work with no backend at all, `VITE_USE_MOCK_API=true npm run dev` swaps in an in-memory API (Service status is never mocked; it reads the vendors' real feeds).
+Work against <http://localhost:5173>; Vite proxies `/api`, `/auth`, `/oauth` and `/mcp` to the API. `npm run dev` stops the `app` container because both want port 3000. For UI API fixtures, `VITE_USE_MOCK_API=true npm run dev:client` swaps in an in-memory API without starting infrastructure. This is not fully offline: Service status reads real vendor feeds and chat configuration still calls the backend; see [the current preview limitation](docs/verification.md#boot-and-ui-limitations-found-in-this-audit).
+
+For concurrent agents, use the [isolated worktree loop](docs/verification.md):
+`npm run worktree -- init 41`, then `npm run worktree -- dev`. Each checkout needs a distinct slot.
+That guide also documents the existing development-user header and current boot/preview limitations.
 
 The Docker image bundles its own `dist`, so after changing code, `docker compose up -d --build app`; rebuilding on the host does nothing to a running container.
 
