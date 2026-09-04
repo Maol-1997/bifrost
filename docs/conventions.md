@@ -21,10 +21,12 @@ Beyond what eslint enforces (`strictTypeChecked` + `stylisticTypeChecked`, plus
 ## Verification
 
 ```bash
-npm run lint && npm run typecheck && npm test && npm run build
+npm run verify
 ```
 
 Tests are pure units on the parts where being wrong is expensive: the prefix invariant, the
 visibility filter, tool fingerprints and policy defaults, PKCE, redirect-URI matching, SSRF ranges,
 metadata documents, encryption, sign-in/admin access rules. There is no database in the test suite; anything
-needing one is verified by running it.
+needing one is verified by running it and recording the actual evidence. The separate integration
+and browser tiers in the [audit proposal](agent-verification-audit.md) are not implemented yet.
+See [verification.md](verification.md) for isolated worktree setup and runtime probes.
