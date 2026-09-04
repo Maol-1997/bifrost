@@ -1,7 +1,32 @@
+name: bifrost-audit-perf
 services:
   postgres:
-    ports: !override
+    image: postgres:17-bookworm
+    environment:
+      POSTGRES_USER: bifrost
+      POSTGRES_PASSWORD: bifrost
+      POSTGRES_DB: bifrost
+    ports:
       - "127.0.0.1:25432:5432"
+    volumes:
+      - bifrost-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bifrost -d bifrost"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
   redis:
-    ports: !override
+    image: redis:8-bookworm
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
       - "127.0.0.1:26379:6379"
+    volumes:
+      - bifrost-redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+volumes:
+  bifrost-postgres:
+  bifrost-redis:

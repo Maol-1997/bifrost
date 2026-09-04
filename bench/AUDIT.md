@@ -16,6 +16,14 @@ and no credential lifetime or provider behavior changed.
    contract snapshots are still fetched by the existing review API. Both assembly
    and execution continue to query current policies independently.
 
+3. **Read each Redis provider catalog with one atomic Lua snapshot.**
+   Client commands drop 18 → 6 and sequential dependency waves 3 → 1 for six
+   providers. Warm visibility loading on real local Redis falls 1.0258 → 0.7343 ms
+   (28.4%). Both generation observations are inside EVAL and still compared by the
+   caller. The fallback, exact-byte memo, retention and live-policy filter remain.
+   Production Lua runs in pure-unit race tests via a dev-only Lua VM. Details,
+   noncanonical-generation fallback and standalone/Cluster scope are in README.md.
+
 Commands, methodology, before/after numbers and isolation setup are in README.md.
 No end-to-end provider calls were possible without OAuth apps; assembly uses real
 MCP protocol requests with stub DB methods and a real in-memory discovery store.
@@ -25,7 +33,6 @@ The policy benchmark uses real isolated PostgreSQL 17 with temporary tables.
 
 | Area | Evidence / hypothesis | Possible impact | Needed before changing |
 | --- | --- | --- | --- |
-| Redis | Every warm provider read issues generation → entry → generation reads; six providers run concurrently | 18 commands / three sequential waves could become six atomic reads / one wave | An atomic Lua read of generation and its entry, with invalidation/race tests and real Redis latency benchmarks; preserve fail-closed behavior |
 | Frontend | AppShell renders lazy Chat even on non-chat pages | Deferring until first chat visit could avoid the 285.39 KB chat chunk (99.92 KB gzip) on integration-only sessions | Confirm intended background chat/history behavior and test streaming continuity when navigating; retain mount after first activation |
 | Admin writes / indexes | Policy batches issue one upsert and one preference delete per tool; preference PK starts with user_id but reconciliation deletes by tool_name | A 300-tool batch performs 600 sequential mutations; tool-name deletes may scan all preferences | EXPLAIN ANALYZE with realistic user/preference counts, bulk reconciliation correctness tests, and a new index migration if justified |
 | HTTP static compression | Immutable asset caching exists, but the app does not compress responses itself | Main JS is 633.77 KB raw versus 204.17 KB gzip in Vite output | Verify whether deployment ingress already compresses before adding precompression or middleware; avoid compressing streaming traffic blindly |
@@ -49,8 +56,8 @@ The policy benchmark uses real isolated PostgreSQL 17 with temporary tables.
 ## Verification / caveats
 
 Before each commit and at completion: `npm run lint && npm run typecheck && npm test && npm run build`.
-All 34 suites / 383 tests pass; configured coverage thresholds pass (aggregate
-91.83% statements, 87.59% branches). Server and client builds pass. Vite's existing
+All 35 suites / 405 tests pass; configured coverage thresholds pass (aggregate
+91.83% statements, 87.85% branches). Server and client builds pass. Vite's existing
 >500 KB chunk warning remains; frontend bundle contents were not changed.
 `npm ci` reported four existing moderate dependency vulnerabilities; dependency
 upgrades were outside this performance audit.

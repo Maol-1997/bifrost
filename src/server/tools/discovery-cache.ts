@@ -10,7 +10,7 @@ import {
   type DiscoveredTool,
   type ToolContractSnapshot,
 } from './catalog.js';
-import type { ToolCacheStore } from './cache-store.js';
+import { parseToolCacheGeneration, type ToolCacheStore } from './cache-store.js';
 
 /**
  * Every worker shares one key space, so the version segment is what lets the
@@ -140,15 +140,16 @@ type CacheState = {
   entry: CacheEntry | undefined;
 };
 
-export function toolCacheKey(key: ToolCacheKey, part: 'generation'): string;
+export function toolCacheKey(key: ToolCacheKey, part: 'generation' | 'entry-prefix'): string;
 export function toolCacheKey(key: ToolCacheKey, part: 'entry' | 'refresh', generation: number): string;
 export function toolCacheKey(
   key: ToolCacheKey,
-  part: 'generation' | 'entry' | 'refresh',
+  part: 'generation' | 'entry-prefix' | 'entry' | 'refresh',
   generation?: number,
 ): string {
-  const prefix = `${TOOL_CACHE_KEY_PREFIX}:${key.userId}:${key.providerId}:${part}`;
-  return part === 'generation' ? prefix : `${prefix}:${generation}`;
+  const suffix = part === 'entry-prefix' ? 'entry:' : part;
+  const prefix = `${TOOL_CACHE_KEY_PREFIX}:${key.userId}:${key.providerId}:${suffix}`;
+  return part === 'generation' || part === 'entry-prefix' ? prefix : `${prefix}:${generation}`;
 }
 
 export class ToolDiscoveryCache {
@@ -160,7 +161,7 @@ export class ToolDiscoveryCache {
   private readonly blockingLoads = new Map<string, Promise<readonly DiscoveredTool[]>>();
   private readonly backgroundRefreshes = new Set<string>();
   // Exact-byte hits skip JSON parsing, validation and contract hashing. Store
-  // reads and generation checks still run, so another worker can invalidate
+  // snapshots and generation checks still run, so another worker can invalidate
   // or replace the record without waiting for a local cache lifetime.
   private readonly decoded = new Map<string, { raw: string; entry: CacheEntry }>();
 
@@ -219,10 +220,14 @@ export class ToolDiscoveryCache {
   }
 
   private async readState(key: ToolCacheKey): Promise<CacheState> {
-    const generation = await this.readGeneration(key);
+    const snapshot = await this.store.readSnapshot({
+      generationKey: toolCacheKey(key, 'generation'),
+      entryKeyPrefix: toolCacheKey(key, 'entry-prefix'),
+    });
+    const generation = parseToolCacheGeneration(snapshot.generationBefore);
+    if (parseToolCacheGeneration(snapshot.generationAfter) !== generation) return this.readState(key);
     const entryKey = toolCacheKey(key, 'entry', generation);
-    const rawRecord = await this.store.read(entryKey);
-    if (await this.readGeneration(key) !== generation) return this.readState(key);
+    const rawRecord = snapshot.value;
     if (rawRecord === undefined) return { generation, entry: undefined };
 
     const memo = this.decoded.get(entryKey);
@@ -455,7 +460,7 @@ export class ToolDiscoveryCache {
   }
 
   private async readGeneration(key: ToolCacheKey): Promise<number> {
-    return parseGeneration(await this.store.read(toolCacheKey(key, 'generation')));
+    return parseToolCacheGeneration(await this.store.read(toolCacheKey(key, 'generation')));
   }
 
   private freshHint(freshForMs = this.options.freshnessMs): ToolCacheHint {
@@ -519,10 +524,4 @@ function decodeTool(providerId: ProviderId, contract: CachedContract): Discovere
     throw new Error(`Cached tool has an unusable Bifrost name: ${tool.name}`);
   }
   return tool;
-}
-
-function parseGeneration(raw: string | undefined): number {
-  if (raw === undefined) return 0;
-  const generation = Number.parseInt(raw, 10);
-  return Number.isSafeInteger(generation) && generation >= 0 ? generation : 0;
 }
