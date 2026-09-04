@@ -36,12 +36,6 @@ describe('Google identity resolution', () => {
       .rejects.toBeInstanceOf(GoogleAccountConflictError);
   });
 
-  it('refuses an email that another Google subject already owns', async () => {
-    const users = inMemoryUsers([{ id: 'user-1', googleSubject: 'google-sub-2', email: 'ada@example.test', name: 'Other' }]);
-
-    await expect(resolveGoogleUser(users.writes, identity)).rejects.toBeInstanceOf(GoogleAccountConflictError);
-  });
-
   it('leaves the account it refused untouched', async () => {
     const owner = { id: 'user-1', googleSubject: 'google-sub-2', email: 'ada@example.test', name: 'Other' };
     const users = inMemoryUsers([{ ...owner }]);
