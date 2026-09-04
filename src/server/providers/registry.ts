@@ -6,7 +6,7 @@ import { notionProvider } from './notion.js';
 import { sentryProvider } from './sentry.js';
 import { slackProvider } from './slack.js';
 
-export const PROVIDER_NAMESPACES = {
+const PROVIDER_NAMESPACES = {
   granola: 'granola_',
   github: 'github_',
   linear: 'linear_',
@@ -17,7 +17,7 @@ export const PROVIDER_NAMESPACES = {
 
 export const SUPPORTED_APPS = ['github', 'linear', 'sentry', 'slack', 'notion', 'granola'] as const satisfies readonly ProviderId[];
 
-export const CREDENTIAL_PROVIDER_BY_PREFIX = {
+const CREDENTIAL_PROVIDER_BY_PREFIX = {
   granola_: 'granola',
   github_: 'github',
   linear_: 'linear',

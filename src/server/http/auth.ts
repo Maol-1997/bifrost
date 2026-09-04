@@ -7,8 +7,8 @@ import type { GoogleAuthorizationStart } from '../oauth.js';
 import { canonicalResource, MCP_SCOPE } from '../oauth-server/metadata.js';
 import type { AppContext } from './context.js';
 
-export const SESSION_COOKIE = 'bifrost_session';
-export const GOOGLE_OAUTH_NONCE_COOKIE = 'bifrost_google_oauth_nonce';
+const SESSION_COOKIE = 'bifrost_session';
+const GOOGLE_OAUTH_NONCE_COOKIE = 'bifrost_google_oauth_nonce';
 
 /**
  * The cookie path: a human in a browser.

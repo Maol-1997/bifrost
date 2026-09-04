@@ -17,15 +17,15 @@ import type { ToolCacheStore } from './cache-store.js';
  * shape of an entry change without a half-deployed cluster serving each other
  * records it cannot read.
  */
-export const TOOL_CACHE_KEY_PREFIX = 'bifrost:v1:tools';
-export const TOOL_DISCOVERY_FRESHNESS_MS = 60 * 60 * 1_000;
+const TOOL_CACHE_KEY_PREFIX = 'bifrost:v1:tools';
+const TOOL_DISCOVERY_FRESHNESS_MS = 60 * 60 * 1_000;
 /** How long a stale listing stays worth serving while refreshes are attempted. */
-export const TOOL_DISCOVERY_RETENTION_MS = 24 * 60 * 60 * 1_000;
-export const TOOL_DISCOVERY_REVALIDATION_POLL_MS = 3_000;
-export const TOOL_DISCOVERY_INITIAL_RETRY_MS = 5_000;
-export const TOOL_DISCOVERY_MAX_RETRY_MS = 5 * 60 * 1_000;
+const TOOL_DISCOVERY_RETENTION_MS = 24 * 60 * 60 * 1_000;
+const TOOL_DISCOVERY_REVALIDATION_POLL_MS = 3_000;
+const TOOL_DISCOVERY_INITIAL_RETRY_MS = 5_000;
+const TOOL_DISCOVERY_MAX_RETRY_MS = 5 * 60 * 1_000;
 /** Long enough to cover a slow upstream listing, short enough to survive a crash. */
-export const TOOL_DISCOVERY_REFRESH_LOCK_MS = 30_000;
+const TOOL_DISCOVERY_REFRESH_LOCK_MS = 30_000;
 // A generation has to outlive every entry that quotes it. If it expired first,
 // the next invalidation would count up from one again and a write from an older
 // generation could land looking current.
@@ -34,7 +34,7 @@ const TOOL_DISCOVERY_COLD_WAIT_MS = TOOL_DISCOVERY_REFRESH_LOCK_MS;
 const TOOL_DISCOVERY_COLD_POLL_MS = 150;
 const MAX_DECODED_ENTRIES = 256;
 
-export type ToolCacheState = 'fresh' | 'revalidating' | 'refresh_failed';
+type ToolCacheState = 'fresh' | 'revalidating' | 'refresh_failed';
 
 export type ToolCacheHint = {
   state: ToolCacheState;
@@ -460,7 +460,7 @@ export class ToolDiscoveryCache {
   }
 }
 
-export class ToolDiscoveryBackoffError extends Error {
+class ToolDiscoveryBackoffError extends Error {
   constructor(readonly cache: ToolCacheHint) {
     super('Tool discovery refresh is waiting for retry backoff');
     this.name = 'ToolDiscoveryBackoffError';

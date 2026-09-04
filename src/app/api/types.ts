@@ -39,7 +39,7 @@ export type Provider = {
 };
 
 export type ToolPolicyState = 'blocked' | 'allowed_default_off' | 'allowed_default_on';
-export type ToolCacheState = 'fresh' | 'revalidating' | 'refresh_failed';
+type ToolCacheState = 'fresh' | 'revalidating' | 'refresh_failed';
 export type ToolContractChange =
   | { kind: 'added'; path: string; after: unknown }
   | { kind: 'removed'; path: string; before: unknown }
@@ -99,7 +99,7 @@ export type ToolPolicyBatchChange = {
  * They are separate records server-side, so the kind travels with the id and
  * decides which one an action applies to.
  */
-export type ClientKind = 'browser' | 'agent';
+type ClientKind = 'browser' | 'agent';
 
 /**
  * Clients we ship a brand mark for. Mirrors `ClientLogoId` in

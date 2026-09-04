@@ -106,7 +106,4 @@ export {
   AgentChatMessageActionButton,
   AgentChatToolbarButton,
   AgentChatUserActions,
-  type AgentChatMessageActionButtonProps,
-  type AgentChatToolbarButtonProps,
-  type AgentChatUserActionsProps,
 }

@@ -44,4 +44,4 @@ function AgentChatEditingBanner({
   )
 }
 
-export { AgentChatEditingBanner, type AgentChatEditingBannerProps }
+export { AgentChatEditingBanner }

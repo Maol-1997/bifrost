@@ -66,5 +66,4 @@ const AgentMarkdown = React.memo(function AgentMarkdown({
 
 export {
   AgentMarkdown,
-  type AgentMarkdownProps,
 }

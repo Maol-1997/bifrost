@@ -2,7 +2,7 @@ import MarkdownIt, { type Token } from "markdown-it"
 import taskLists from "markdown-it-task-lists"
 import * as React from "react"
 
-import { CodeBlock } from "@app/components/ui/code-block"
+import { CodeBlock } from "@app/components/ui/code-block/code-block"
 import {
   MermaidDiagram,
   preloadMermaidDiagram,
@@ -221,5 +221,4 @@ MarkdownRenderer.displayName = "MarkdownRenderer"
 export {
   MarkdownRenderer,
   preloadMarkdownDiagrams,
-  type MarkdownRendererProps,
 }

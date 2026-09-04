@@ -12,7 +12,7 @@ import { isPubliclyRoutableAddress } from './ssrf.js';
  * replacement: the `client_id` is an HTTPS URL that serves the client's own
  * metadata, so nothing has to be stored ahead of time.
  */
-export type ClientRegistrationKind = 'dynamic' | 'metadata-document';
+type ClientRegistrationKind = 'dynamic' | 'metadata-document';
 
 export type RegisteredClient = {
   clientId: string;

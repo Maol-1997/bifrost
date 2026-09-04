@@ -144,6 +144,5 @@ function preloadMermaidDiagram(source: string) {
 export {
   getCachedMermaidDiagram,
   preloadMermaidDiagram,
-  type DiagramDimensions,
   type RenderedDiagram,
 }

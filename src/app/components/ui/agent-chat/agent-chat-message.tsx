@@ -221,6 +221,4 @@ function AgentChatMessages({
 export {
   AgentChatMessage,
   AgentChatMessages,
-  type AgentChatMessageProps,
-  type AgentChatMessageRole,
 }

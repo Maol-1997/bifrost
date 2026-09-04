@@ -158,8 +158,4 @@ AgentChatMini.displayName = "AgentChatMini"
 
 export {
   AgentChatMini,
-  type AgentChatMiniActions,
-  type AgentChatMiniControls,
-  type AgentChatMiniPosition,
-  type AgentChatMiniProps,
 }

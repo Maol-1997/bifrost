@@ -151,6 +151,4 @@ export {
   SettingsRowContent,
   SettingsRowDescription,
   SettingsRowTitle,
-  type SettingsGroupProps,
-  type SettingsLinkRowProps,
 }
