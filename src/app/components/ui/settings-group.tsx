@@ -26,7 +26,7 @@ const SettingsRow = React.forwardRef<
     ref={ref}
     className={cn(
       "relative flex h-[65px] items-center gap-3 p-4",
-      "after:absolute after:bottom-0 after:left-4 after:right-4 after:h-[0.5px] after:bg-linear-settings-divider after:content-[''] last:after:hidden",
+      "after:absolute after:bottom-0 after:left-4 after:right-4 after:h-[0.5px] after:bg-linear-settings-divider after:content-[''] hover:after:bg-transparent last:after:hidden",
       className,
     )}
     {...props}
@@ -104,7 +104,7 @@ const SettingsLinkRow = React.forwardRef<HTMLAnchorElement, SettingsLinkRowProps
           "first:rounded-t-[10px] last:rounded-b-[10px]",
           "hover:bg-linear-settings-row-hover",
           "focus-visible:z-[2] focus-visible:[outline:1px_solid_var(--linear-primary)] focus-visible:[outline-offset:0]",
-          "after:pointer-events-none after:absolute after:bottom-0 after:left-4 after:right-4 after:z-[1] after:h-[0.5px] after:bg-linear-settings-divider after:content-[''] last:after:hidden",
+          "after:pointer-events-none after:absolute after:bottom-0 after:left-4 after:right-4 after:z-[1] after:h-[0.5px] after:bg-linear-settings-divider hover:after:bg-transparent after:content-[''] last:after:hidden",
           className,
         )}
         {...props}
