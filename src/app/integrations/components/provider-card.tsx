@@ -59,6 +59,7 @@ export function ProviderCard({ provider, isConnecting, onConnect, onHide, onDisc
   const isConnected = provider.status === 'connected';
   const needsReconnect = provider.status === 'needs-reconnect';
   const detailPath = generatePath(APP_ROUTES.integrationDetail, { providerId: provider.id });
+  const hasHoverBackground = isConnected || needsReconnect;
 
   if (isUnavailable) {
     return (
@@ -70,7 +71,7 @@ export function ProviderCard({ provider, isConnecting, onConnect, onHide, onDisc
   }
 
   return (
-    <div className={cn("group relative after:absolute after:bottom-0 after:left-4 after:right-4 after:z-[1] after:h-[0.5px] after:bg-linear-settings-divider after:content-[''] last:after:hidden", provider.isHidden && 'opacity-75')}>
+    <div data-hoverable={hasHoverBackground || undefined} className={cn("group relative after:absolute after:bottom-0 after:left-4 after:right-4 after:z-[1] after:h-[0.5px] after:bg-linear-settings-divider after:content-[''] last:after:hidden", 'data-hoverable:hover:after:bg-transparent has-[+[data-hoverable]:hover]:after:bg-transparent', provider.isHidden && 'opacity-75')}>
       {isConnected || needsReconnect ? (
         <SettingsLinkRow asChild className={cn('h-auto min-h-[65px] rounded-none first:rounded-none last:rounded-none after:hidden group-first:rounded-t-[10px] group-last:rounded-b-[10px] group-hover:bg-linear-settings-row-hover', isConnected ? 'pr-14' : 'pr-28')}>
           <Link to={detailPath} aria-label={`View ${provider.name} tools`}>
