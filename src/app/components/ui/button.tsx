@@ -19,6 +19,8 @@ const buttonVariants = cva(
           "bg-transparent text-linear-borderless-foreground shadow-none hover:bg-linear-subtle hover:text-linear-bright active:bg-linear-subtle active:text-linear-bright",
         destructive:
           "bg-transparent text-linear-danger shadow-none hover:bg-linear-danger-subtle active:bg-linear-danger-subtle",
+        warning:
+          "min-w-8 bg-warning text-app-bg-primary shadow-linear-control hover:bg-warning/90 active:bg-warning/90",
       },
       size: {
         default: "h-8 rounded-[9999px] px-3",

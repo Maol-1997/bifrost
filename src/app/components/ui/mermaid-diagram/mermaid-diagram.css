@@ -98,6 +98,8 @@
 }
 
 .agent-mermaid-loading {
+  height: 150px;
+  width: 100%;
   display: block;
   padding: 0;
   border: 0;

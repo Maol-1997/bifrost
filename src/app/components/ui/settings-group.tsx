@@ -1,5 +1,6 @@
 import * as React from "react"
 import { Slot } from "@radix-ui/react-slot"
+import { cva, type VariantProps } from "class-variance-authority"
 
 import { cn } from "@app/lib/cn"
 import { Surface, type SurfaceProps } from "./surface"
@@ -88,12 +89,22 @@ const SettingsRowAction = React.forwardRef<
 ))
 SettingsRowAction.displayName = "SettingsRowAction"
 
-type SettingsLinkRowProps = React.ComponentPropsWithoutRef<"a"> & {
+const settingsLinkRowVariants = cva("", {
+  variants: {
+    variant: {
+      default: "first:rounded-t-[10px] last:rounded-b-[10px]",
+      grouped: "first:rounded-none last:rounded-none group-first:rounded-t-[10px] group-last:rounded-b-[10px] group-hover:bg-linear-settings-row-hover",
+    },
+  },
+  defaultVariants: { variant: "default" },
+})
+
+type SettingsLinkRowProps = React.ComponentPropsWithoutRef<"a"> & VariantProps<typeof settingsLinkRowVariants> & {
   asChild?: boolean
 }
 
 const SettingsLinkRow = React.forwardRef<HTMLAnchorElement, SettingsLinkRowProps>(
-  ({ asChild = false, className, ...props }, ref) => {
+  ({ asChild = false, className, variant, ...props }, ref) => {
     const Component = asChild ? Slot : "a"
 
     return (
@@ -101,7 +112,7 @@ const SettingsLinkRow = React.forwardRef<HTMLAnchorElement, SettingsLinkRowProps
         ref={ref}
         className={cn(
           "relative flex h-[65px] cursor-default items-center gap-3 rounded-none p-4 text-inherit no-underline outline-none",
-          "first:rounded-t-[10px] last:rounded-b-[10px]",
+          settingsLinkRowVariants({ variant }),
           "hover:bg-linear-settings-row-hover",
           "focus-visible:z-[2] focus-visible:[outline:1px_solid_var(--linear-primary)] focus-visible:[outline-offset:0]",
           "after:pointer-events-none after:absolute after:bottom-0 after:left-4 after:right-4 after:z-[1] after:h-[0.5px] after:bg-linear-settings-divider hover:after:bg-transparent after:content-[''] last:after:hidden",

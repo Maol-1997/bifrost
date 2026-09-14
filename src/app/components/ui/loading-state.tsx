@@ -14,9 +14,9 @@ export function LoadingState({
       <div className="mt-6 overflow-hidden rounded-[10px] border-[0.5px] border-app-border-pane bg-app-bg-secondary">
         {Array.from({ length: rowCount }, (_, index) => (
           <div className="flex items-center gap-3 border-t-[0.5px] border-app-border-pane p-3.5 first:border-t-0" key={index}>
-            <Skeleton className="animate-design-pulse size-8 rounded-lg bg-white/7" />
-            <div className="flex flex-1 flex-col gap-2"><Skeleton className="animate-design-pulse h-2.5 w-30 bg-white/7" /><Skeleton className="animate-design-pulse h-2 w-65 bg-white/5" /></div>
-            <Skeleton className="animate-design-pulse h-2.5 w-20 bg-white/6" />
+            <Skeleton shape="control" className="size-8" />
+            <div className="flex flex-1 flex-col gap-2"><Skeleton className="h-2.5 w-30" /><Skeleton variant="subtle" className="h-2 w-65" /></div>
+            <Skeleton variant="secondary" className="h-2.5 w-20" />
           </div>
         ))}
       </div>

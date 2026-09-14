@@ -50,8 +50,8 @@ function AgentChatLogo({ className }: AgentChatLogoProps) {
           y1="0"
           y2="336"
         >
-          <stop offset="0" stopColor="white" stopOpacity="0" />
-          <stop offset="0.6" stopColor="white" />
+          <stop offset="0" stopColor="var(--color-white)" stopOpacity="0" />
+          <stop offset="0.6" stopColor="var(--color-white)" />
         </linearGradient>
         <mask id={maskId}>
           <rect fill={`url(#${maskGradientId})`} height="336" width="336" />

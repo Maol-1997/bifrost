@@ -29,7 +29,6 @@ type RenderedDiagramState = RenderedDiagram & {
   source: string
 }
 
-const LINEAR_MERMAID_PLACEHOLDER_HEIGHT = 150
 const COPY_CONFIRMATION_DURATION = 1200
 
 function diagramDocument(svg: string, fontFaceCss: string) {
@@ -203,7 +202,6 @@ const MermaidDiagram = React.memo(
             className="agent-mermaid-loading"
             disabled={isActivated}
             onClick={() => setActivatedSource(source)}
-            style={{ height: LINEAR_MERMAID_PLACEHOLDER_HEIGHT, width: "100%" }}
             type="button"
           />
         )}

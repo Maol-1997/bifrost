@@ -85,7 +85,7 @@ export function AppShell(): React.JSX.Element {
                 <SidebarLink key={item.to} asChild active={isActiveRoute(location.pathname, item.to)}>
                   <NavLink to={item.to}>
                     <Icon aria-hidden="true" />
-                    <span>{item.label}</span>{item.to === APP_ROUTES.serviceStatus && badge ? <span className={cn('ml-auto rounded-full px-1.5 py-0.5 text-[10.5px] font-semibold', badge.className)}>{badge.text}</span> : null}
+                    <span>{item.label}</span>{item.to === APP_ROUTES.serviceStatus && badge ? <span className={cn('ml-auto rounded-full px-1.5 py-0.5 text-badge font-semibold', badge.className)}>{badge.text}</span> : null}
                   </NavLink>
                 </SidebarLink>
             );
@@ -97,15 +97,15 @@ export function AppShell(): React.JSX.Element {
         {user ? (
           <SidebarLink asChild active={location.pathname === APP_ROUTES.accountSecurity} className="mb-3 h-auto py-2">
             <NavLink to={APP_ROUTES.accountSecurity} aria-label="Account & security">
-            <div className="flex size-6 shrink-0 items-center justify-center rounded-full bg-brand/25 text-[10.5px] font-semibold text-brand-hover">{initialsOf(user.name)}</div>
-            <div className="min-w-0"><div className="truncate text-[12.5px] font-medium">{user.name}</div><div className="truncate text-[10.5px] text-app-text-quaternary">Account & security</div></div>
+            <div className="flex size-6 shrink-0 items-center justify-center rounded-full bg-brand/25 text-badge font-semibold text-brand-hover">{initialsOf(user.name)}</div>
+            <div className="min-w-0"><div className="truncate text-compact font-medium">{user.name}</div><div className="truncate text-badge text-app-text-quaternary">Account & security</div></div>
             </NavLink>
           </SidebarLink>
         ) : null}
       </Sidebar>
       <SidebarSpacer />
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-        <main className={cn('flex min-h-0 min-w-0 flex-1 flex-col bg-linear-gallery-main min-[1025px]:mr-2 min-[1025px]:mt-2 min-[1025px]:rounded-xl min-[1025px]:border-[0.5px] min-[1025px]:border-linear-border min-[1025px]:shadow-linear-control', isChat ? 'overflow-hidden' : 'overflow-y-auto')}>
+        <main className={cn('flex min-h-0 min-w-0 flex-1 flex-col bg-linear-gallery-main min-[1025px]:mr-2 min-[1025px]:mt-2 min-[1025px]:rounded-xl min-[1025px]:linear-border-hairline min-[1025px]:border-linear-border min-[1025px]:shadow-linear-control', isChat ? 'overflow-hidden' : 'overflow-y-auto')}>
           <SidebarMobileHeader>
             <SidebarTrigger aria-label="Open navigation" aria-controls="bifrost-sidebar" aria-expanded={isSidebarOpen} onClick={() => { setIsSidebarOpen(true); }} />
             <span className="font-medium text-linear-bright">Bifrost</span>

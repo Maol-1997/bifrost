@@ -73,7 +73,7 @@ export default function Integrations(): React.JSX.Element {
               {providers.map((provider) => <ProviderCard key={provider.id} provider={provider} isConnecting={connectingId === provider.id} onConnect={() => { connectMutation.mutate(provider.id); }} onHide={() => { hideMutation.mutate(provider); }} onDisconnect={() => { disconnectMutation.mutate(provider.id); }} />)}
             </SectionCard>
           </TooltipProvider>
-          <p className="mt-3.5 text-xs leading-[1.55] text-app-text-quaternary text-pretty">Connecting an app never gives Bifrost your password — you approve it on the app's own site, and you can disconnect any time. <strong className="font-medium text-app-text-tertiary">Hidden</strong> means it stays connected but your agents can't use it.</p>
+          <p className="mt-3.5 text-xs leading-copy text-app-text-quaternary text-pretty">Connecting an app never gives Bifrost your password — you approve it on the app's own site, and you can disconnect any time. <strong className="font-medium text-app-text-tertiary">Hidden</strong> means it stays connected but your agents can't use it.</p>
         </>
       ) : null}
     </section>

@@ -43,17 +43,17 @@ export default function AccountSecurity(): React.JSX.Element {
       {user ? (
         <SectionCard className="mt-[22px]">
           <SettingsRow className="h-auto min-h-[65px] flex-wrap sm:flex-nowrap">
-            <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-brand/25 text-[13px] font-semibold text-brand-hover">{initialsOf(user.name)}</div>
-            <SettingsRowContent className="min-w-[220px]"><div className="text-[13.5px] font-semibold">{user.name}</div><div className="mt-0.5 text-xs text-app-text-tertiary">{user.email} · signed in with Google</div></SettingsRowContent>
+            <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-brand/25 text-body font-semibold text-brand-hover">{initialsOf(user.name)}</div>
+            <SettingsRowContent className="min-w-[220px]"><div className="text-emphasis font-semibold">{user.name}</div><div className="mt-0.5 text-xs text-app-text-tertiary">{user.email} · signed in with Google</div></SettingsRowContent>
             <SettingsRowAction><form action="/auth/logout" method="post" onSubmit={signOutWithCleanCache}><Button type="submit" variant="outline">Sign out</Button></form></SettingsRowAction>
           </SettingsRow>
         </SectionCard>
       ) : null}
-      <h2 className="mt-6 text-[13.5px] font-semibold">Everything you've authorized</h2>
-      <p className="mt-1 text-[12.5px] text-app-text-tertiary">One place to see it all — click through to change anything.</p>
+      <h2 className="mt-6 text-emphasis font-semibold">Everything you've authorized</h2>
+      <p className="mt-1 text-compact text-app-text-tertiary">One place to see it all — click through to change anything.</p>
       {hasLoadError ? <ErrorState title="We couldn't load this summary" body="Nothing has changed on your account — this page just failed to load it. It usually fixes itself on retry." onRetry={() => { void Promise.all([providersQuery.refetch(), clientsQuery.refetch()]); }} /> : (
         <SectionCard className="mt-3">
-          {summaryRows.map((row) => <SettingsLinkRow key={row.big} asChild><Link to={row.to}><span className="min-w-0 flex-1"><strong className="text-[13px] font-semibold">{row.big}</strong><span className="ml-2 text-[12.5px] text-app-text-tertiary">{row.detail}</span></span><SettingsLinkRowIcon /></Link></SettingsLinkRow>)}
+          {summaryRows.map((row) => <SettingsLinkRow key={row.big} asChild><Link to={row.to}><span className="min-w-0 flex-1"><strong className="text-body font-semibold">{row.big}</strong><span className="ml-2 text-compact text-app-text-tertiary">{row.detail}</span></span><SettingsLinkRowIcon /></Link></SettingsLinkRow>)}
         </SectionCard>
       )}
     </section>

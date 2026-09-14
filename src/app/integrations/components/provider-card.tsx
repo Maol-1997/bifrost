@@ -26,13 +26,13 @@ function ProviderSummary({ provider }: { provider: Provider }): React.JSX.Elemen
     <>
       <ProviderIcon providerId={provider.id} monogram={provider.monogram} />
       <SettingsRowContent>
-        <SettingsRowTitle className="flex items-center gap-2 text-[13.5px] font-semibold">
+        <SettingsRowTitle className="flex items-center gap-2 text-emphasis font-semibold">
           <span className="truncate">{provider.name}</span>
-          {provider.isHidden ? <span className="shrink-0 rounded-full border border-dashed border-warning/50 px-2 py-0.5 text-[10.5px] font-medium text-warning">Hidden by you</span> : null}
+          {provider.isHidden ? <span className="shrink-0 rounded-full border border-dashed border-warning/50 px-2 py-0.5 text-badge font-medium text-warning">Hidden by you</span> : null}
         </SettingsRowTitle>
         <SettingsRowDescription className="text-app-text-tertiary">{provider.description}</SettingsRowDescription>
-        {isUnavailable ? <SettingsRowDescription className="mt-1 text-[11.5px] text-app-text-quaternary">Your team hasn’t been granted access yet — ask #bifrost-help.</SettingsRowDescription> : null}
-        {needsReconnect ? <SettingsRowDescription className="mt-1 text-[11.5px] text-warning">Your authorization expired. Reconnecting takes 10 seconds.</SettingsRowDescription> : null}
+        {isUnavailable ? <SettingsRowDescription className="mt-1 text-detail text-app-text-quaternary">Your team hasn’t been granted access yet — ask #bifrost-help.</SettingsRowDescription> : null}
+        {needsReconnect ? <SettingsRowDescription className="mt-1 text-detail text-warning">Your authorization expired. Reconnecting takes 10 seconds.</SettingsRowDescription> : null}
       </SettingsRowContent>
     </>
   );
@@ -73,7 +73,7 @@ export function ProviderCard({ provider, isConnecting, onConnect, onHide, onDisc
   return (
     <div data-hoverable={hasHoverBackground || undefined} className={cn("group relative after:absolute after:bottom-0 after:left-4 after:right-4 after:z-[1] after:h-[0.5px] after:bg-linear-settings-divider after:content-[''] last:after:hidden", 'data-hoverable:hover:after:bg-transparent has-[+[data-hoverable]:hover]:after:bg-transparent', provider.isHidden && 'opacity-75')}>
       {isConnected || needsReconnect ? (
-        <SettingsLinkRow asChild className={cn('h-auto min-h-[65px] rounded-none first:rounded-none last:rounded-none after:hidden group-first:rounded-t-[10px] group-last:rounded-b-[10px] group-hover:bg-linear-settings-row-hover', isConnected ? 'pr-14' : 'pr-28')}>
+        <SettingsLinkRow asChild variant="grouped" className={cn('h-auto min-h-[65px] after:hidden', isConnected ? 'pr-14' : 'pr-28')}>
           <Link to={detailPath} aria-label={`View ${provider.name} tools`}>
             <ProviderSummary provider={provider} />
           </Link>
@@ -85,10 +85,10 @@ export function ProviderCard({ provider, isConnecting, onConnect, onHide, onDisc
       )}
       <div className="absolute right-4 top-1/2 z-[2] flex -translate-y-1/2 items-center gap-2">
         {provider.status === 'not-connected' ? <ConnectProviderButton providerName={provider.name} isConnecting={isConnecting} onConnect={onConnect} /> : null}
-        {needsReconnect ? <Button disabled={isConnecting} onClick={onConnect} className="bg-warning text-app-bg-primary hover:bg-warning/90">Reconnect</Button> : null}
+        {needsReconnect ? <Button disabled={isConnecting} onClick={onConnect} variant="warning">Reconnect</Button> : null}
         {isConnected ? (
           <DropdownMenu>
-            <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="size-7" aria-label={`${provider.name} actions`}><MoreHorizontal /></Button></DropdownMenuTrigger>
+            <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" aria-label={`${provider.name} actions`}><MoreHorizontal /></Button></DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-48">
               <DropdownMenuItem onSelect={() => { void navigate(detailPath); }}>View tools…</DropdownMenuItem>
               <DropdownMenuItem onSelect={onHide}>{provider.isHidden ? 'Show to agents' : 'Hide from agents'}</DropdownMenuItem>

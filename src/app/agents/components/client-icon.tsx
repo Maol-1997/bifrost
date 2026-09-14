@@ -36,7 +36,7 @@ const clientLogos: Record<ClientLogoId, { Mark: ComponentType<SVGProps<SVGSVGEle
 export function ClientIcon({ logo, monogram }: { logo: ClientLogoId | undefined; monogram: string }): React.JSX.Element {
   const entry = logo ? clientLogos[logo] : undefined;
   return (
-    <div className="flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-lg border-[0.5px] border-plate-border bg-white/5 text-xs font-semibold text-app-text-tertiary">
+    <div className="flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-lg linear-border-hairline border-plate-border bg-white/5 text-xs font-semibold text-app-text-tertiary">
       {entry ? <entry.Mark aria-hidden className={entry.className} /> : monogram}
     </div>
   );
