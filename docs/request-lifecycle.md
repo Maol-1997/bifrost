@@ -39,6 +39,10 @@ That makes filtering *the* enforcement mechanism, not a display concern. A tool 
 registered on the object handling this request. There is no second check to keep in sync.
 See [tool-visibility.md](tool-visibility.md) for the axes that can hide a tool.
 
+Registration is also where one bad definition must not become everyone's outage: discovery keeps
+the first of two upstream tools sharing a name, and a tool the SDK refuses to register is logged
+and left out rather than failing the request for every other provider.
+
 Each registered tool is a proxy to the provider's official MCP server. Execution uses the exact
 upstream definition from the shared one-hour Redis catalog while reloading Bifrost's own policy and
 preference state from PostgreSQL. An upstream error invalidates that catalog and is never retried

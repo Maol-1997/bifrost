@@ -42,7 +42,16 @@ export function createHumanMcpHandler(dependencies: UserToolDependencies): McpHt
       { name: 'bifrost', version: '0.1.0' },
       { capabilities: { tools: {} }, instructions: `Bifrost unified internal gateway. Protocol ${LATEST_PROTOCOL_VERSION}.` },
     );
-    for (const tool of tools) registerTool(server, tool, { userId, authInfo: requestContext.authInfo, dependencies });
+    for (const tool of tools) {
+      try {
+        registerTool(server, tool, { userId, authInfo: requestContext.authInfo, dependencies });
+      } catch (error) {
+        // A schema the SDK cannot convert is that one tool's problem. Leaving it
+        // out is fail-closed; letting it throw would fail the whole request,
+        // hiding every other provider behind one broken definition.
+        logger.warn({ userId, toolName: tool.name, ...errorSummary(error) }, 'Skipped an MCP tool that could not be registered');
+      }
+    }
     return server;
   }, {
     legacy: 'reject',

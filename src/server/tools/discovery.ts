@@ -132,6 +132,11 @@ export class ToolDiscoveryService {
     }
     const accessToken = await this.dependencies.oauth.getOrRefreshAccessToken(request.userId, provider.id);
     const upstreamTools = await listUpstreamTools(provider, accessToken, request.signal);
+    // One provider publishing a duplicate name must not take the whole MCP
+    // endpoint down: registering the same name twice throws inside the
+    // per-request server factory, which would fail every request for this user
+    // across every provider. First definition wins, the rest are logged.
+    const seenNames = new Set<string>();
     return upstreamTools
       .map((tool) => normalizeUpstreamTool(provider, tool))
       .filter((tool) => {
@@ -139,6 +144,11 @@ export class ToolDiscoveryService {
           logger.warn({ providerId: provider.id, upstreamToolName: tool.upstreamName }, 'Ignored upstream tool with an invalid Bifrost name');
           return false;
         }
+        if (seenNames.has(tool.name)) {
+          logger.warn({ providerId: provider.id, toolName: tool.name }, 'Ignored upstream tool whose name is already published by this provider');
+          return false;
+        }
+        seenNames.add(tool.name);
         return true;
       });
   }
