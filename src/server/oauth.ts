@@ -61,7 +61,7 @@ export const googleIdentityClaimsSchema = z.object({
 
 type ProviderTokenResponse = z.infer<typeof tokenResponseSchema>;
 type OAuthDatabase = Pick<Database,
-  'createSession' | 'getCredential' | 'saveCredential' | 'setAccountLabel' | 'upsertGoogleUser'
+  'createSession' | 'getCredential' | 'replaceRefreshedCredential' | 'saveCredential' | 'setAccountLabel' | 'upsertGoogleUser'
 >;
 type OAuthCoordinator = Pick<Coordinator, 'setEphemeral' | 'takeEphemeral' | 'withLock'>;
 
@@ -233,9 +233,16 @@ export class OAuthService {
     return buildAuthorizationUrl(client.configuration, parameters).href;
   }
 
-  async finishProvider(code: string, state: string): Promise<{ userId: string; providerId: ProviderId }> {
+  /**
+   * `expectedUserId` is the account signed in to the browser that delivered the
+   * callback. The state names the account that started the flow; the two must
+   * be the same person, or one user's provider account would be connected to
+   * another user's Bifrost account by handing them the authorization URL.
+   */
+  async finishProvider(code: string, state: string, expectedUserId: string): Promise<{ userId: string; providerId: ProviderId }> {
     const storedState = await this.takeState(state);
     if (!storedState.userId || !storedState.providerId) throw new Error('OAuth state is not a provider connection state');
+    if (storedState.userId !== expectedUserId) throw new Error('OAuth provider callback was delivered by a different account than the one that started it');
     const provider = findProvider(storedState.providerId);
     const configuration = this.providerConfiguration(provider, storedState.oauthClientId);
     const callbackUrl = new URL(this.providerRedirectUri(provider.id));
@@ -315,8 +322,15 @@ export class OAuthService {
         fallbackScopes: latest.scopes,
         oauthClientId: latest.oauthClientId,
       });
-      await this.database.saveCredential(userId, providerId, refreshed);
-      return refreshed.accessToken;
+      const replaced = await this.database.replaceRefreshedCredential({
+        userId, providerId, credential: refreshed, expectedVersion: latest.version,
+      });
+      if (replaced) return refreshed.accessToken;
+      // The row changed under the exchange: the user disconnected or reconnected
+      // meanwhile, and that action stands. The token just obtained is dropped.
+      const current = await this.database.getCredential(userId, providerId);
+      if (!current) throw new ReconnectRequiredError(providerId);
+      return current.accessToken;
     });
   }
 

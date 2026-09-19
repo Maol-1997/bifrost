@@ -14,6 +14,20 @@ export type StoredCredential = {
   scopes: readonly string[];
 };
 
+/**
+ * A credential as read back from its row. `version` changes on every write
+ * (it is the fresh AES-GCM IV), so a caller that read the row can later ask
+ * for a write that only lands if nobody replaced or removed it in between.
+ */
+export type StoredCredentialRecord = StoredCredential & { version: string };
+
+export type RefreshedCredentialReplacement = {
+  userId: string;
+  providerId: ProviderId;
+  credential: StoredCredential;
+  expectedVersion: string;
+};
+
 const credentialPayloadSchema = z.object({
   accessToken: z.string().min(1),
   refreshToken: z.string().min(1).optional(),
@@ -24,31 +38,36 @@ type CredentialPayload = z.infer<typeof credentialPayloadSchema>;
 export function createConnectionStore(database: AppDatabase, config: Config) {
   return {
     async saveCredential(userId: string, providerId: ProviderId, credential: StoredCredential): Promise<void> {
-      const payload: CredentialPayload = { accessToken: credential.accessToken };
-      if (credential.refreshToken !== undefined) payload.refreshToken = credential.refreshToken;
-      if (credential.oauthClientId !== undefined) payload.oauthClientId = credential.oauthClientId;
-      const encryptedPayload = encryptSecret(JSON.stringify(payload), config.encryptionKey);
+      const columns = credentialColumns(credential, config);
       await database
         .insert(providerCredentials)
-        .values({
-          userId,
-          providerId,
-          encryptedPayload,
-          expiresAt: credential.expiresAt ?? null,
-          scopes: [...credential.scopes],
-        })
+        .values({ userId, providerId, ...columns })
         .onConflictDoUpdate({
           target: [providerCredentials.userId, providerCredentials.providerId],
-          set: {
-            encryptedPayload,
-            expiresAt: credential.expiresAt ?? null,
-            scopes: [...credential.scopes],
-            updatedAt: sql`now()`,
-          },
+          set: { ...columns, updatedAt: sql`now()` },
         });
     },
 
-    async getCredential(userId: string, providerId: ProviderId): Promise<StoredCredential | undefined> {
+    /**
+     * Writes a refreshed credential only over the exact row the refresh started
+     * from. A disconnect or a reconnect that landed during the token exchange
+     * must win over the exchange: the first would otherwise be silently undone,
+     * the second overwritten with tokens for the previous account.
+     */
+    async replaceRefreshedCredential(replacement: RefreshedCredentialReplacement): Promise<boolean> {
+      const rows = await database
+        .update(providerCredentials)
+        .set({ ...credentialColumns(replacement.credential, config), updatedAt: sql`now()` })
+        .where(and(
+          eq(providerCredentials.userId, replacement.userId),
+          eq(providerCredentials.providerId, replacement.providerId),
+          eq(sql`${providerCredentials.encryptedPayload}->>'iv'`, replacement.expectedVersion),
+        ))
+        .returning({ userId: providerCredentials.userId });
+      return rows.length > 0;
+    },
+
+    async getCredential(userId: string, providerId: ProviderId): Promise<StoredCredentialRecord | undefined> {
       const [row] = await database
         .select({
           encryptedPayload: providerCredentials.encryptedPayload,
@@ -68,6 +87,7 @@ export function createConnectionStore(database: AppDatabase, config: Config) {
         ...(payload.oauthClientId === undefined ? {} : { oauthClientId: payload.oauthClientId }),
         ...(row.expiresAt === null ? {} : { expiresAt: row.expiresAt }),
         scopes: row.scopes,
+        version: row.encryptedPayload.iv,
       };
     },
 
@@ -106,5 +126,16 @@ export function createConnectionStore(database: AppDatabase, config: Config) {
         .set({ accountLabel })
         .where(and(eq(providerCredentials.userId, userId), eq(providerCredentials.providerId, providerId)));
     },
+  };
+}
+
+function credentialColumns(credential: StoredCredential, config: Config) {
+  const payload: CredentialPayload = { accessToken: credential.accessToken };
+  if (credential.refreshToken !== undefined) payload.refreshToken = credential.refreshToken;
+  if (credential.oauthClientId !== undefined) payload.oauthClientId = credential.oauthClientId;
+  return {
+    encryptedPayload: encryptSecret(JSON.stringify(payload), config.encryptionKey),
+    expiresAt: credential.expiresAt ?? null,
+    scopes: [...credential.scopes],
   };
 }

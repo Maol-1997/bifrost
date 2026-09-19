@@ -2,12 +2,13 @@ import { ClientError, ResponseBodyError } from 'openid-client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { loadConfig } from '../src/server/config.js';
 import { Coordinator } from '../src/server/coordination.js';
-import type { StoredCredential } from '../src/server/database/index.js';
+import type { RefreshedCredentialReplacement, StoredCredential, StoredCredentialRecord } from '../src/server/database/index.js';
 import { OAuthService } from '../src/server/oauth.js';
 import type { ProviderId } from '../src/server/providers/types.js';
 
 const NOW = new Date('2026-08-20T12:00:00.000Z');
 const USER_ID = '00000000-0000-4000-8000-000000000000';
+const OTHER_USER_ID = '00000000-0000-4000-8000-000000000001';
 const PROVIDER_ID = 'github';
 const PROVIDER_STATE = 'provider-state';
 const config = loadConfig({
@@ -41,29 +42,60 @@ describe('provider credential refresh', () => {
 
     await expect(harness.oauth.getOrRefreshAccessToken(USER_ID, PROVIDER_ID)).resolves.toBe('refreshed-access');
     expect(harness.refreshTokenGrant).toHaveBeenCalledOnce();
-    expect(harness.saveCredential).toHaveBeenCalledWith(USER_ID, PROVIDER_ID, {
-      accessToken: 'refreshed-access',
-      refreshToken: 'current-refresh',
-      expiresAt: new Date(NOW.getTime() + 3_600_000),
-      scopes: ['read:user'],
+    expect(harness.replaceRefreshedCredential).toHaveBeenCalledWith({
+      userId: USER_ID,
+      providerId: PROVIDER_ID,
+      expectedVersion: 'v1',
+      credential: {
+        accessToken: 'refreshed-access',
+        refreshToken: 'current-refresh',
+        expiresAt: new Date(NOW.getTime() + 3_600_000),
+        scopes: ['read:user'],
+      },
     });
+  });
+
+  it('drops the refreshed token when the user disconnected during the exchange', async () => {
+    setCurrentTime();
+    const harness = createHarness(credentialExpiringIn(0));
+    harness.refreshTokenGrant.mockImplementation(async () => {
+      harness.replaceStoredCredential(undefined);
+      return { access_token: 'refreshed-access', expires_in: 3_600 };
+    });
+
+    await expect(harness.oauth.getOrRefreshAccessToken(USER_ID, PROVIDER_ID)).rejects.toMatchObject({ name: 'ReconnectRequiredError' });
+    expect(harness.storedCredential()).toBeUndefined();
+  });
+
+  it('yields to a reconnect that landed during the exchange instead of overwriting it', async () => {
+    setCurrentTime();
+    const harness = createHarness(credentialExpiringIn(0));
+    const reconnected: StoredCredential = { accessToken: 'reconnected-access', scopes: ['read:user'] };
+    harness.refreshTokenGrant.mockImplementation(async () => {
+      harness.replaceStoredCredential(reconnected);
+      return { access_token: 'refreshed-access', expires_in: 3_600 };
+    });
+
+    await expect(harness.oauth.getOrRefreshAccessToken(USER_ID, PROVIDER_ID)).resolves.toBe('reconnected-access');
+    expect(harness.storedCredential()).toBe(reconnected);
   });
 
   it('returns the token refreshed by another caller during the lock wait', async () => {
     setCurrentTime();
     const harness = createHarness(credentialExpiringIn(0));
     harness.getCredential
-      .mockResolvedValueOnce(credentialExpiringIn(0))
+      .mockResolvedValueOnce({ ...credentialExpiringIn(0), version: 'v1' })
       .mockResolvedValueOnce({
         accessToken: 'other-caller-access',
         refreshToken: 'other-caller-refresh',
         expiresAt: new Date(NOW.getTime() + 3_600_000),
         scopes: ['read:user'],
+        version: 'v2',
       });
 
     await expect(harness.oauth.getOrRefreshAccessToken(USER_ID, PROVIDER_ID)).resolves.toBe('other-caller-access');
     expect(harness.refreshTokenGrant).not.toHaveBeenCalled();
-    expect(harness.saveCredential).not.toHaveBeenCalled();
+    expect(harness.replaceRefreshedCredential).not.toHaveBeenCalled();
   });
 
   it.each([
@@ -125,7 +157,7 @@ describe('provider credential refresh', () => {
     harness.refreshTokenGrant.mockRejectedValue(transientError);
 
     await expect(harness.oauth.getOrRefreshAccessToken(USER_ID, PROVIDER_ID)).rejects.toBe(transientError);
-    expect(harness.saveCredential).not.toHaveBeenCalled();
+    expect(harness.replaceRefreshedCredential).not.toHaveBeenCalled();
     expect(harness.storedCredential()).toBe(originalCredential);
   });
 
@@ -138,7 +170,7 @@ describe('provider credential refresh', () => {
       name: 'ReconnectRequiredError',
       message: 'github connection expired; reconnect this provider',
     });
-    expect(harness.saveCredential).not.toHaveBeenCalled();
+    expect(harness.replaceRefreshedCredential).not.toHaveBeenCalled();
   });
 
   it('reports a refreshable expired credential as connected', async () => {
@@ -177,6 +209,15 @@ describe('provider credential refresh', () => {
 });
 
 describe('provider authorization completion', () => {
+  it('rejects a callback delivered by an account other than the one that started the flow', async () => {
+    const harness = createHarness();
+    await seedProviderState(harness.coordinator);
+
+    await expect(harness.oauth.finishProvider('code', PROVIDER_STATE, OTHER_USER_ID)).rejects.toThrow('different account');
+    expect(harness.authorizationCodeGrant).not.toHaveBeenCalled();
+    expect(harness.saveCredential).not.toHaveBeenCalled();
+  });
+
   it('consumes provider state before exchange so a failed attempt cannot be replayed to save credentials', async () => {
     const harness = createHarness();
     await seedProviderState(harness.coordinator);
@@ -184,8 +225,8 @@ describe('provider authorization completion', () => {
       .mockRejectedValueOnce(new TypeError('fetch failed'))
       .mockResolvedValueOnce({ access_token: 'replayed-access' });
 
-    await expect(harness.oauth.finishProvider('first-code', PROVIDER_STATE)).rejects.toThrow('fetch failed');
-    await expect(harness.oauth.finishProvider('replayed-code', PROVIDER_STATE)).rejects.toThrow('invalid or expired');
+    await expect(harness.oauth.finishProvider('first-code', PROVIDER_STATE, USER_ID)).rejects.toThrow('fetch failed');
+    await expect(harness.oauth.finishProvider('replayed-code', PROVIDER_STATE, USER_ID)).rejects.toThrow('invalid or expired');
     expect(harness.authorizationCodeGrant).toHaveBeenCalledOnce();
     expect(harness.saveCredential).not.toHaveBeenCalled();
   });
@@ -210,7 +251,7 @@ describe('provider authorization completion', () => {
       throw new Error('account API unavailable');
     });
 
-    await expect(harness.oauth.finishProvider('code', PROVIDER_STATE)).resolves.toEqual({
+    await expect(harness.oauth.finishProvider('code', PROVIDER_STATE, USER_ID)).resolves.toEqual({
       userId: USER_ID,
       providerId: PROVIDER_ID,
     });
@@ -227,14 +268,28 @@ describe('provider authorization completion', () => {
 
 function createHarness(initialCredential?: StoredCredential) {
   let storedCredential = initialCredential;
-  const getCredential = vi.fn(async () => storedCredential);
-  const saveCredential = vi.fn(async (...[, , credential]: [string, ProviderId, StoredCredential]) => {
+  // Every write gets a new version, as the real store's fresh IV does.
+  let version = 1;
+  const replaceStoredCredential = (credential: StoredCredential | undefined): void => {
     storedCredential = credential;
+    version += 1;
+  };
+  const getCredential = vi.fn(async (): Promise<StoredCredentialRecord | undefined> => (
+    storedCredential && { ...storedCredential, version: `v${version}` }
+  ));
+  const saveCredential = vi.fn(async (...[, , credential]: [string, ProviderId, StoredCredential]) => {
+    replaceStoredCredential(credential);
+  });
+  const replaceRefreshedCredential = vi.fn(async (replacement: RefreshedCredentialReplacement) => {
+    if (!storedCredential || replacement.expectedVersion !== `v${version}`) return false;
+    replaceStoredCredential(replacement.credential);
+    return true;
   });
   const setAccountLabel = vi.fn(async () => undefined);
   const database = {
     createSession: vi.fn(async () => ({ token: 'session-token', expiresAt: new Date(NOW.getTime() + 60_000) })),
     getCredential,
+    replaceRefreshedCredential,
     saveCredential,
     setAccountLabel,
     upsertGoogleUser: vi.fn(async () => USER_ID),
@@ -256,9 +311,10 @@ function createHarness(initialCredential?: StoredCredential) {
     oauth,
     readAccountLabel,
     refreshTokenGrant,
-    replaceStoredCredential: (credential: StoredCredential): void => { storedCredential = credential; },
+    replaceRefreshedCredential,
+    replaceStoredCredential,
     saveCredential,
-    savedCredential: (): StoredCredential | undefined => saveCredential.mock.lastCall?.[2],
+    savedCredential: (): StoredCredential | undefined => storedCredential,
     setAccountLabel,
     storedCredential: (): StoredCredential | undefined => storedCredential,
   };

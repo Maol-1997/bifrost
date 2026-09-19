@@ -243,12 +243,12 @@ export function createOAuthGrantStore(database: AppDatabase, config: Config) {
     },
 
     /** Scoped by `user_id` so a grant id can never let one user disconnect another's client. */
-    async revokeOAuthGrant(userId: string, grantId: string): Promise<boolean> {
-      const rows = await database
+    async revokeOAuthGrant(userId: string, grantId: string): Promise<{ clientId: string } | undefined> {
+      const [revoked] = await database
         .delete(oauthGrants)
         .where(and(eq(oauthGrants.userId, userId), eq(oauthGrants.id, grantId)))
-        .returning({ id: oauthGrants.id });
-      return rows.length > 0;
+        .returning({ clientId: oauthGrants.clientId });
+      return revoked;
     },
 
     /**

@@ -7,6 +7,7 @@ import type { OAuthHttpResult, OAuthServerContext } from './context.js';
 import { OAuthError, type OAuthErrorCode } from './errors.js';
 import { MCP_SCOPE } from './metadata.js';
 import { verifyCodeChallenge } from './pkce.js';
+import { wasClientRevokedSince } from './revocation.js';
 
 /**
  * The token, registration and revocation endpoints.
@@ -58,6 +59,11 @@ async function exchangeAuthorizationCode(context: OAuthServerContext, body: URLS
   const requestedResource = body.get('resource')?.replace(/\/+$/, '');
   if (requestedResource !== undefined && requestedResource !== authorization.resource) {
     throw new OAuthError('invalid_target', 'The resource does not match the one this code was issued for');
+  }
+
+  // Consent given before the user disconnected this client no longer stands.
+  if (await wasClientRevokedSince(context.coordinator, authorization)) {
+    throw new OAuthError('invalid_grant', 'This client was disconnected after the code was issued; authorize again');
   }
 
   const tokens = await context.database.authorizeOAuthGrant({

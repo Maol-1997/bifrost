@@ -14,6 +14,7 @@ type RedisSetOptions = {
 
 export type RedisCommandsClient = {
   eval(script: string, options: RedisEvalOptions): Promise<unknown>;
+  get(key: string): Promise<string | null>;
   getDel(key: string): Promise<string | null>;
   publish(channel: string, message: string): Promise<number>;
   set(key: string, value: string, options?: RedisSetOptions): Promise<string | null>;

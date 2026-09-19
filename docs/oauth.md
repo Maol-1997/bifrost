@@ -28,6 +28,17 @@ it under `authed_user` instead of returning the standard top-level token fields.
 verification deliberately remains on `jose`: Google documents two valid `iss` forms, while
 `openid-client` correctly enforces one exact configured issuer.
 
+Two invariants on provider connections:
+
+- **A provider callback must be finished by the account that started it.** The state names the
+  starting user; `finishProvider` compares it with the browser session delivering the callback and
+  refuses a mismatch before exchanging the code. Otherwise handing someone the authorization URL
+  would connect their provider account to yours.
+- **A refresh never resurrects or overwrites a connection.** Refreshed tokens are written with
+  `replaceRefreshedCredential`, which only lands over the exact row the refresh started from (the
+  encrypted payload's IV is the version). A disconnect or reconnect that happened during the
+  exchange wins, and the token just obtained is dropped.
+
 ## The authorization server side
 
 Worth knowing before touching `src/server/oauth-server/`:
@@ -37,6 +48,9 @@ Worth knowing before touching `src/server/oauth-server/`:
   which one clients take, because advertising support is what makes them choose.
 - **Refresh tokens rotate with replay detection.** A spent token presented again destroys the
   entire grant rather than just declining, because a replay means the value leaked.
+- **Disconnecting a client also voids its unredeemed authorization codes.** Codes cannot be
+  enumerated, so `oauth-server/revocation.ts` remembers the revocation for the code lifetime and
+  the token endpoint rejects any code issued before it.
 - **Expired credentials are housekeeping-bounded.** Startup and hourly maintenance remove expired
   sessions, access tokens and refresh tokens. Consumed refresh tokens stay until their own expiry so
   replay detection remains available for the full validity window.

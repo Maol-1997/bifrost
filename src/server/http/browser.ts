@@ -13,6 +13,7 @@ import { effectivePolicyState, isToolEnabled, toolContractReview, TOOL_POLICY_ST
 import { mcpToolNameSchema, type ProviderDiscoveryRequest } from '../tools/discovery.js';
 import { aggregateToolCacheHints, failedToolCacheHint, toolCacheHintFromError, type CachedToolDiscovery } from '../tools/discovery-cache.js';
 import { applyToolPolicies } from '../tools/policy.js';
+import { recordClientRevocation } from '../oauth-server/revocation.js';
 import { isAdministrator } from '../security/access.js';
 import { authenticateBrowser, clearSessionCookie, setSessionCookie } from './auth.js';
 import type { AppContext, AppEnv } from './context.js';
@@ -216,7 +217,11 @@ async function finishProviderAuthorization(context: AppContext, expectedProvider
   }
   try {
     const parameters = callbackParameters(url);
-    const result = await context.get('dependencies').oauth.finishProvider(parameters.code, parameters.state);
+    const result = await context.get('dependencies').oauth.finishProvider(
+      parameters.code,
+      parameters.state,
+      context.get('browserIdentity').userId,
+    );
     if (result.providerId !== expectedProvider) throw new Error('OAuth provider callback mismatch');
     await context.get('dependencies').toolDiscovery.invalidateProvider(result.userId, result.providerId);
     await context.get('dependencies').events.emit(result.userId, 'providers-changed');
@@ -401,7 +406,7 @@ async function handleClientAction(
   }
 
   const isRevoked = request.kind === 'agent'
-    ? await database.revokeOAuthGrant(identity.userId, request.id)
+    ? await revokeAgentGrant(context, request.id)
     : await database.revokeSession(identity.userId, request.id);
   if (!isRevoked) return context.json({ error: 'That client is no longer connected' }, 404);
   const wasCurrentClient = request.kind === 'browser'
@@ -409,6 +414,15 @@ async function handleClientAction(
   if (wasCurrentClient) clearSessionCookie(context);
   await events.emit(identity.userId, 'clients-changed');
   return context.json({ revoked: true, wasCurrentClient });
+}
+
+async function revokeAgentGrant(context: AppContext, grantId: string): Promise<boolean> {
+  const { coordinator, database } = context.get('dependencies');
+  const userId = context.get('browserIdentity').userId;
+  const revoked = await database.revokeOAuthGrant(userId, grantId);
+  if (!revoked) return false;
+  await recordClientRevocation(coordinator, userId, revoked.clientId);
+  return true;
 }
 
 async function clientList(context: AppContext) {

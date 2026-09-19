@@ -37,6 +37,7 @@ function rateRequest(overrides: {
 function redisCommands(evalCommand: RedisCommandsClient['eval']): RedisCommandsClient {
   return {
     eval: evalCommand,
+    get: vi.fn().mockResolvedValue(null),
     getDel: vi.fn().mockResolvedValue(null),
     publish: vi.fn().mockResolvedValue(0),
     set: vi.fn().mockResolvedValue(null),
@@ -261,6 +262,19 @@ describe('in-process ephemeral values', () => {
     await coordinator.setEphemeral('k', 'v', 60);
     vi.advanceTimersByTime(60_001);
     expect(await coordinator.takeEphemeral('k')).toBeUndefined();
+  });
+
+  it('peeks at a value without consuming it', async () => {
+    const coordinator = new Coordinator();
+    await coordinator.setEphemeral('k', 'v', 60);
+    expect([await coordinator.peekEphemeral('k'), await coordinator.peekEphemeral('k')]).toEqual(['v', 'v']);
+  });
+
+  it('peeks past an expired value as absent', async () => {
+    const coordinator = new Coordinator();
+    await coordinator.setEphemeral('k', 'v', 60);
+    vi.advanceTimersByTime(60_001);
+    expect(await coordinator.peekEphemeral('k')).toBeUndefined();
   });
 
   it('sweeps abandoned expired values instead of keeping them forever', async () => {

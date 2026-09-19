@@ -50,7 +50,7 @@ export type ExpiredAuthStateCounts = {
 export type Database = ReturnType<typeof createDatabase>;
 
 export { SESSION_TTL_SECONDS } from './sessions.js';
-export type { StoredCredential } from './connections.js';
+export type { RefreshedCredentialReplacement, StoredCredential, StoredCredentialRecord } from './connections.js';
 export type {
   OAuthTokenPair,
   RefreshOutcome,

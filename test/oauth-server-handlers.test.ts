@@ -24,6 +24,8 @@ const STATE = 'client-state';
 const CODE_VERIFIER = 'test-verifier-that-is-at-least-forty-three-characters-long';
 const CODE_CHALLENGE = createHash('sha256').update(CODE_VERIFIER).digest('base64url');
 const AUTHORIZATION_CODE = 'test-authorization-code';
+const CODE_ISSUED_AT = 1_000_000;
+const REVOCATION_KEY = `oauth:revoked:${USER_ID}:${CLIENT_ID}`;
 const CONSENT_TOKEN = 'test-consent-token';
 
 const REGISTERED_CLIENT: StoredOAuthClient = {
@@ -50,7 +52,7 @@ type DatabaseFake = Pick<Database,
   | 'upsertOAuthClient'
 >;
 
-type CoordinatorFake = Pick<Coordinator, 'setEphemeral' | 'takeEphemeral'>;
+type CoordinatorFake = Pick<Coordinator, 'peekEphemeral' | 'setEphemeral' | 'takeEphemeral'>;
 
 type HarnessOptions = {
   ephemeralValues?: ReadonlyMap<string, string>;
@@ -84,6 +86,7 @@ function createHarness(options: HarnessOptions = {}): HandlerHarness {
       ephemeralValues.delete(key);
       return value;
     }),
+    peekEphemeral: vi.fn(async (key: string) => ephemeralValues.get(key)),
   };
   const context = {
     config: {
@@ -124,7 +127,7 @@ function pendingConsent(userId = USER_ID): string {
   });
 }
 
-function authorizationPayload(): string {
+function authorizationPayload(issuedAt = CODE_ISSUED_AT): string {
   return JSON.stringify({
     clientId: CLIENT_ID,
     userId: USER_ID,
@@ -132,6 +135,7 @@ function authorizationPayload(): string {
     codeChallenge: CODE_CHALLENGE,
     scopes: ['mcp'],
     resource: RESOURCE,
+    issuedAt,
   });
 }
 
@@ -151,9 +155,12 @@ function authorizationCodeBody(overrides: Readonly<Record<string, string>> = {})
   });
 }
 
-function authorizationCodeHarness(): HandlerHarness {
+function authorizationCodeHarness(extraEphemeralValues: readonly (readonly [string, string])[] = []): HandlerHarness {
   return createHarness({
-    ephemeralValues: new Map([[authorizationCodeKey(AUTHORIZATION_CODE), authorizationPayload()]]),
+    ephemeralValues: new Map([
+      [authorizationCodeKey(AUTHORIZATION_CODE), authorizationPayload()],
+      ...extraEphemeralValues,
+    ]),
   });
 }
 
@@ -431,6 +438,22 @@ describe('authorization code exchange', () => {
         resource: RESOURCE,
       },
     });
+  });
+
+  it('rejects a code issued before the user disconnected the client', async () => {
+    const harness = authorizationCodeHarness([[REVOCATION_KEY, String(CODE_ISSUED_AT + 1)]]);
+    const result = await handleToken(harness.context, authorizationCodeBody());
+
+    expect({ response: jsonSummary(result), grants: vi.mocked(harness.database.authorizeOAuthGrant).mock.calls.length })
+      .toMatchObject({ response: { status: 400, body: { error: 'invalid_grant' } }, grants: 0 });
+  });
+
+  it('honours a code issued after the user disconnected and re-authorized the client', async () => {
+    const harness = authorizationCodeHarness([[REVOCATION_KEY, String(CODE_ISSUED_AT - 1)]]);
+    const result = await handleToken(harness.context, authorizationCodeBody());
+
+    expect({ status: tokenResponseSummary(result).status, grants: vi.mocked(harness.database.authorizeOAuthGrant).mock.calls.length })
+      .toEqual({ status: 200, grants: 1 });
   });
 
   it('rejects replay of a successfully exchanged authorization code', async () => {

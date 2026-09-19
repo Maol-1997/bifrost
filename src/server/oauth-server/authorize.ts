@@ -21,7 +21,7 @@ import { isRedirectUriAllowed } from './redirect-uri.js';
  */
 
 const CONSENT_TTL_SECONDS = 600;
-const AUTHORIZATION_CODE_TTL_SECONDS = 60;
+export const AUTHORIZATION_CODE_TTL_SECONDS = 60;
 const TOKEN_BYTES = 32;
 /** Clients may ask for this to signal they want a refresh token. Bifrost always issues one. */
 const OFFLINE_ACCESS_SCOPE = 'offline_access';
@@ -55,6 +55,7 @@ export const authorizationCodeSchema = z.object({
   codeChallenge: z.string(),
   scopes: z.array(z.string()),
   resource: z.string(),
+  issuedAt: z.number().int().nonnegative(),
 });
 
 type PendingConsent = z.infer<typeof pendingConsentSchema>;
@@ -230,6 +231,7 @@ async function issueAuthorizationCode(context: OAuthServerContext, pending: Pend
     codeChallenge: pending.codeChallenge,
     scopes: pending.scopes,
     resource: pending.resource,
+    issuedAt: Date.now(),
   };
   // Short-lived and single-use: `takeEphemeral` is a get-and-delete, so a code
   // replayed against the token endpoint finds nothing.

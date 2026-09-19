@@ -125,6 +125,15 @@ export class Coordinator {
     this.localEphemeral.set(key, { value, expiresAt: now + ttlSeconds * 1000 });
   }
 
+  async peekEphemeral(key: string): Promise<string | undefined> {
+    if (this.redis) {
+      const value = await this.redis.get(key);
+      return value ?? undefined;
+    }
+    const entry = this.localEphemeral.get(key);
+    return entry && entry.expiresAt > Date.now() ? entry.value : undefined;
+  }
+
   async takeEphemeral(key: string): Promise<string | undefined> {
     if (this.redis) {
       const value = await this.redis.getDel(key);
