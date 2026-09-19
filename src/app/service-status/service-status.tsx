@@ -39,7 +39,7 @@ export default function ServiceStatus(): React.JSX.Element {
       {outages.map((app) => {
         const name = providerMap.get(app.appId)?.name ?? app.appId;
         return (
-          <div key={app.appId} className="mt-5 rounded-notice border border-danger/30 bg-danger/6 px-3.5 py-2.5 text-compact leading-5 text-danger">
+          <div key={app.appId} className="mt-5 rounded-notice border border-danger/30 bg-danger/6 px-3.5 py-2.5 text-xs leading-5 text-danger">
             {name} is down for everyone{app.since ? ` since ${clockTime(app.since)}` : ''}. If your agent’s {name} tools fail right now, it’s not you.
           </div>
         );
@@ -55,10 +55,10 @@ export default function ServiceStatus(): React.JSX.Element {
               return (
                 <SettingsRow key={app.appId}>
                   <ProviderIcon providerId={app.appId} monogram={provider?.monogram ?? '?'} />
-                  <div className="flex-1 text-emphasis font-semibold">{name}</div>
+                  <div className="flex-1 text-sm font-semibold">{name}</div>
                   <div className="text-right">
                     <StatusBadge status={app.health} />
-                    <div className="mt-0.5 text-detail text-app-text-quaternary">{healthDetail(app, name)}</div>
+                    <div className="mt-0.5 text-xs text-app-text-quaternary">{healthDetail(app, name)}</div>
                   </div>
                 </SettingsRow>
               );

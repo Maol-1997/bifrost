@@ -8,10 +8,10 @@ export function ToolRow({ disabled, tool, isAvailable, onToggle }: { disabled: b
   return (
     <SettingsRow className={cn('h-auto min-h-[65px] items-start', !isAvailable && 'opacity-50')}>
       <div className="min-w-0 flex-1">
-        <div className="text-body font-medium">{tool.title}</div>
+        <div className="text-sm font-medium">{tool.title}</div>
         <ExpandableText label={tool.title} text={tool.description} />
         {/* The name the agent calls. Worth showing: it is what you grep for in a log. */}
-        <code className="mt-0.5 block truncate font-mono text-caption text-app-text-quaternary">{tool.name}</code>
+        <code className="mt-0.5 block truncate font-mono text-xs text-app-text-quaternary">{tool.name}</code>
       </div>
       <Switch
         aria-label={`${tool.isEnabled ? 'Disable' : 'Enable'} ${tool.title}`}

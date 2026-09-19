@@ -37,14 +37,14 @@ export default tseslint.config(
           { pattern: '^(Surface|SettingsGroup|SectionCard|SettingsRowContent|SettingsRowAction|SidebarHeader|SidebarContent|SidebarLink)$', allow: ['layout', 'spacing'] },
           { pattern: '^SettingsRow$', allow: ['layout', 'spacing', 'opacity-*'] },
           { pattern: '^SettingsLinkRow$', allow: ['layout', 'spacing'] },
-          { pattern: '^SettingsRowTitle$', allow: ['layout', 'gap-*', 'typography', 'text-emphasis'] },
-          { pattern: '^SettingsRowDescription$', allow: ['layout', 'typography', 'text-detail', 'text-app-text-tertiary', 'text-app-text-quaternary', 'text-warning'] },
+          { pattern: '^SettingsRowTitle$', allow: ['layout', 'gap-*', 'typography'] },
+          { pattern: '^SettingsRowDescription$', allow: ['layout', 'typography', 'text-app-text-tertiary', 'text-app-text-quaternary', 'text-warning'] },
           { pattern: '^(AgentChat|AgentChatDock)$', allow: ['layout', 'bg-transparent'] },
         ],
       }],
-      // v0.1 mistakes these declared text/shadow tokens for colors.
+      // v0.1 mistakes these declared shadow tokens for colors.
       'shadcn/no-raw-colors': ['error', {
-        allow: ['text-mini', 'text-badge', 'text-caption', 'text-detail', 'text-compact', 'text-body', 'text-emphasis', 'shadow-linear-control', 'shadow-linear-outline', 'shadow-linear-outline-hover', 'shadow-linear-secondary', 'shadow-linear-secondary-hover', 'shadow-linear-popover', 'shadow-linear-tooltip', 'shadow-linear-settings', 'shadow-linear-dialog'],
+        allow: ['shadow-linear-control', 'shadow-linear-outline', 'shadow-linear-outline-hover', 'shadow-linear-secondary', 'shadow-linear-secondary-hover', 'shadow-linear-popover', 'shadow-linear-tooltip', 'shadow-linear-settings', 'shadow-linear-dialog'],
       }],
       'shadcn/no-unknown-classes': 'error',
       'shadcn/no-arbitrary-values': ['error', { allow: ['layout'] }],

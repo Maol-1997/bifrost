@@ -22,7 +22,7 @@ const tabsTriggerVariants = cva(
     variants: {
       variant: {
         default: "rounded-md text-sm data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow",
-        underline: "min-h-11 rounded-none border-b-2 border-transparent text-compact text-app-text-tertiary data-[state=active]:border-brand data-[state=active]:bg-transparent data-[state=active]:text-app-text-primary data-[state=active]:shadow-none",
+        underline: "min-h-11 rounded-none border-b-2 border-transparent text-xs text-app-text-tertiary data-[state=active]:border-brand data-[state=active]:bg-transparent data-[state=active]:text-app-text-primary data-[state=active]:shadow-none",
       },
     },
     defaultVariants: { variant: "default" },

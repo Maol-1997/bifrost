@@ -26,13 +26,13 @@ function ProviderSummary({ provider }: { provider: Provider }): React.JSX.Elemen
     <>
       <ProviderIcon providerId={provider.id} monogram={provider.monogram} />
       <SettingsRowContent>
-        <SettingsRowTitle className="flex items-center gap-2 text-emphasis font-semibold">
+        <SettingsRowTitle className="flex items-center gap-2 text-sm font-semibold">
           <span className="truncate">{provider.name}</span>
-          {provider.isHidden ? <span className="shrink-0 rounded-full border border-dashed border-warning/50 px-2 py-0.5 text-badge font-medium text-warning">Hidden by you</span> : null}
+          {provider.isHidden ? <span className="shrink-0 rounded-full border border-dashed border-warning/50 px-2 py-0.5 text-xs font-medium text-warning">Hidden by you</span> : null}
         </SettingsRowTitle>
         <SettingsRowDescription className="text-app-text-tertiary">{provider.description}</SettingsRowDescription>
-        {isUnavailable ? <SettingsRowDescription className="mt-1 text-detail text-app-text-quaternary">Your team hasn’t been granted access yet — ask #bifrost-help.</SettingsRowDescription> : null}
-        {needsReconnect ? <SettingsRowDescription className="mt-1 text-detail text-warning">Your authorization expired. Reconnecting takes 10 seconds.</SettingsRowDescription> : null}
+        {isUnavailable ? <SettingsRowDescription className="mt-1 text-xs text-app-text-quaternary">Your team hasn’t been granted access yet — ask #bifrost-help.</SettingsRowDescription> : null}
+        {needsReconnect ? <SettingsRowDescription className="mt-1 text-xs text-warning">Your authorization expired. Reconnecting takes 10 seconds.</SettingsRowDescription> : null}
       </SettingsRowContent>
     </>
   );

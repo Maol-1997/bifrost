@@ -39,11 +39,11 @@ export default function SignIn(): React.JSX.Element {
           />
         ) : (
           <>
-            <p className="mt-2.5 text-emphasis leading-copy text-app-text-tertiary text-pretty">One sign-in for every tool your AI agents use. Your keys stay on the server — never on your laptop.</p>
+            <p className="mt-2.5 text-sm leading-copy text-app-text-tertiary text-pretty">One sign-in for every tool your AI agents use. Your keys stay on the server — never on your laptop.</p>
             <Button asChild size="large" className="mt-[22px] w-full">
               <a href="/auth/google/start"><Google aria-hidden className="size-[15px]" />Continue with Google</a>
             </Button>
-            {audience ? <div className="mt-3 text-detail text-app-text-quaternary">{audience}</div> : null}
+            {audience ? <div className="mt-3 text-xs text-app-text-quaternary">{audience}</div> : null}
           </>
         )}
       </div>
@@ -63,7 +63,7 @@ function SignInFailure({
   const hasConflict = kind === 'account-conflict';
   return (
     <>
-      <p className="mt-2.5 text-emphasis leading-copy text-app-text-tertiary text-pretty">
+      <p className="mt-2.5 text-sm leading-copy text-app-text-tertiary text-pretty">
         {hasConflict
           ? 'That Google account could not be linked safely.'
           : domains.length > 0
@@ -71,7 +71,7 @@ function SignInFailure({
             : "That account isn't on the list of people allowed to use Bifrost."}
       </p>
       <div
-        className="mt-4 w-full rounded-notice border border-warning/30 bg-warning/7 px-3.5 py-3 text-left text-compact leading-5 text-app-text-secondary"
+        className="mt-4 w-full rounded-notice border border-warning/30 bg-warning/7 px-3.5 py-3 text-left text-xs leading-5 text-app-text-secondary"
         role="alert"
       >
         {hasConflict

@@ -49,9 +49,9 @@ uses `components.json`.
   links use `variant="grouped"`; chat hosts may request a transparent background.
 - **Theme values:** use declared colors, typography, radii, and spacing utilities instead of
   hardcoded appearance values. Arbitrary layout values remain allowed for responsive geometry.
-  The `text-mini/badge/caption/detail/compact/body/emphasis` tokens preserve the existing
-  10/10.5/11/11.5/12.5/13/13.5px scale. Keep these names synchronized with `app/lib/cn.ts`
-  so class merging distinguishes font sizes from colors. Hairlines and focus outlines have
+  Prefer Tailwind's standard font-size scale: `text-xs` (12px) for small labels and details,
+  `text-sm` (14px) for body text. Use the nearest standard size instead of adding a custom
+  token just to preserve a fractional pixel value. Hairlines and focus outlines have
   `linear-*` utilities; do not round the deliberate half-pixel borders to 1px.
 - **Analyzable classes:** use complete class names or static conditional alternatives, not
   interpolated names or opaque imported class values on UI components. Unknown classes fail lint.
@@ -66,7 +66,7 @@ not as a place to hide route-specific overrides.
 
 Exceptions are narrow and named in ESLint: original registry SVGs and the standalone Bifrost
 mark keep their brand colors; component-local CSS selectors and Sonner's `toaster` marker are
-allowed only in their owning files. Version 0.1 misclassifies some custom text/shadow tokens as
+allowed only in their owning files. Version 0.1 misclassifies some custom shadow tokens as
 colors, so those exact names are exempt from the color rule. Revisit those exceptions when
 upgrading. CSS files themselves are not linted by this plugin, and a clean lint run does not
 establish visual quality or runtime behavior.

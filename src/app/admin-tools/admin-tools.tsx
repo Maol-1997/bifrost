@@ -134,7 +134,7 @@ function ContractBlock({ label, value }: { label: string; value: string }): Reac
   return (
     <Surface variant="inset" className="min-w-0 p-3">
       <div className="mb-2 text-xs font-medium text-linear-bright">{label}</div>
-      <pre className="max-h-64 overflow-auto whitespace-pre font-mono text-caption leading-5 text-linear-input-disabled">{value}</pre>
+      <pre className="max-h-64 overflow-auto whitespace-pre font-mono text-xs leading-5 text-linear-input-disabled">{value}</pre>
     </Surface>
   );
 }
@@ -143,7 +143,7 @@ function ReviewBadge({ review }: { review: ToolContractReview }): React.JSX.Elem
   if (review.kind === 'approved') return null;
   return (
     <span className={cn(
-      'rounded-full px-2 py-0.5 text-badge font-semibold',
+      'rounded-full px-2 py-0.5 text-xs font-semibold',
       review.kind === 'new' ? 'bg-brand/10 text-brand-hover' : 'bg-warning/10 text-warning',
     )}>
       {review.kind === 'new' ? 'New tool' : 'Contract changed'}
@@ -155,8 +155,8 @@ function ContractChangeRow({ change }: { change: ToolContractChange }): React.JS
   return (
     <div className="rounded-notice linear-border-hairline border-app-border-pane p-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <code className="break-all font-mono text-caption text-linear-bright">{change.path}</code>
-        <span className="rounded-full bg-linear-card-hover px-2 py-0.5 text-mini font-semibold uppercase tracking-label text-app-text-tertiary">{change.kind}</span>
+        <code className="break-all font-mono text-xs text-linear-bright">{change.path}</code>
+        <span className="rounded-full bg-linear-card-hover px-2 py-0.5 text-xs font-semibold uppercase tracking-label text-app-text-tertiary">{change.kind}</span>
       </div>
       <div className="mt-3 grid gap-3 sm:grid-cols-2">
         {change.kind === 'added' ? null : <ContractBlock label="Previous" value={JSON.stringify(change.before, null, 2)} />}
@@ -170,7 +170,7 @@ function ContractReviewDetails({ review }: { review: ToolContractReview }): Reac
   if (review.kind === 'approved') return null;
   if (review.kind === 'new') {
     return (
-      <div className="sm:col-span-2 rounded-notice linear-border-hairline border-brand/25 bg-brand/5 p-3 text-detail text-app-text-secondary">
+      <div className="sm:col-span-2 rounded-notice linear-border-hairline border-brand/25 bg-brand/5 p-3 text-xs text-app-text-secondary">
         <div className="font-semibold text-linear-bright">New tool</div>
         <p className="mt-1">No previously approved contract exists for this tool.</p>
       </div>
@@ -178,7 +178,7 @@ function ContractReviewDetails({ review }: { review: ToolContractReview }): Reac
   }
   if (review.changes === null) {
     return (
-      <div className="sm:col-span-2 rounded-notice linear-border-hairline border-warning/30 bg-warning/5 p-3 text-detail text-app-text-secondary">
+      <div className="sm:col-span-2 rounded-notice linear-border-hairline border-warning/30 bg-warning/5 p-3 text-xs text-app-text-secondary">
         <div className="font-semibold text-linear-bright">Contract changed</div>
         <p className="mt-1">The previous approval predates contract snapshots, so its exact changes are unavailable. Approving this version enables detailed comparisons from now on.</p>
       </div>
@@ -206,16 +206,16 @@ function ToolRow({ tool, providerId, controller }: { tool: AdminTool; providerId
           <Checkbox aria-label={`Select ${tool.title}`} checked={selection.isSelected(tool.name)} disabled={disabled} onCheckedChange={(checked) => { if (checked) selection.select(tool.name); else selection.deselect(tool.name); }} />
         </label>
         <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2"><span className="text-body font-medium text-linear-bright">{tool.title}</span><ReviewBadge review={tool.review} /></div>
+          <div className="flex flex-wrap items-center gap-2"><span className="text-sm font-medium text-linear-bright">{tool.title}</span><ReviewBadge review={tool.review} /></div>
           <ExpandableText label={tool.title} text={tool.description} />
-          <code className="mt-1 block truncate font-mono text-caption text-app-text-quaternary" title={tool.name}>{tool.name}</code>
+          <code className="mt-1 block truncate font-mono text-xs text-app-text-quaternary" title={tool.name}>{tool.name}</code>
         </div>
-        <div className="col-start-2 mt-3 min-w-0 text-caption font-medium text-app-text-tertiary sm:col-start-3 sm:row-start-1 sm:mt-0">
+        <div className="col-start-2 mt-3 min-w-0 text-xs font-medium text-app-text-tertiary sm:col-start-3 sm:row-start-1 sm:mt-0">
           <div>Policy</div>
           <PolicyMenu ariaLabel={`Policy for ${tool.title}`} disabled={disabled} triggerLabel={currentPolicy?.label ?? tool.state} value={tool.state} className="mt-1 w-full" onChange={(state) => { if (state !== tool.state) controller.changePolicy({ providerId, toolName: tool.name, fingerprint: tool.fingerprint, state }); }} />
         </div>
       </div>
-      <details className="group text-detail text-app-text-tertiary open:linear-border-t-hairline open:border-linear-settings-divider">
+      <details className="group text-xs text-app-text-tertiary open:linear-border-t-hairline open:border-linear-settings-divider">
         <summary className="flex min-h-11 cursor-pointer list-none items-center gap-1.5 px-4 pl-18 font-medium outline-none hover:text-linear-bright focus-visible:linear-focus-outline [&::-webkit-details-marker]:hidden">
           <ChevronDown aria-hidden className="size-3.5 shrink-0 -rotate-90 transition-transform duration-150 group-open:rotate-0 motion-reduce:transition-none" />
           Review contract and fingerprint
@@ -279,10 +279,10 @@ function ToolGroup({ group, controller }: { group: ToolGroupModel; controller: T
     <section className="mt-3">
       <div className="flex items-center justify-between px-1">
         <div className="flex items-center gap-3">
-          <h3 className={isRead ? 'text-caption font-semibold uppercase tracking-section text-success' : 'text-caption font-semibold uppercase tracking-section text-warning'}>{isRead ? 'Read' : 'Write'}</h3>
-          <label className="flex min-h-11 cursor-pointer items-center gap-2 text-detail text-app-text-tertiary"><Checkbox aria-label={`Select all ${isRead ? 'read' : 'write'} tools`} checked={selectedState} disabled={controller.disabled} onCheckedChange={(checked) => { if (checked) controller.selection.selectAll(tools); else controller.selection.deselectAll(tools); }} />Select all</label>
+          <h3 className={isRead ? 'text-xs font-semibold uppercase tracking-section text-success' : 'text-xs font-semibold uppercase tracking-section text-warning'}>{isRead ? 'Read' : 'Write'}</h3>
+          <label className="flex min-h-11 cursor-pointer items-center gap-2 text-xs text-app-text-tertiary"><Checkbox aria-label={`Select all ${isRead ? 'read' : 'write'} tools`} checked={selectedState} disabled={controller.disabled} onCheckedChange={(checked) => { if (checked) controller.selection.selectAll(tools); else controller.selection.deselectAll(tools); }} />Select all</label>
         </div>
-        <span className="text-caption tabular-nums text-app-text-quaternary">{tools.length}</span>
+        <span className="text-xs tabular-nums text-app-text-quaternary">{tools.length}</span>
       </div>
       <SectionCard className="mt-2 overflow-hidden">{tools.map((tool) => <ToolRow key={tool.name} tool={tool} providerId={providerId} controller={controller} />)}</SectionCard>
     </section>
@@ -298,15 +298,15 @@ function ProviderTools({ provider, normalizedSearch, controller }: { provider: A
   return (
     <section className="mt-7">
       <div className="flex min-h-11 items-center justify-between gap-3">
-        <h2 className="text-emphasis font-semibold">{providerName(provider.providerId)}</h2>
+        <h2 className="text-sm font-semibold">{providerName(provider.providerId)}</h2>
         <div className="flex items-center gap-3">
-          {provider.status === 'ready' && matchingTools.length > 0 ? <label className="flex min-h-11 cursor-pointer items-center gap-2 text-detail text-app-text-tertiary"><Checkbox aria-label="Select all visible tools" checked={allSelectedState} disabled={controller.disabled} onCheckedChange={(checked) => { if (checked) controller.selection.selectAll(matchingTools); else controller.selection.deselectAll(matchingTools); }} />Select all</label> : null}
+          {provider.status === 'ready' && matchingTools.length > 0 ? <label className="flex min-h-11 cursor-pointer items-center gap-2 text-xs text-app-text-tertiary"><Checkbox aria-label="Select all visible tools" checked={allSelectedState} disabled={controller.disabled} onCheckedChange={(checked) => { if (checked) controller.selection.selectAll(matchingTools); else controller.selection.deselectAll(matchingTools); }} />Select all</label> : null}
           <span className="text-xs text-app-text-quaternary">{provider.status === 'ready' ? `${matchingTools.length} tools` : null}</span>
         </div>
       </div>
-      {provider.status === 'not-connected' ? <p className="mt-2 rounded-notice linear-border-hairline border-app-border-pane p-3.5 text-compact text-app-text-tertiary">Connect your admin account to {providerName(provider.providerId)} in <Link className="text-brand hover:text-brand-hover" to={APP_ROUTES.integrations}>Integrations</Link> to review its official tools.</p> : null}
-      {provider.status === 'error' ? <p role="alert" className="mt-2 rounded-notice linear-border-hairline border-warning/35 bg-warning/7 p-3.5 text-compact text-app-text-secondary">The official MCP endpoint could not be loaded. Reconnect the provider if this continues.</p> : null}
-      {provider.status === 'ready' && matchingTools.length === 0 ? <p className="mt-2 rounded-notice linear-border-hairline border-app-border-pane p-3.5 text-compact text-app-text-tertiary">No tools match this search.</p> : null}
+      {provider.status === 'not-connected' ? <p className="mt-2 rounded-notice linear-border-hairline border-app-border-pane p-3.5 text-xs text-app-text-tertiary">Connect your admin account to {providerName(provider.providerId)} in <Link className="text-brand hover:text-brand-hover" to={APP_ROUTES.integrations}>Integrations</Link> to review its official tools.</p> : null}
+      {provider.status === 'error' ? <p role="alert" className="mt-2 rounded-notice linear-border-hairline border-warning/35 bg-warning/7 p-3.5 text-xs text-app-text-secondary">The official MCP endpoint could not be loaded. Reconnect the provider if this continues.</p> : null}
+      {provider.status === 'ready' && matchingTools.length === 0 ? <p className="mt-2 rounded-notice linear-border-hairline border-app-border-pane p-3.5 text-xs text-app-text-tertiary">No tools match this search.</p> : null}
       {provider.status === 'ready' ? <ToolGroup group={{ mutability: 'read', tools: readTools, providerId: provider.providerId }} controller={controller} /> : null}
       {provider.status === 'ready' ? <ToolGroup group={{ mutability: 'write', tools: writeTools, providerId: provider.providerId }} controller={controller} /> : null}
     </section>
@@ -315,7 +315,7 @@ function ProviderTools({ provider, normalizedSearch, controller }: { provider: A
 
 function BatchActions({ controller, onChange }: { controller: ToolAdministrationController; onChange: (state: ToolPolicyState) => void }): React.JSX.Element {
   const { disabled, selection } = controller;
-  return <div aria-label="Batch actions" className="flex min-h-11 items-center justify-between gap-3"><div aria-live="polite" className="text-compact font-medium tabular-nums">{selection.selectedCount} selected</div><div className="flex items-center gap-1.5"><Button type="button" variant="ghost" size="large" disabled={disabled} onClick={selection.clear}>Clear</Button><PolicyMenu ariaLabel={`Set policy for ${selection.selectedCount} selected tools`} disabled={disabled} triggerLabel={disabled ? 'Applying…' : 'Set policy'} className="w-40" onChange={onChange} /></div></div>;
+  return <div aria-label="Batch actions" className="flex min-h-11 items-center justify-between gap-3"><div aria-live="polite" className="text-xs font-medium tabular-nums">{selection.selectedCount} selected</div><div className="flex items-center gap-1.5"><Button type="button" variant="ghost" size="large" disabled={disabled} onClick={selection.clear}>Clear</Button><PolicyMenu ariaLabel={`Set policy for ${selection.selectedCount} selected tools`} disabled={disabled} triggerLabel={disabled ? 'Applying…' : 'Set policy'} className="w-40" onChange={onChange} /></div></div>;
 }
 
 function AdminProviderTools({ providerId }: { providerId: ProviderId }): React.JSX.Element {
@@ -361,12 +361,12 @@ function AdminProviderTools({ providerId }: { providerId: ProviderId }): React.J
           ? <BatchActions controller={controller} onChange={changeSelected} />
           : <div className="flex min-h-11 items-center justify-end"><Button type="button" variant="outline" size="large" disabled={refreshMutation.isPending} className="min-w-28" onClick={() => { refreshMutation.mutate(); }}>{refreshMutation.isPending ? 'Refreshing…' : 'Refresh tools'}</Button></div>}
       </div>
-      <label htmlFor="tool-search" className="mt-6 block text-caption font-medium text-app-text-tertiary">Search tools</label>
+      <label htmlFor="tool-search" className="mt-6 block text-xs font-medium text-app-text-tertiary">Search tools</label>
       <SearchInput id="tool-search" variant="content" value={search} onChange={(event) => { setSearch(event.target.value); }} placeholder="Name or description" containerClassName="mt-1" className="h-11" />
       {toolsQuery.isPending ? <ToolAdministrationSkeleton /> : null}
       {toolsQuery.isError ? <ErrorState title="We couldn't load tool administration" body="You may not have administrator access, or provider discovery failed before the catalog could load." onRetry={() => { void toolsQuery.refetch(); }} /> : null}
-      {policyMutation.isError ? <p role="alert" className="mt-4 text-compact text-danger">No policies were saved. A selected tool may have changed, refresh and review it again.</p> : null}
-      {refreshMutation.isError ? <p role="alert" className="mt-4 text-compact text-danger">The official MCP endpoint could not be refreshed. Try again.</p> : null}
+      {policyMutation.isError ? <p role="alert" className="mt-4 text-xs text-danger">No policies were saved. A selected tool may have changed, refresh and review it again.</p> : null}
+      {refreshMutation.isError ? <p role="alert" className="mt-4 text-xs text-danger">The official MCP endpoint could not be refreshed. Try again.</p> : null}
       {toolsQuery.data ? <ProviderTools provider={toolsQuery.data.data} normalizedSearch={normalizedSearch} controller={controller} /> : null}
     </section>
   );

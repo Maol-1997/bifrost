@@ -93,13 +93,6 @@
 }
 
 @theme inline {
-  --text-mini: 10px;
-  --text-badge: 10.5px;
-  --text-caption: 11px;
-  --text-detail: 11.5px;
-  --text-compact: 12.5px;
-  --text-body: 13px;
-  --text-emphasis: 13.5px;
   --leading-copy: 1.55;
   --tracking-heading: -0.01em;
   --tracking-label: 0.04em;
