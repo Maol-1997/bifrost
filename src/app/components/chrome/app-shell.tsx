@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { BifrostNewChatLoadingState } from '@app/components/bifrost-new-chat';
 import { BifrostMark } from '@app/components/ui/bifrost-mark';
@@ -12,6 +12,7 @@ import { Sidebar, SidebarBackdrop, SidebarContent, SidebarGroup, SidebarHeader, 
 import { cn } from '@app/lib/cn';
 import { initialsOf } from '@app/lib/initials';
 import { getCurrentUser, type CurrentUser, type HealthSnapshot } from '@app/api/bifrost';
+import { claimPersistedQueries } from '@app/api/persister';
 import { useLiveInvalidations } from '@app/api/use-live-invalidations';
 import { APP_ROUTES } from '@features/utils/routes';
 import { AdminToolNavigation } from './admin-tool-navigation';
@@ -52,8 +53,15 @@ export function AppShell(): React.JSX.Element {
   const [agentToolbarHost, setAgentToolbarHost] = useState<HTMLDivElement | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const health = useAppHealth();
+  const queryClient = useQueryClient();
   const { data: user } = useQuery({ queryKey: ['current-user'], queryFn: getCurrentUser });
+  const userEmail = user?.email;
   useLiveInvalidations(Boolean(user));
+
+  useEffect(() => {
+    if (userEmail === undefined) return;
+    void claimPersistedQueries(queryClient, userEmail).catch(() => undefined);
+  }, [queryClient, userEmail]);
   const badge = statusBadge(health.snapshot);
 
   useEffect(() => {
@@ -85,7 +93,7 @@ export function AppShell(): React.JSX.Element {
                 <SidebarLink key={item.to} asChild active={isActiveRoute(location.pathname, item.to)}>
                   <NavLink to={item.to}>
                     <Icon aria-hidden="true" />
-                    <span>{item.label}</span>{item.to === APP_ROUTES.serviceStatus && badge ? <span className={cn('ml-auto rounded-full px-1.5 py-0.5 text-badge font-semibold', badge.className)}>{badge.text}</span> : null}
+                    <span>{item.label}</span>{item.to === APP_ROUTES.serviceStatus && badge ? <span className={cn('ml-auto rounded-full px-1.5 py-0.5 text-xs font-semibold', badge.className)}>{badge.text}</span> : null}
                   </NavLink>
                 </SidebarLink>
             );
@@ -97,8 +105,8 @@ export function AppShell(): React.JSX.Element {
         {user ? (
           <SidebarLink asChild active={location.pathname === APP_ROUTES.accountSecurity} className="mb-3 h-auto py-2">
             <NavLink to={APP_ROUTES.accountSecurity} aria-label="Account & security">
-            <div className="flex size-6 shrink-0 items-center justify-center rounded-full bg-brand/25 text-badge font-semibold text-brand-hover">{initialsOf(user.name)}</div>
-            <div className="min-w-0"><div className="truncate text-compact font-medium">{user.name}</div><div className="truncate text-badge text-app-text-quaternary">Account & security</div></div>
+            <div className="flex size-6 shrink-0 items-center justify-center rounded-full bg-brand/25 text-xs font-semibold text-brand-hover">{initialsOf(user.name)}</div>
+            <div className="min-w-0"><div className="truncate text-xs font-medium">{user.name}</div><div className="truncate text-xs text-app-text-quaternary">Account & security</div></div>
             </NavLink>
           </SidebarLink>
         ) : null}

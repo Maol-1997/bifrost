@@ -23,6 +23,11 @@ The app uses a route-colocation model: React Router registers URLs explicitly in
 - **Aliases cross scopes; relative imports stay inside a scope.** Use `@app/*` and `@features/*`
   across boundaries. A route's screen imports its local components with `./...`; never import
   through its own barrel.
+- **The persisted cache belongs to one account.** Only the providers query is persisted to
+  IndexedDB (`app/api/persister.ts`). The snapshot is restored before anyone is known to be signed
+  in, so the app shell claims it for the current account once `current-user` resolves and drops a
+  snapshot that belonged to someone else. Sign-out and the 401 path clear it and stop further
+  writes, since a throttled save could otherwise land after the clear.
 - **TanStack Query owns remote state.** Use `useQuery`/`useMutation` instead of fetching in
   effects. Shared query options live in `app/api/query-options.ts`; route-only query behavior
   stays with that route. Invalidate the narrow shared key after mutations, and use optimistic
