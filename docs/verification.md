@@ -3,7 +3,7 @@
 ## What proves what today
 
 ```bash
-npm ci
+bun install
 npm run verify
 ```
 

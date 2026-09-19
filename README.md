@@ -98,7 +98,7 @@ All settings are environment variables, validated at startup by `src/server/conf
 ## Development
 
 ```bash
-npm ci
+bun install
 npm run dev        # Postgres + Redis containers, migrations, watched API on :3000, Vite on :5173
 npm run db:generate # Generate a Drizzle migration after changing src/server/database/schema.ts
 npm run verify     # Lint, both typechecks, unit coverage, server/client build

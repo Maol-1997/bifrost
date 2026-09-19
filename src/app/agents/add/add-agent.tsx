@@ -88,7 +88,7 @@ export default function AddAgent(): React.JSX.Element {
   const { data: address } = useQuery({ queryKey: ['mcp-address'], queryFn: getMcpAddress });
   const checkMutation = useMutation({
     mutationFn: async () => {
-      const clients = await queryClient.fetchQuery(connectedClientsQueryOptions);
+      const clients = await queryClient.query(connectedClientsQueryOptions);
       return clients.find((client) => client.kind === 'agent');
     },
   });
