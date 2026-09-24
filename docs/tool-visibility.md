@@ -44,7 +44,8 @@ Jev (`JEV_MODEL`, via OpenRouter's decisions API) and written as a deployment po
   batch, nothing is written and new definitions stay `blocked`. Failures back off for five minutes
   per rule revision.
 - Classification is triggered from discovery (`onFreshTools`) in the background, so it never delays
-  `/mcp`, and synchronously when the administrator saves a rule. Removing a rule keeps the policies
+  `/mcp`, and synchronously when the administrator saves a rule. The HTTP route and the admin chat
+  tools (`bifrost_admin_get/set/clear_mcp_tool_rule`) share `saveToolRule` and `clearToolRule`. Removing a rule keeps the policies
   it already wrote.
 - Only tool definitions leave the server: name, title, description, read/write and parameter
   names. Descriptions are provider-written, so the question tells Jev that nothing inside them is
@@ -53,7 +54,7 @@ Jev (`JEV_MODEL`, via OpenRouter's decisions API) and written as a deployment po
 ## Admin tools stay off `/mcp`
 
 The built-in web chat adds a separate `bifrost_admin` tool namespace only when the cookie-backed
-browser identity belongs to an address in `ADMIN_EMAILS`. Those tools can inspect providers and
-atomically update deployment policies, but they are never registered by `createHumanMcpHandler` and
+browser identity belongs to an address in `ADMIN_EMAILS`. Those tools can inspect providers,
+atomically update deployment policies and read or change each provider's automatic rule, but they are never registered by `createHumanMcpHandler` and
 therefore never appear on `/mcp`. Keep that boundary: external agents must not receive administrative
 capabilities through their OAuth grants.

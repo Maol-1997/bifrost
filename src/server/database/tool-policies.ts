@@ -157,6 +157,18 @@ export function createToolPolicyStore(database: AppDatabase) {
       });
     },
 
+    async toolRules(): Promise<ReadonlyMap<ProviderId, ToolRule>> {
+      const rows = await database
+        .select({
+          providerId: deploymentToolRules.providerId,
+          instructions: deploymentToolRules.instructions,
+          revision: deploymentToolRules.revision,
+          updatedAt: deploymentToolRules.updatedAt,
+        })
+        .from(deploymentToolRules);
+      return new Map(rows.map((rule) => [rule.providerId, rule]));
+    },
+
     async toolRule(providerId: ProviderId): Promise<ToolRule | undefined> {
       const [rule] = await database
         .select({

@@ -12,7 +12,7 @@ import type { ProviderId } from '../providers/types.js';
 import { effectivePolicyState, isToolEnabled, toolContractReview, TOOL_POLICY_STATES } from '../tools/catalog.js';
 import { mcpToolNameSchema, type ProviderDiscoveryRequest } from '../tools/discovery.js';
 import { aggregateToolCacheHints, failedToolCacheHint, toolCacheHintFromError, type CachedToolDiscovery } from '../tools/discovery-cache.js';
-import { reconcileAutoPolicies, type AutoPolicyOutcome } from '../tools/auto-policy.js';
+import { clearToolRule, saveToolRule, toolRuleInstructionsSchema } from '../tools/auto-policy.js';
 import { applyToolPolicies } from '../tools/policy.js';
 import { isUncertainProbability } from '../tools/rule-classifier.js';
 import { recordClientRevocation } from '../oauth-server/revocation.js';
@@ -45,7 +45,7 @@ const toolPolicySchema = z.object({
 const toolPolicyBatchSchema = z.object({
   tools: z.array(toolPolicySchema.extend(toolPathSchema.shape)).min(1),
 });
-const toolRuleSchema = z.object({ instructions: z.string().trim().min(1).max(1000) });
+const toolRuleSchema = z.object({ instructions: toolRuleInstructionsSchema });
 const chatRequestSchema = z.object({ messages: z.unknown() });
 const chatTitleRequestSchema = z.object({ firstMessage: z.string().trim().min(1).max(4000) });
 
@@ -414,50 +414,22 @@ async function setDeploymentToolPolicies(
   return context.json({ tools: policies, cache: outcome.cache });
 }
 
-/**
- * Saving applies the rule right away to the administrator's own fresh listing,
- * so the screen shows its effect; everyone else's listings pick it up on their
- * next discovery.
- */
 async function setAutomaticToolRule(context: AppContext, providerId: ProviderId, instructions: string) {
-  const identity = context.get('browserIdentity');
-  const dependencies = context.get('dependencies');
-  if (!dependencies.config.OPENROUTER_API_KEY) {
+  const result = await saveToolRule({
+    userId: context.get('browserIdentity').userId,
+    providerId,
+    instructions,
+    signal: context.req.raw.signal,
+    dependencies: context.get('dependencies'),
+  });
+  if (result.status === 'not-configured') {
     return context.json({ error: 'Automatic rules need OPENROUTER_API_KEY on the server' }, 409);
   }
-  const rule = await dependencies.database.setToolRule({ providerId, instructions, updatedByUserId: identity.userId });
-  await dependencies.events.broadcast('admin-tools-changed');
-  const classification = await applyRuleToAdministratorListing(context, providerId);
-  return context.json({ revision: rule.revision, classification });
+  return context.json({ revision: result.revision, classification: result.classification });
 }
 
-async function applyRuleToAdministratorListing(
-  context: AppContext,
-  providerId: ProviderId,
-): Promise<AutoPolicyOutcome['status'] | 'not-connected' | 'failed'> {
-  const identity = context.get('browserIdentity');
-  const dependencies = context.get('dependencies');
-  const connectedProviders = await dependencies.database.connectedProviders(identity.userId);
-  if (!connectedProviders.has(providerId)) return 'not-connected';
-  try {
-    const discovery = await dependencies.toolDiscovery.discoverProviderFresh({
-      userId: identity.userId,
-      providerId,
-      signal: context.req.raw.signal,
-    });
-    const outcome = await reconcileAutoPolicies({ providerId, tools: discovery.tools, dependencies });
-    return outcome.status;
-  } catch (error) {
-    logger.warn({ providerId, ...errorSummary(error) }, 'Applying an automatic tool rule failed');
-    return 'failed';
-  }
-}
-
-/** Policies the rule already decided stay as they are; new definitions go back to blocked. */
 async function clearAutomaticToolRule(context: AppContext, providerId: ProviderId) {
-  const { database, events } = context.get('dependencies');
-  await database.clearToolRule(providerId);
-  await events.broadcast('admin-tools-changed');
+  await clearToolRule({ providerId, dependencies: context.get('dependencies') });
   return context.json({ cleared: true });
 }
 

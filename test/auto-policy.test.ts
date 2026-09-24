@@ -2,7 +2,7 @@ import type { Tool } from '@modelcontextprotocol/client';
 import { describe, expect, it, vi } from 'vitest';
 import type { ToolPolicyOrigin, ToolRule } from '../src/server/database/tool-policies.js';
 import type { ProviderDefinition } from '../src/server/providers/types.js';
-import { pendingAutoPolicyTools, reconcileAutoPolicies, type AutoPolicyDependencies } from '../src/server/tools/auto-policy.js';
+import { pendingAutoPolicyTools, reconcileAutoPolicies, saveToolRule, type AutoPolicyDependencies, type ToolRuleDependencies } from '../src/server/tools/auto-policy.js';
 import { normalizeUpstreamTool } from '../src/server/tools/catalog.js';
 
 const provider: ProviderDefinition = {
@@ -156,5 +156,61 @@ describe('applying a provider rule', () => {
 
     expect(await reconcile(harnessed.dependencies)).toEqual({ status: 'applied', classified: 2, written: 0 });
     expect(harnessed.broadcast).not.toHaveBeenCalled();
+  });
+});
+
+describe('saving a provider rule', () => {
+  function ruleHarness(options: { apiKey?: string | undefined; connected?: boolean; discoveryFails?: boolean } = {}) {
+    const base = harness({ apiKey: 'apiKey' in options ? options.apiKey : 'key' });
+    const setToolRule = vi.fn(async () => ({ ...rule, revision: 3 }));
+    const discoverProviderFresh = vi.fn(async () => {
+      if (options.discoveryFails) throw new Error('upstream down');
+      return { tools: [mergeTool, issuesTool], cache: { state: 'fresh' as const, freshForMs: 0, nextCheckInMs: 0 } };
+    });
+    const dependencies: ToolRuleDependencies = {
+      ...base.dependencies,
+      database: {
+        ...base.dependencies.database,
+        setToolRule,
+        clearToolRule: vi.fn(async () => undefined),
+        connectedProviders: vi.fn(async () => new Set(options.connected === false ? [] : ['github' as const])),
+      },
+      toolDiscovery: { discoverProviderFresh },
+    };
+    return { ...base, dependencies, setToolRule, discoverProviderFresh };
+  }
+
+  function save(dependencies: ToolRuleDependencies) {
+    return saveToolRule({ userId: 'admin', providerId: 'github', instructions: 'Only pull request tools.', dependencies });
+  }
+
+  it('saves and applies the rule to the administrator\'s fresh listing', async () => {
+    const harnessed = ruleHarness();
+
+    expect(await save(harnessed.dependencies)).toEqual({ status: 'saved', revision: 3, classification: 'applied' });
+    expect(harnessed.setToolRule).toHaveBeenCalledWith({ providerId: 'github', instructions: 'Only pull request tools.', updatedByUserId: 'admin' });
+    expect(harnessed.discoverProviderFresh).toHaveBeenCalledOnce();
+    expect(harnessed.setAutoToolPolicies).toHaveBeenCalledOnce();
+  });
+
+  it('refuses to save without an API key', async () => {
+    const harnessed = ruleHarness({ apiKey: undefined });
+
+    expect(await save(harnessed.dependencies)).toEqual({ status: 'not-configured' });
+    expect(harnessed.setToolRule).not.toHaveBeenCalled();
+  });
+
+  it('saves without applying when the administrator is not connected', async () => {
+    const harnessed = ruleHarness({ connected: false });
+
+    expect(await save(harnessed.dependencies)).toEqual({ status: 'saved', revision: 3, classification: 'not-connected' });
+    expect(harnessed.discoverProviderFresh).not.toHaveBeenCalled();
+  });
+
+  it('keeps the saved rule when applying it fails', async () => {
+    const harnessed = ruleHarness({ discoveryFails: true });
+
+    expect(await save(harnessed.dependencies)).toEqual({ status: 'saved', revision: 3, classification: 'failed' });
+    expect(harnessed.setAutoToolPolicies).not.toHaveBeenCalled();
   });
 });

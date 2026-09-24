@@ -1,9 +1,11 @@
+import { z } from 'zod';
 import type { Coordinator } from '../coordination.js';
 import type { Database } from '../database/index.js';
 import type { ToolPolicyOrigin, ToolRule } from '../database/tool-policies.js';
 import { errorSummary, logger } from '../logger.js';
 import type { ProviderId } from '../providers/types.js';
 import type { DiscoveredTool } from './catalog.js';
+import type { ToolDiscoveryService } from './discovery.js';
 import { autoPolicyFor, classifyToolsAgainstRule, type RuleClassifierConfig } from './rule-classifier.js';
 
 // Long enough that a failing classifier is not hammered by every discovery,
@@ -17,6 +19,19 @@ export type AutoPolicyDependencies = {
   events: { broadcast(event: 'providers-changed' | 'admin-tools-changed'): Promise<void> };
   classify?: typeof classifyToolsAgainstRule;
 };
+
+export const toolRuleInstructionsSchema = z.string().trim().min(1).max(1000);
+
+export type ToolRuleDependencies = AutoPolicyDependencies & {
+  database: AutoPolicyDependencies['database'] & Pick<Database, 'setToolRule' | 'clearToolRule' | 'connectedProviders'>;
+  toolDiscovery: Pick<ToolDiscoveryService, 'discoverProviderFresh'>;
+};
+
+export type ToolRuleApplication = AutoPolicyOutcome['status'] | 'not-connected' | 'failed';
+
+export type SaveToolRuleResult =
+  | { status: 'not-configured' }
+  | { status: 'saved'; revision: number; classification: ToolRuleApplication };
 
 export type AutoPolicyOutcome =
   | { status: 'not-configured' | 'no-rule' | 'busy' | 'backing-off' }
@@ -102,6 +117,66 @@ export async function reconcileAutoPolicies(request: {
     // Only a lock another worker holds fails before the operation starts.
     if (!lock.isHeld) return { status: 'busy' };
     throw error;
+  }
+}
+
+/**
+ * The one path that saves a provider rule, shared by the admin HTTP route and
+ * the admin chat tool. Saving applies the rule right away to the
+ * administrator's own fresh listing so its effect is visible; everyone else's
+ * listings pick it up on their next discovery. A failed classification does not
+ * undo the save: it is retried on the next discovery.
+ */
+export async function saveToolRule(request: {
+  userId: string;
+  providerId: ProviderId;
+  instructions: string;
+  signal?: AbortSignal;
+  dependencies: ToolRuleDependencies;
+}): Promise<SaveToolRuleResult> {
+  const { config, database, events } = request.dependencies;
+  if (!config.OPENROUTER_API_KEY) return { status: 'not-configured' };
+  const rule = await database.setToolRule({
+    providerId: request.providerId,
+    instructions: request.instructions,
+    updatedByUserId: request.userId,
+  });
+  await events.broadcast('admin-tools-changed');
+  return { status: 'saved', revision: rule.revision, classification: await applyRuleToAdministratorListing(request) };
+}
+
+/** Policies the rule already decided stay as they are; new definitions go back to blocked. */
+export async function clearToolRule(request: {
+  providerId: ProviderId;
+  dependencies: Pick<ToolRuleDependencies, 'database' | 'events'>;
+}): Promise<void> {
+  await request.dependencies.database.clearToolRule(request.providerId);
+  await request.dependencies.events.broadcast('admin-tools-changed');
+}
+
+async function applyRuleToAdministratorListing(request: {
+  userId: string;
+  providerId: ProviderId;
+  signal?: AbortSignal;
+  dependencies: ToolRuleDependencies;
+}): Promise<ToolRuleApplication> {
+  const { database, toolDiscovery } = request.dependencies;
+  if (!(await database.connectedProviders(request.userId)).has(request.providerId)) return 'not-connected';
+  try {
+    const discovery = await toolDiscovery.discoverProviderFresh({
+      userId: request.userId,
+      providerId: request.providerId,
+      ...(request.signal ? { signal: request.signal } : {}),
+    });
+    const outcome = await reconcileAutoPolicies({
+      providerId: request.providerId,
+      tools: discovery.tools,
+      dependencies: request.dependencies,
+    });
+    return outcome.status;
+  } catch (error) {
+    logger.warn({ providerId: request.providerId, ...errorSummary(error) }, 'Applying an automatic tool rule failed');
+    return 'failed';
   }
 }
 
