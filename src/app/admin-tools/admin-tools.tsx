@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ChevronDown } from 'lucide-react';
 import { Link, Navigate, useParams } from 'react-router-dom';
-import { getProviderCatalog, isConnectableProvider, refreshAdminProviderTools, setToolPolicies, type AdminTool, type AdminToolProvider, type CachedResult, type ProviderId, type ToolContractChange, type ToolContractReview, type ToolMutability, type ToolPolicyBatchChange, type ToolPolicyChange, type ToolPolicyState } from '@app/api/bifrost';
+import { clearAutomaticToolRule, getProviderCatalog, isConnectableProvider, refreshAdminProviderTools, setAutomaticToolRule, setToolPolicies, type AdminTool, type AdminToolProvider, type AutomaticRuleClassification, type AutomaticToolRule, type CachedResult, type ProviderId, type ToolContractChange, type ToolContractReview, type ToolMutability, type ToolPolicyBatchChange, type ToolPolicyChange, type ToolPolicyState } from '@app/api/bifrost';
 import { adminToolsQueryOptions } from '@app/api/query-options';
 import { Button } from '@app/components/ui/button';
 import { Checkbox, type CheckboxState } from '@app/components/ui/checkbox';
@@ -23,6 +23,12 @@ const POLICY_OPTIONS: readonly { value: ToolPolicyState; label: string }[] = [
   { value: 'allowed_default_off', label: 'Allowed, off by default' },
   { value: 'allowed_default_on', label: 'Allowed, on by default' },
 ];
+const RULE_OUTCOME_MESSAGES: Partial<Record<AutomaticRuleClassification, string>> = {
+  'not-connected': 'Rule saved. Connect your admin account to apply it now; otherwise it applies as tools are discovered.',
+  busy: 'Rule saved. Another server is already applying it.',
+  'backing-off': 'Rule saved. The classifier failed recently, so it will retry shortly.',
+  failed: 'Rule saved, but the tools could not be classified. New tools stay blocked until it succeeds.',
+};
 const PROVIDER_NAMES = new Map(getProviderCatalog().map((provider) => [provider.id, provider.name]));
 
 function isToolPolicyState(value: string): value is ToolPolicyState {
@@ -39,6 +45,7 @@ function matchesSearch(tool: AdminTool, normalizedSearch: string): boolean {
 
 function compareTools(left: AdminTool, right: AdminTool): number {
   if (left.needsReview !== right.needsReview) return left.needsReview ? -1 : 1;
+  if (left.isUncertain !== right.isUncertain) return left.isUncertain ? -1 : 1;
   const leftBlocked = left.state === 'blocked';
   const rightBlocked = right.state === 'blocked';
   return leftBlocked !== rightBlocked ? leftBlocked ? -1 : 1 : left.title.localeCompare(right.title);
@@ -151,6 +158,71 @@ function ReviewBadge({ review }: { review: ToolContractReview }): React.JSX.Elem
   );
 }
 
+function AutomaticBadge({ tool }: { tool: AdminTool }): React.JSX.Element | null {
+  if (tool.autoProbability === null) return null;
+  return (
+    <span
+      title="Decided by this provider's automatic rule. Changing the policy by hand overrides it."
+      className={cn(
+        'rounded-full px-2 py-0.5 text-xs font-semibold tabular-nums',
+        tool.isUncertain ? 'bg-warning/10 text-warning' : 'bg-linear-card-hover text-app-text-tertiary',
+      )}
+    >
+      {tool.isUncertain ? 'Uncertain' : 'Auto'} · {tool.autoProbability.toFixed(2)}
+    </span>
+  );
+}
+
+function AutomaticRule({ providerId, rule }: { providerId: ProviderId; rule: AutomaticToolRule }): React.JSX.Element {
+  const queryClient = useQueryClient();
+  const [draft, setDraft] = useState(rule.instructions ?? '');
+  useEffect(() => { setDraft(rule.instructions ?? ''); }, [rule.instructions]);
+  const invalidate = () => queryClient.invalidateQueries({ queryKey: adminToolsQueryOptions(providerId).queryKey });
+  const saveMutation = useMutation({
+    mutationFn: () => setAutomaticToolRule(providerId, draft.trim()),
+    onSettled: invalidate,
+  });
+  const clearMutation = useMutation({
+    mutationFn: () => clearAutomaticToolRule(providerId),
+    onSuccess: () => { setDraft(''); },
+    onSettled: invalidate,
+  });
+  const isPending = saveMutation.isPending || clearMutation.isPending;
+  const outcomeMessage = saveMutation.data ? RULE_OUTCOME_MESSAGES[saveMutation.data] : undefined;
+  return (
+    <SectionCard className="mt-6 p-4">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <h2 className="text-sm font-semibold">Automatic rule</h2>
+        <span className="text-xs text-app-text-quaternary">{rule.revision !== undefined ? `Active · revision ${rule.revision}` : 'Off'}</span>
+      </div>
+      <p className="mt-1 text-xs leading-5 text-app-text-tertiary text-pretty">
+        Describe which tools should be on by default. New and changed tools are classified against it: clear matches are on by default, everything else is allowed but off, and unclear ones are flagged here. Your manual decisions always win. Users only see the resulting defaults.
+      </p>
+      {rule.isAvailable ? (
+        <>
+          <label htmlFor="automatic-rule" className="sr-only">Automatic rule for {providerName(providerId)}</label>
+          <textarea
+            id="automatic-rule"
+            value={draft}
+            maxLength={1000}
+            rows={3}
+            disabled={isPending}
+            onChange={(event) => { setDraft(event.target.value); }}
+            placeholder="Only tools that create, edit, merge or push files to a pull request."
+            className="mt-3 block w-full resize-y rounded-notice linear-border-hairline border-app-border-pane bg-transparent px-3 py-2 text-sm text-linear-bright outline-none placeholder:text-app-text-quaternary focus-visible:linear-focus-outline"
+          />
+          <div className="mt-2 flex items-center justify-end gap-1.5">
+            {rule.revision !== undefined ? <Button type="button" variant="ghost" size="large" disabled={isPending} onClick={() => { clearMutation.mutate(); }}>Turn off</Button> : null}
+            <Button type="button" variant="outline" size="large" disabled={isPending || draft.trim().length === 0 || draft.trim() === rule.instructions} onClick={() => { saveMutation.mutate(); }}>{saveMutation.isPending ? 'Applying…' : 'Save and apply'}</Button>
+          </div>
+          {outcomeMessage ? <p aria-live="polite" className="mt-2 text-xs text-app-text-secondary">{outcomeMessage}</p> : null}
+          {saveMutation.isError || clearMutation.isError ? <p role="alert" className="mt-2 text-xs text-danger">The rule was not saved. Try again.</p> : null}
+        </>
+      ) : <p className="mt-3 text-xs text-app-text-quaternary">Set OPENROUTER_API_KEY on the server to enable automatic rules.</p>}
+    </SectionCard>
+  );
+}
+
 function ContractChangeRow({ change }: { change: ToolContractChange }): React.JSX.Element {
   return (
     <div className="rounded-notice linear-border-hairline border-app-border-pane p-3">
@@ -206,7 +278,7 @@ function ToolRow({ tool, providerId, controller }: { tool: AdminTool; providerId
           <Checkbox aria-label={`Select ${tool.title}`} checked={selection.isSelected(tool.name)} disabled={disabled} onCheckedChange={(checked) => { if (checked) selection.select(tool.name); else selection.deselect(tool.name); }} />
         </label>
         <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2"><span className="text-sm font-medium text-linear-bright">{tool.title}</span><ReviewBadge review={tool.review} /></div>
+          <div className="flex flex-wrap items-center gap-2"><span className="text-sm font-medium text-linear-bright">{tool.title}</span><ReviewBadge review={tool.review} /><AutomaticBadge tool={tool} /></div>
           <ExpandableText label={tool.title} text={tool.description} />
           <code className="mt-1 block truncate font-mono text-xs text-app-text-quaternary" title={tool.name}>{tool.name}</code>
         </div>
@@ -337,7 +409,7 @@ function AdminProviderTools({ providerId }: { providerId: ProviderId }): React.J
     mutationFn: setToolPolicies,
     onSuccess: (cache, change) => {
       const stateByName = new Map(change.tools.map((tool) => [tool.toolName, tool.state]));
-      queryClient.setQueryData<CachedResult<AdminToolProvider>>(queryOptions.queryKey, (result) => result && ({ cache, data: { ...result.data, tools: result.data.tools.map((tool) => { const state = stateByName.get(tool.name); return state === undefined ? tool : { ...tool, state, needsReview: false, review: { kind: 'approved' } }; }) } }));
+      queryClient.setQueryData<CachedResult<AdminToolProvider>>(queryOptions.queryKey, (result) => result && ({ cache, data: { ...result.data, tools: result.data.tools.map((tool) => { const state = stateByName.get(tool.name); return state === undefined ? tool : { ...tool, state, needsReview: false, review: { kind: 'approved' }, autoProbability: null, isUncertain: false }; }) } }));
       selection.deselectNames(change.tools.map((tool) => tool.toolName));
     },
   });
@@ -367,6 +439,7 @@ function AdminProviderTools({ providerId }: { providerId: ProviderId }): React.J
       {toolsQuery.isError ? <ErrorState title="We couldn't load tool administration" body="You may not have administrator access, or provider discovery failed before the catalog could load." onRetry={() => { void toolsQuery.refetch(); }} /> : null}
       {policyMutation.isError ? <p role="alert" className="mt-4 text-xs text-danger">No policies were saved. A selected tool may have changed, refresh and review it again.</p> : null}
       {refreshMutation.isError ? <p role="alert" className="mt-4 text-xs text-danger">The official MCP endpoint could not be refreshed. Try again.</p> : null}
+      {toolsQuery.data ? <AutomaticRule providerId={providerId} rule={toolsQuery.data.data.rule} /> : null}
       {toolsQuery.data ? <ProviderTools provider={toolsQuery.data.data} normalizedSearch={normalizedSearch} controller={controller} /> : null}
     </section>
   );

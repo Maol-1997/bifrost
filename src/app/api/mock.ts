@@ -71,6 +71,7 @@ const mockAdminProviders = new Map<ProviderId, AdminToolProvider>(mockProviders
   .map((provider) => [provider.id, {
     providerId: provider.id,
     status: 'ready' as const,
+    rule: { isAvailable: true },
     tools: provider.tools.map((tool) => ({
       ...tool,
       upstreamName: tool.name.replace(`${provider.id}_`, ''),
@@ -80,6 +81,8 @@ const mockAdminProviders = new Map<ProviderId, AdminToolProvider>(mockProviders
       review: tool.isEnabled ? { kind: 'approved' } : { kind: 'new' },
       annotations: tool.mutability === 'read' ? { readOnlyHint: true } : {},
       inputSchema: { type: 'object', properties: {} },
+      autoProbability: null,
+      isUncertain: false,
     })),
   } satisfies AdminToolProvider]));
 let mockClients: ConnectedClient[] = [
@@ -110,10 +113,20 @@ export const mockApi: BifrostApi = {
     mockAdminProviders.set(providerId, {
       ...provider,
       tools: provider.tools.map((tool) => stateByName.has(tool.name)
-        ? { ...tool, state: stateByName.get(tool.name)!, needsReview: false, review: { kind: 'approved' } }
+        ? { ...tool, state: stateByName.get(tool.name)!, needsReview: false, review: { kind: 'approved' }, autoProbability: null, isUncertain: false }
         : tool),
     });
     return mockCacheHint;
+  },
+  // No classifier in the preview: saving only records the wording.
+  setAutomaticToolRule: async (providerId, instructions) => {
+    const provider = mockAdminProviders.get(providerId)!;
+    mockAdminProviders.set(providerId, { ...provider, rule: { isAvailable: true, instructions, revision: (provider.rule.revision ?? 0) + 1, updatedAt: new Date().toISOString() } });
+    return 'applied';
+  },
+  clearAutomaticToolRule: async (providerId) => {
+    const provider = mockAdminProviders.get(providerId)!;
+    mockAdminProviders.set(providerId, { ...provider, rule: { isAvailable: true } });
   },
   getConnectedClients: async () => structuredClone(mockClients),
   renewClient: async (client) => {

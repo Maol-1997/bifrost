@@ -70,15 +70,29 @@ export type AdminTool = {
   state: ToolPolicyState;
   needsReview: boolean;
   review: ToolContractReview;
+  /** Set when the provider's automatic rule decided the current definition. */
+  autoProbability: number | null;
+  isUncertain: boolean;
   annotations: Readonly<Record<string, unknown>>;
   inputSchema: Readonly<Record<string, unknown>>;
   outputSchema?: Readonly<Record<string, unknown>> | undefined;
 };
 
+export type AutomaticToolRule = {
+  /** False when the server has no OPENROUTER_API_KEY, so no rule can run. */
+  isAvailable: boolean;
+  instructions?: string | undefined;
+  revision?: number | undefined;
+  updatedAt?: string | undefined;
+};
+
+export type AutomaticRuleClassification = 'applied' | 'not-configured' | 'no-rule' | 'busy' | 'backing-off' | 'not-connected' | 'failed';
+
 export type AdminToolProvider = {
   providerId: ProviderId;
   status: 'ready' | 'not-connected' | 'error';
   tools: readonly AdminTool[];
+  rule: AutomaticToolRule;
 };
 
 export type ToolPolicyChange = {
@@ -154,6 +168,8 @@ export type BifrostApi = {
   getAdminProviderTools: (providerId: ProviderId) => Promise<CachedResult<AdminToolProvider>>;
   refreshAdminProviderTools: (providerId: ProviderId) => Promise<CachedResult<AdminToolProvider>>;
   setToolPolicies: (change: ToolPolicyBatchChange) => Promise<QueryCacheHint>;
+  setAutomaticToolRule: (providerId: ProviderId, instructions: string) => Promise<AutomaticRuleClassification>;
+  clearAutomaticToolRule: (providerId: ProviderId) => Promise<void>;
   getConnectedClients: () => Promise<readonly ConnectedClient[]>;
   renewClient: (client: ConnectedClient) => Promise<void>;
   revokeClient: (client: ConnectedClient) => Promise<void>;

@@ -117,6 +117,16 @@ export const liveApi: BifrostApi = {
     }));
     return result.cache;
   },
+  setAutomaticToolRule: async (providerId, instructions) => {
+    const result = await parseRpcResponse(bifrostClient.api.admin.tools[':providerId'].rule.$put({
+      param: { providerId },
+      json: { instructions },
+    }));
+    return result.classification;
+  },
+  clearAutomaticToolRule: async (providerId) => {
+    await parseRpcResponse(bifrostClient.api.admin.tools[':providerId'].rule.$delete({ param: { providerId } }));
+  },
   getConnectedClients: async () => {
     const { clients } = await parseRpcResponse(bifrostClient.api['clients.json'].$get());
     return clients;
