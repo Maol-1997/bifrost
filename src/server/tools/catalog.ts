@@ -5,6 +5,7 @@ import type { ProviderDefinition, ProviderId, ToolMutability } from '../provider
 
 export const TOOL_POLICY_STATES = ['blocked', 'allowed_default_off', 'allowed_default_on'] as const;
 export type ToolPolicyState = (typeof TOOL_POLICY_STATES)[number];
+export type ToolPolicySource = 'admin' | 'auto';
 /** The names an MCP client will accept, which is narrower than what a provider may publish. */
 export const mcpToolNameSchema = z.string().regex(/^[A-Za-z0-9_.-]{1,128}$/);
 const MAX_CONTRACT_CHANGES = 100;

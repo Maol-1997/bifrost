@@ -3,9 +3,11 @@ import {
   boolean,
   check,
   index,
+  integer,
   jsonb,
   pgTable,
   primaryKey,
+  real,
   text,
   timestamp,
   unique,
@@ -13,7 +15,7 @@ import {
 } from 'drizzle-orm/pg-core';
 import type { ProviderId } from '../providers/types.js';
 import type { EncryptedSecret } from '../security/secrets.js';
-import type { ToolContractSnapshot, ToolPolicyState } from '../tools/catalog.js';
+import type { ToolContractSnapshot, ToolPolicySource, ToolPolicyState } from '../tools/catalog.js';
 
 const timestampWithTimezone = (name: string) => timestamp(name, { withTimezone: true, mode: 'date' });
 
@@ -77,12 +79,28 @@ export const deploymentToolPolicies = pgTable('deployment_tool_policies', {
   fingerprint: text().notNull(),
   contract: jsonb().$type<ToolContractSnapshot>(),
   state: text().$type<ToolPolicyState>().notNull(),
+  // 'auto' rows were decided by the provider's rule and may be re-decided by it;
+  // 'admin' rows are a person's decision and the rule never overwrites them.
+  source: text().$type<ToolPolicySource>().default('admin').notNull(),
+  autoProbability: real('auto_probability'),
+  ruleRevision: integer('rule_revision'),
   updatedByUserId: uuid('updated_by_user_id').references(() => users.id, { onDelete: 'set null' }),
   updatedAt: timestampWithTimezone('updated_at').defaultNow().notNull(),
 }, (table) => [
   primaryKey({ name: 'deployment_tool_policies_pk', columns: [table.providerId, table.toolName] }),
   check('deployment_tool_policies_state_check', sql`${table.state} in ('blocked', 'allowed_default_off', 'allowed_default_on')`),
+  check('deployment_tool_policies_source_check', sql`${table.source} in ('admin', 'auto')`),
 ]);
+
+export const deploymentToolRules = pgTable('deployment_tool_rules', {
+  providerId: text('provider_id').$type<ProviderId>().primaryKey(),
+  instructions: text().notNull(),
+  // Bumped on every save so policies decided under an older wording are
+  // recognizable and get re-decided.
+  revision: integer().notNull(),
+  updatedByUserId: uuid('updated_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+  updatedAt: timestampWithTimezone('updated_at').defaultNow().notNull(),
+});
 
 export const oauthClients = pgTable('oauth_clients', {
   clientId: text('client_id').primaryKey(),

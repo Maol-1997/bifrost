@@ -23,6 +23,8 @@ export type ToolDiscoveryDependencies = {
   store: ToolCacheStore;
   now?: () => number;
   delay?: (ms: number) => Promise<void>;
+  /** Sees every listing loaded from upstream, cached or not; must not throw or block. */
+  onFreshTools?: (providerId: ProviderId, tools: readonly DiscoveredTool[]) => void;
 };
 
 export type ProviderDiscoveryRequest = {
@@ -137,7 +139,7 @@ export class ToolDiscoveryService {
     // per-request server factory, which would fail every request for this user
     // across every provider. First definition wins, the rest are logged.
     const seenNames = new Set<string>();
-    return upstreamTools
+    const tools = upstreamTools
       .map((tool) => normalizeUpstreamTool(provider, tool))
       .filter((tool) => {
         if (!mcpToolNameSchema.safeParse(tool.name).success) {
@@ -151,6 +153,8 @@ export class ToolDiscoveryService {
         seenNames.add(tool.name);
         return true;
       });
+    this.dependencies.onFreshTools?.(provider.id, tools);
+    return tools;
   }
 }
 

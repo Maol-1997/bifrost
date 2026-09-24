@@ -36,6 +36,13 @@
       "when": 1787516377563,
       "tag": "0004_google_subject_and_expiry_indexes",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1790273222670,
+      "tag": "0005_auto_tool_rules",
+      "breakpoints": true
     }
   ]
 }

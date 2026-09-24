@@ -14,6 +14,7 @@ import { RedisRuntime } from './redis.js';
 import { isAccessRestricted } from './security/access.js';
 import { shutdownServer } from './shutdown.js';
 import { createInMemoryToolCacheStore, createRedisToolCacheStore } from './tools/cache-store.js';
+import { reconcileAutoPoliciesInBackground } from './tools/auto-policy.js';
 import { ToolDiscoveryService } from './tools/discovery.js';
 
 async function main(): Promise<void> {
@@ -40,6 +41,11 @@ async function main(): Promise<void> {
     oauth,
     mounts,
     store: redis ? createRedisToolCacheStore(redis.commands) : createInMemoryToolCacheStore(),
+    onFreshTools: (providerId, tools) => reconcileAutoPoliciesInBackground({
+      providerId,
+      tools,
+      dependencies: { config, database, coordinator, events },
+    }),
   });
   const maintenance = new DatabaseMaintenance({
     deleteExpiredAuthState: () => database.deleteExpiredAuthState(),

@@ -12,6 +12,14 @@ const openAIModel = z.preprocess(
   (value) => value === '' ? undefined : value,
   z.string().min(1).default('gpt-5.6-luna'),
 );
+const openRouterBaseUrl = z.preprocess(
+  (value) => value === '' ? undefined : value,
+  z.url().default('https://openrouter.ai/api'),
+);
+const jevModel = z.preprocess(
+  (value) => value === '' ? undefined : value,
+  z.string().min(1).default('typesafe/jev-1.13'),
+);
 const openAIReasoningEffort = z.preprocess(
   (value) => value === '' ? undefined : value,
   z.enum(['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max']).default('medium'),
@@ -34,6 +42,11 @@ const environmentSchema = z.object({
   OPENAI_BASE_URL: optionalOpenAIBaseUrl,
   OPENAI_MODEL: openAIModel,
   OPENAI_REASONING_EFFORT: openAIReasoningEffort,
+  // Only used to classify tools against an administrator's automatic rule.
+  // Without it no rule can run, and new tools stay blocked as before.
+  OPENROUTER_API_KEY: optionalNonEmptyString,
+  OPENROUTER_BASE_URL: openRouterBaseUrl,
+  JEV_MODEL: jevModel,
   // Short by design: a leaked access token stays useful for at most this long,
   // and the client replaces it silently with its refresh token.
   OAUTH_ACCESS_TOKEN_TTL_SECONDS: z.coerce.number().int().positive().default(3600),
