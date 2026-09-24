@@ -100,6 +100,17 @@ function AgentChatComposer({
     submitMessage()
   }
 
+  // The editor's padding and the empty toolbar read as part of the input, so a
+  // press there should land in the textarea. Preventing the default keeps focus
+  // (and the caret) from leaving it on the way.
+  function focusEditorFromSurface(event: React.MouseEvent<HTMLDivElement>) {
+    const textarea = textareaRef.current
+    if (!textarea || event.button !== 0) return
+    if (event.target instanceof Element && event.target.closest("textarea, button, a, [role='button']")) return
+    event.preventDefault()
+    textarea.focus()
+  }
+
   function handleKeyDown(event: React.KeyboardEvent<HTMLTextAreaElement>) {
     onKeyDown?.(event)
 
@@ -128,7 +139,7 @@ function AgentChatComposer({
     >
       <div
         className={cn(
-          "agent-chat-composer relative flex w-full flex-col gap-2 rounded-[10px] p-3 shadow-linear-control",
+          "agent-chat-composer relative flex w-full cursor-text flex-col gap-2 rounded-[10px] p-3 shadow-linear-control",
           size === "mini"
             ? "rounded-[7px] bg-linear-agent-message px-1 py-1.5"
             : variant === "conversation" &&
@@ -137,6 +148,7 @@ function AgentChatComposer({
         )}
         data-size={size}
         data-variant={variant}
+        onMouseDown={focusEditorFromSurface}
       >
         <div
           className={cn(
