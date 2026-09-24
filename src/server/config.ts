@@ -10,7 +10,7 @@ const optionalOpenAIBaseUrl = z.preprocess(
 );
 const openAIModel = z.preprocess(
   (value) => value === '' ? undefined : value,
-  z.string().min(1).default('gpt-5.6-luna'),
+  z.string().min(1).default('gpt-6-sol'),
 );
 const openRouterBaseUrl = z.preprocess(
   (value) => value === '' ? undefined : value,

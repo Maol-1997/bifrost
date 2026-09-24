@@ -63,7 +63,7 @@ Put an OpenAI API key in `OPENAI_API_KEY` to enable the built-in chat. It uses
 the Responses API through the Vercel AI SDK and can run up to 20 model and tool
 steps per turn. Tool definitions are loaded lazily through Tool Search, grouped
 by provider, and the agent can search the live web through OpenAI Web Search.
-The model defaults to `gpt-5.6-luna` and reasoning effort defaults to `medium`;
+The model defaults to `gpt-6-sol` and reasoning effort defaults to `medium`;
 override them with `OPENAI_MODEL` and `OPENAI_REASONING_EFFORT`.
 
 `OPENAI_BASE_URL` defaults to `https://api.openai.com/v1`. An override must be

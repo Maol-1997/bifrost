@@ -85,7 +85,7 @@ All settings are environment variables, validated at startup by `src/server/conf
 | `GITHUB_*`, `SLACK_*` | per provider | Provider OAuth apps. A provider without credentials still mounts; connecting it fails until they are set. Linear, Sentry, Notion and Granola use their MCP servers' dynamic client registration instead. |
 | `OPENAI_API_KEY` | for chat | Enables the built-in agent chat. The rest of Bifrost still starts when it is absent. |
 | `OPENAI_BASE_URL` | no | Chat API host. Defaults to `https://api.openai.com/v1`; overrides must support Responses, Tool Search and Web Search. |
-| `OPENAI_MODEL` | no | Chat model. Default `gpt-5.6-luna`. |
+| `OPENAI_MODEL` | no | Chat model. Default `gpt-6-sol`. |
 | `OPENAI_REASONING_EFFORT` | no | Chat reasoning effort. Default `medium`; accepts `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, or `max` when supported by the model. |
 | `OPENROUTER_API_KEY` | no | Enables per-provider automatic tool rules classified by Jev. Without it, new tools stay blocked until an administrator reviews them. |
 | `JEV_MODEL` | no | Classifier for automatic tool rules. Default `typesafe/jev-1.13`. |
