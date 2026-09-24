@@ -25,7 +25,7 @@ const POLICY_OPTIONS: readonly { value: ToolPolicyState; label: string }[] = [
 ];
 const RULE_OUTCOME_MESSAGES: Partial<Record<AutomaticRuleClassification, string>> = {
   'not-connected': 'Rule saved. Connect your admin account to apply it now; otherwise it applies as tools are discovered.',
-  busy: 'Rule saved. Another server is already applying it.',
+  busy: 'Rule saved. It is being applied in the background; the list updates when it finishes.',
   'backing-off': 'Rule saved. The classifier failed recently, so it will retry shortly.',
   failed: 'Rule saved, but the tools could not be classified. New tools stay blocked until it succeeds.',
 };
