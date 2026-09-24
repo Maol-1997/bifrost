@@ -3,6 +3,7 @@ import * as React from "react"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@app/components/ui/tooltip"
 import { cn } from "@app/lib/cn"
 import { StopIcon, SubmitIcon } from "./agent-chat-icons"
+import { useTypeToFocus } from "./use-type-to-focus"
 
 type AgentChatComposerVariant = "conversation" | "empty"
 type AgentChatComposerSize = "default" | "mini"
@@ -11,6 +12,8 @@ type AgentChatComposerProps = Omit<
   React.ComponentPropsWithoutRef<"textarea">,
   "onChange" | "onSubmit" | "value"
 > & {
+  /** Route typing that starts anywhere on the page into this composer. */
+  captureTyping?: boolean
   onChange?: (value: string) => void
   onStop?: () => void
   onSubmit?: (value: string) => void
@@ -59,6 +62,7 @@ function ComposerIconButton({
 }
 
 function AgentChatComposer({
+  captureTyping = false,
   className,
   onChange,
   onKeyDown,
@@ -74,6 +78,7 @@ function AgentChatComposer({
   const textareaRef = React.useRef<HTMLTextAreaElement>(null)
   const hasInput = Boolean(value.trim())
   const actionDisabled = submitting ? !onStop : !hasInput
+  useTypeToFocus(textareaRef, captureTyping)
 
   React.useLayoutEffect(() => {
     if (textareaRef.current) {

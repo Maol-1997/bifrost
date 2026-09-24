@@ -497,6 +497,7 @@ function ChatConversation({
         <AgentChatEmptyState>
           <AgentChatComposer
             autoFocus
+            captureTyping={dock.active}
             value={input}
             onChange={setInput}
             onStop={() => { void stop() }}
@@ -535,6 +536,7 @@ function ChatConversation({
             {messageEditing.editingMessageId ? <AgentChatEditingBanner onCancel={cancelEditingMessage} /> : null}
             <AgentChatComposer
               autoFocus
+              captureTyping={dock.active && !isMiniChat}
               onChange={setInput}
               onStop={() => { void stop() }}
               onSubmit={submit}
