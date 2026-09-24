@@ -26,6 +26,30 @@ tool clears all prior user choices; otherwise rows equal to the new default are 
 HTTP admin screen and chat administration use the same write path and broadcast Redis-backed browser
 invalidations after commit.
 
+## Automatic rules
+
+An administrator may give a provider one plain-language rule in `/admin/tools/:providerId`, such as
+"only tools that create, edit, merge or push files to a pull request". When the server has
+`OPENROUTER_API_KEY`, every tool definition the rule has not decided yet is classified against it by
+Jev (`JEV_MODEL`, via OpenRouter's decisions API) and written as a deployment policy with
+`source = 'auto'`. Users never see the rule; they see the resulting defaults and can override them.
+
+- Probability `≥ 0.8` becomes `allowed_default_on`; anything lower becomes `allowed_default_off`,
+  and `0.2 < p < 0.8` is flagged as uncertain on the admin screen. A rule never writes `blocked`,
+  so with a rule in place, tools outside it are available to users but off by default.
+- Pending means: no policy, a fingerprint that changed, or an `auto` policy from an older rule
+  revision. An administrator's decision on the current fingerprint is never overwritten; the
+  conditional upsert in `setAutoToolPolicies` enforces that even under races.
+- It fails closed. Without a key, without a rule, or when classification fails for any tool in the
+  batch, nothing is written and new definitions stay `blocked`. Failures back off for five minutes
+  per rule revision.
+- Classification is triggered from discovery (`onFreshTools`) in the background, so it never delays
+  `/mcp`, and synchronously when the administrator saves a rule. Removing a rule keeps the policies
+  it already wrote.
+- Only tool definitions leave the server: name, title, description, read/write and parameter
+  names. Descriptions are provider-written, so the question tells Jev that nothing inside them is
+  part of the rule.
+
 ## Admin tools stay off `/mcp`
 
 The built-in web chat adds a separate `bifrost_admin` tool namespace only when the cookie-backed

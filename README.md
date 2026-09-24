@@ -87,6 +87,8 @@ All settings are environment variables, validated at startup by `src/server/conf
 | `OPENAI_BASE_URL` | no | Chat API host. Defaults to `https://api.openai.com/v1`; overrides must support Responses, Tool Search and Web Search. |
 | `OPENAI_MODEL` | no | Chat model. Default `gpt-5.6-luna`. |
 | `OPENAI_REASONING_EFFORT` | no | Chat reasoning effort. Default `medium`; accepts `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, or `max` when supported by the model. |
+| `OPENROUTER_API_KEY` | no | Enables per-provider automatic tool rules classified by Jev. Without it, new tools stay blocked until an administrator reviews them. |
+| `JEV_MODEL` | no | Classifier for automatic tool rules. Default `typesafe/jev-1.13`. |
 | `ALLOWED_EMAIL_DOMAINS`, `ALLOWED_EMAILS` | recommended | Who may sign in. The two lists OR together. **Both empty lets any verified Google account in**; the server warns and the sign-in screen says so. |
 | `ADMIN_EMAILS` | recommended | Comma-separated exact emails allowed to review and approve discovered tools. **Empty means every tool remains blocked.** |
 | `OAUTH_ACCESS_TOKEN_TTL_SECONDS` | no | Default 3600. |
