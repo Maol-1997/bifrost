@@ -35,6 +35,8 @@ const EXPIRY_SKEW_MS = 60_000;
 const ACCOUNT_LABEL_TIMEOUT_MS = 5_000;
 /** Shorter than the refresh lock lease, so a hung exchange releases the lock before it expires. */
 const TOKEN_EXCHANGE_TIMEOUT_MS = 10_000;
+/** Long enough to outlast one whole exchange by another request, still shorter than the lock lease. */
+const REFRESH_LOCK_WAIT_MS = TOKEN_EXCHANGE_TIMEOUT_MS + 2_000;
 const googleJwks = createRemoteJWKSet(new URL('https://www.googleapis.com/oauth2/v3/certs'));
 
 const tokenResponseSchema = z.object({
@@ -61,9 +63,9 @@ export const googleIdentityClaimsSchema = z.object({
 
 type ProviderTokenResponse = z.infer<typeof tokenResponseSchema>;
 type OAuthDatabase = Pick<Database,
-  'createSession' | 'getCredential' | 'replaceRefreshedCredential' | 'saveCredential' | 'setAccountLabel' | 'upsertGoogleUser'
+  'createSession' | 'getCredential' | 'replaceCredentialIfUnchanged' | 'saveCredential' | 'setAccountLabel' | 'upsertGoogleUser'
 >;
-type OAuthCoordinator = Pick<Coordinator, 'setEphemeral' | 'takeEphemeral' | 'withLock'>;
+type OAuthCoordinator = Pick<Coordinator, 'setEphemeral' | 'takeEphemeral' | 'withLockWaiting'>;
 
 type ProviderOAuthDependencies = {
   authorizationCodeGrant: (request: {
@@ -136,6 +138,16 @@ class TokenExchangeRejectedError extends Error {
     super(`${providerName} token exchange failed; reconnect provider`);
     this.name = 'TokenExchangeRejectedError';
   }
+}
+
+/**
+ * Held while a provider credential is exchanged and written back. Anything else
+ * that rewrites a credential row (key rotation) takes it too, so it can never
+ * land between a refresh's read and its write and make that refresh discard
+ * a token the provider has already rotated.
+ */
+export function providerRefreshLockKey(userId: string, providerId: ProviderId): string {
+  return `oauth-refresh:${providerId}:${userId}`;
 }
 
 class ReconnectRequiredError extends AgentFacingError {
@@ -301,7 +313,10 @@ export class OAuthService {
     const credential = await this.database.getCredential(userId, providerId);
     if (!credential) throw new ReconnectRequiredError(providerId);
     if (!credential.expiresAt || credential.expiresAt.getTime() > Date.now() + EXPIRY_SKEW_MS) return credential.accessToken;
-    return this.coordinator.withLock(`oauth-refresh:${providerId}:${userId}`, async () => {
+    // A concurrent request may be refreshing this credential already. Waiting
+    // for it, then rereading the row, hands this caller that request's token
+    // instead of failing it or spending the refresh token twice.
+    return this.coordinator.withLockWaiting(providerRefreshLockKey(userId, providerId), REFRESH_LOCK_WAIT_MS, async () => {
       const latest = await this.database.getCredential(userId, providerId);
       if (!latest) throw new ReconnectRequiredError(providerId);
       if (!latest.expiresAt || latest.expiresAt.getTime() > Date.now() + EXPIRY_SKEW_MS) return latest.accessToken;
@@ -322,7 +337,7 @@ export class OAuthService {
         fallbackScopes: latest.scopes,
         oauthClientId: latest.oauthClientId,
       });
-      const replaced = await this.database.replaceRefreshedCredential({
+      const replaced = await this.database.replaceCredentialIfUnchanged({
         userId, providerId, credential: refreshed, expectedVersion: latest.version,
       });
       if (replaced) return refreshed.accessToken;

@@ -7,6 +7,7 @@ import type { Database } from '../database/index.js';
 import type { AgentIdentity, BrowserIdentity } from '../mcp.js';
 import type { OAuthService } from '../oauth.js';
 import type { ProviderMount } from '../providers/types.js';
+import type { UpstreamClientPool } from '../providers/upstream-pool.js';
 import type { RedisRuntime } from '../redis.js';
 import type { ToolDiscoveryService } from '../tools/discovery.js';
 import type { BrowserEventBus } from './events.js';
@@ -21,6 +22,7 @@ export type AppDependencies = {
   mcpHandler: McpHttpHandler;
   events: BrowserEventBus;
   toolDiscovery: ToolDiscoveryService;
+  upstreamClients: UpstreamClientPool;
   redis?: Pick<RedisRuntime, 'isReady'>;
 };
 

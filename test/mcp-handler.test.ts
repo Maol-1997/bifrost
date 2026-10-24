@@ -7,6 +7,7 @@ import type { OAuthService } from '../src/server/oauth.js';
 import { PROVIDER_REGISTRY } from '../src/server/providers/registry.js';
 import { normalizeUpstreamTool } from '../src/server/tools/catalog.js';
 import type { ToolDiscoveryService } from '../src/server/tools/discovery.js';
+import { modernRequestBody, modernRequestHeaders } from './helpers/mcp-protocol.js';
 
 vi.mock('../src/server/logger.js', () => ({
   logger: { error: vi.fn(), info: vi.fn(), warn: vi.fn() },
@@ -14,9 +15,6 @@ vi.mock('../src/server/logger.js', () => ({
 }));
 
 const USER_ID = '11111111-1111-4111-8111-111111111111';
-// The handler rejects legacy eras; this is the version the SDK actually serves,
-// which is newer than its exported LATEST_PROTOCOL_VERSION constant.
-const PROTOCOL_VERSION = '2026-07-28';
 const github = PROVIDER_REGISTRY.find((entry) => entry.id === 'github')!;
 const tools = [
   normalizeUpstreamTool(github, { name: 'get_issue', description: 'first', inputSchema: { type: 'object' } }),
@@ -33,32 +31,16 @@ describe('per-request MCP server assembly', () => {
       oauth: {} as OAuthService,
       mounts: [{ providerId: 'github', isMounted: true }],
       database: {
-        connectedProviders: async () => new Set(['github']),
-        hiddenProviders: async () => new Set(),
-        toolPreferences: async () => new Map(),
+        userVisibilityState: async () => ({ connectedProviders: new Set(['github']), hiddenProviders: new Set(), toolPreferences: new Map() }),
         toolPolicyDecisions: async () => policies,
       } as unknown as Database,
       toolDiscovery: { discoverConnected: async () => ({ tools, failures: [], cache: { state: 'fresh' } }) } as unknown as ToolDiscoveryService,
+      upstreamClients: { withClient: async () => { throw new Error('unexpected upstream call'); } },
     });
-    const parsedBody = {
-      jsonrpc: '2.0',
-      id: 1,
-      method: 'tools/list',
-      params: {
-        _meta: {
-          'io.modelcontextprotocol/protocolVersion': PROTOCOL_VERSION,
-          'io.modelcontextprotocol/clientCapabilities': {},
-        },
-      },
-    };
+    const parsedBody = modernRequestBody(1, 'tools/list');
     const request = new Request('https://bifrost.example/mcp', {
       method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        accept: 'application/json, text/event-stream',
-        'mcp-protocol-version': PROTOCOL_VERSION,
-        'mcp-method': 'tools/list',
-      },
+      headers: modernRequestHeaders(parsedBody),
       body: JSON.stringify(parsedBody),
     });
 

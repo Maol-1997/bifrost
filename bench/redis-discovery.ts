@@ -62,6 +62,8 @@ const seed = new ToolDiscoveryCache({ store: atomicStore });
 const policies = new Map(tools.map((tool) => [tool.name, { toolName: tool.name, fingerprint: tool.fingerprint, state: 'allowed_default_on' as const }]));
 const mounts = PROVIDER_REGISTRY.map((provider) => ({ providerId: provider.id, isMounted: true }));
 const oauth = {} as OAuthService;
+// Discovery is pre-seeded, so nothing in these benchmarks reaches upstream.
+const upstreamClients = { withClient: async (): Promise<never> => { throw new Error('unexpected upstream call'); } };
 function dependencies(store: ToolCacheStore): UserToolDependencies {
   return {
     config: {} as Config,
@@ -69,12 +71,15 @@ function dependencies(store: ToolCacheStore): UserToolDependencies {
     oauth,
     mounts,
     database: {
-      connectedProviders: async () => new Set(PROVIDER_REGISTRY.map((provider) => provider.id)),
-      hiddenProviders: async () => new Set(),
-      toolPreferences: async () => new Map(),
+      userVisibilityState: async () => ({
+        connectedProviders: new Set(PROVIDER_REGISTRY.map((provider) => provider.id)),
+        hiddenProviders: new Set(),
+        toolPreferences: new Map(),
+      }),
       toolPolicyDecisions: async () => policies,
     } as unknown as Database,
-    toolDiscovery: new ToolDiscoveryService({ oauth, mounts, store }),
+    toolDiscovery: new ToolDiscoveryService({ oauth, mounts, store, upstreamClients }),
+    upstreamClients,
   };
 }
 const variants = [

@@ -13,7 +13,7 @@ export type DatabaseConnection = {
   database: AppDatabase;
 };
 
-export function createDatabaseConnection(connectionString: string): DatabaseConnection {
-  const client = new Pool({ connectionString });
+export function createDatabaseConnection(connectionString: string, poolMax: number): DatabaseConnection {
+  const client = new Pool({ connectionString, max: poolMax });
   return { client, database: drizzle({ client, schema }) };
 }

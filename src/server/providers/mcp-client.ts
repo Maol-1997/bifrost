@@ -6,44 +6,48 @@ import {
 import type { CallToolResult } from '@modelcontextprotocol/server';
 import type { DiscoveredTool } from '../tools/catalog.js';
 import type { ProviderDefinition } from './types.js';
+import type { PooledUpstreamClient } from './upstream-pool.js';
 
 const UPSTREAM_CONNECT_TIMEOUT_MS = 10_000;
 const UPSTREAM_LIST_TIMEOUT_MS = 15_000;
 const UPSTREAM_CALL_TIMEOUT_MS = 60_000;
 
-type UpstreamConnectionRequest = {
-  provider: ProviderDefinition;
-  accessToken: string;
-  signal?: AbortSignal;
-};
-
-export async function listUpstreamTools(
-  provider: ProviderDefinition,
-  accessToken: string,
-  signal?: AbortSignal,
-): Promise<readonly Tool[]> {
-  return withUpstreamConnection({ provider, accessToken, ...(signal ? { signal } : {}) }, async ({ client }) => {
-    const result = await client.listTools(undefined, {
-      ...(signal ? { signal } : {}), timeout: UPSTREAM_LIST_TIMEOUT_MS, cacheMode: 'refresh',
-    });
-    return result.tools;
+/**
+ * Opens a client for one user's credential. It is shared by every later request
+ * for that user and provider, so it deliberately takes no request's abort
+ * signal: one caller giving up must not tear down the others' connection.
+ */
+export async function connectUpstreamClient(provider: ProviderDefinition, accessToken: string): Promise<PooledUpstreamClient> {
+  const client = new Client({ name: 'bifrost-upstream', version: '0.1.0' });
+  const transport = new StreamableHTTPClientTransport(new URL(provider.mcpUrl), {
+    authProvider: { token: async () => accessToken },
+    onInsufficientScope: 'throw',
   });
+  try {
+    await client.connect(transport, { timeout: UPSTREAM_CONNECT_TIMEOUT_MS });
+    return client;
+  } catch (error) {
+    await client.close().catch(() => undefined);
+    throw error;
+  }
 }
 
-type UpstreamToolCall = UpstreamConnectionRequest & {
-  tool: DiscoveredTool;
-  arguments: Record<string, unknown>;
-};
+export async function listClientTools(client: Pick<Client, 'listTools'>, signal?: AbortSignal): Promise<readonly Tool[]> {
+  const result = await client.listTools(undefined, {
+    ...(signal ? { signal } : {}), timeout: UPSTREAM_LIST_TIMEOUT_MS, cacheMode: 'refresh',
+  });
+  return result.tools;
+}
 
 export type UpstreamToolExecutionClient = {
   callTool: Client['callTool'];
 };
 
-type CachedUpstreamToolCall = Pick<UpstreamToolCall, 'tool' | 'arguments' | 'signal'>;
-
-export async function callUpstreamTool(request: UpstreamToolCall): Promise<CallToolResult> {
-  return withUpstreamConnection(request, async ({ client }) => callCachedUpstreamTool(client, request));
-}
+type CachedUpstreamToolCall = {
+  tool: DiscoveredTool;
+  arguments: Record<string, unknown>;
+  signal?: AbortSignal;
+};
 
 /**
  * Calls the exact definition the deployment approved. That definition is the
@@ -69,23 +73,4 @@ export async function callCachedUpstreamTool(
 
 function approvedToolDefinition(tool: DiscoveredTool): Tool {
   return tool.contract.tool as unknown as Tool;
-}
-
-async function withUpstreamConnection<Result>(
-  request: UpstreamConnectionRequest,
-  operation: (connection: { client: Client }) => Promise<Result>,
-): Promise<Result> {
-  const client = new Client({ name: 'bifrost-upstream', version: '0.1.0' });
-  const transport = new StreamableHTTPClientTransport(new URL(request.provider.mcpUrl), {
-    authProvider: { token: async () => request.accessToken },
-    onInsufficientScope: 'throw',
-  });
-  try {
-    await client.connect(transport, {
-      ...(request.signal ? { signal: request.signal } : {}), timeout: UPSTREAM_CONNECT_TIMEOUT_MS,
-    });
-    return await operation({ client });
-  } finally {
-    await client.close().catch(() => undefined);
-  }
 }

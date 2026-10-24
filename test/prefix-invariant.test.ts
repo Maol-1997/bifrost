@@ -59,3 +59,18 @@ describe('provider prefix invariant', () => {
       .toThrow('supported apps are not unique');
   });
 });
+
+describe('overlapping provider prefixes', () => {
+  it('fails startup when one prefix starts with another', () => {
+    const nested = { ...registry[0]!, id: 'github_enterprise', prefix: 'github_enterprise_' } as unknown as ProviderDefinition;
+
+    expect(() => {
+      assertPrefixInvariant({
+        registry: [...registry, nested],
+        namespaces: { github: 'github_', github_enterprise: 'github_enterprise_' },
+        apps: ['github', 'github_enterprise'],
+        credentialMapping: { github_: 'github', github_enterprise_: 'github_enterprise' },
+      });
+    }).toThrow('github_enterprise: prefix starts with the github prefix');
+  });
+});

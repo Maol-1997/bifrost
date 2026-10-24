@@ -2,7 +2,7 @@ import { ClientError, ResponseBodyError } from 'openid-client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { loadConfig } from '../src/server/config.js';
 import { Coordinator } from '../src/server/coordination.js';
-import type { RefreshedCredentialReplacement, StoredCredential, StoredCredentialRecord } from '../src/server/database/index.js';
+import type { CredentialReplacement, StoredCredential, StoredCredentialRecord } from '../src/server/database/index.js';
 import { OAuthService } from '../src/server/oauth.js';
 import type { ProviderId } from '../src/server/providers/types.js';
 
@@ -28,7 +28,7 @@ describe('provider credential refresh', () => {
   it('returns a token valid beyond the 60-second skew without locking or exchanging', async () => {
     setCurrentTime();
     const harness = createHarness(credentialExpiringIn(60_001));
-    const lockSpy = vi.spyOn(harness.coordinator, 'withLock');
+    const lockSpy = vi.spyOn(harness.coordinator, 'withLockWaiting');
 
     await expect(harness.oauth.getOrRefreshAccessToken(USER_ID, PROVIDER_ID)).resolves.toBe('current-access');
     expect(lockSpy).not.toHaveBeenCalled();
@@ -42,7 +42,7 @@ describe('provider credential refresh', () => {
 
     await expect(harness.oauth.getOrRefreshAccessToken(USER_ID, PROVIDER_ID)).resolves.toBe('refreshed-access');
     expect(harness.refreshTokenGrant).toHaveBeenCalledOnce();
-    expect(harness.replaceRefreshedCredential).toHaveBeenCalledWith({
+    expect(harness.replaceCredentialIfUnchanged).toHaveBeenCalledWith({
       userId: USER_ID,
       providerId: PROVIDER_ID,
       expectedVersion: 'v1',
@@ -95,7 +95,7 @@ describe('provider credential refresh', () => {
 
     await expect(harness.oauth.getOrRefreshAccessToken(USER_ID, PROVIDER_ID)).resolves.toBe('other-caller-access');
     expect(harness.refreshTokenGrant).not.toHaveBeenCalled();
-    expect(harness.replaceRefreshedCredential).not.toHaveBeenCalled();
+    expect(harness.replaceCredentialIfUnchanged).not.toHaveBeenCalled();
   });
 
   it.each([
@@ -157,7 +157,7 @@ describe('provider credential refresh', () => {
     harness.refreshTokenGrant.mockRejectedValue(transientError);
 
     await expect(harness.oauth.getOrRefreshAccessToken(USER_ID, PROVIDER_ID)).rejects.toBe(transientError);
-    expect(harness.replaceRefreshedCredential).not.toHaveBeenCalled();
+    expect(harness.replaceCredentialIfUnchanged).not.toHaveBeenCalled();
     expect(harness.storedCredential()).toBe(originalCredential);
   });
 
@@ -170,7 +170,7 @@ describe('provider credential refresh', () => {
       name: 'ReconnectRequiredError',
       message: 'github connection expired; reconnect this provider',
     });
-    expect(harness.replaceRefreshedCredential).not.toHaveBeenCalled();
+    expect(harness.replaceCredentialIfUnchanged).not.toHaveBeenCalled();
   });
 
   it('reports a refreshable expired credential as connected', async () => {
@@ -280,7 +280,7 @@ function createHarness(initialCredential?: StoredCredential) {
   const saveCredential = vi.fn(async (...[, , credential]: [string, ProviderId, StoredCredential]) => {
     replaceStoredCredential(credential);
   });
-  const replaceRefreshedCredential = vi.fn(async (replacement: RefreshedCredentialReplacement) => {
+  const replaceCredentialIfUnchanged = vi.fn(async (replacement: CredentialReplacement) => {
     if (!storedCredential || replacement.expectedVersion !== `v${version}`) return false;
     replaceStoredCredential(replacement.credential);
     return true;
@@ -289,7 +289,7 @@ function createHarness(initialCredential?: StoredCredential) {
   const database = {
     createSession: vi.fn(async () => ({ token: 'session-token', expiresAt: new Date(NOW.getTime() + 60_000) })),
     getCredential,
-    replaceRefreshedCredential,
+    replaceCredentialIfUnchanged,
     saveCredential,
     setAccountLabel,
     upsertGoogleUser: vi.fn(async () => USER_ID),
@@ -311,7 +311,7 @@ function createHarness(initialCredential?: StoredCredential) {
     oauth,
     readAccountLabel,
     refreshTokenGrant,
-    replaceRefreshedCredential,
+    replaceCredentialIfUnchanged,
     replaceStoredCredential,
     saveCredential,
     savedCredential: (): StoredCredential | undefined => storedCredential,

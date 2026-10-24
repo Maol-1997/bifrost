@@ -1,8 +1,8 @@
-import { and, eq, sql } from 'drizzle-orm';
+import { and, asc, eq, or, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import type { Config } from '../config.js';
 import type { ProviderId } from '../providers/types.js';
-import { decryptSecret, encryptSecret } from '../security/secrets.js';
+import { decryptSecret, encryptSecret, KEYED_SECRET_VERSION } from '../security/secrets.js';
 import type { AppDatabase } from './client.js';
 import { providerCredentials } from './schema.js';
 
@@ -21,7 +21,7 @@ export type StoredCredential = {
  */
 export type StoredCredentialRecord = StoredCredential & { version: string };
 
-export type RefreshedCredentialReplacement = {
+export type CredentialReplacement = {
   userId: string;
   providerId: ProviderId;
   credential: StoredCredential;
@@ -35,10 +35,13 @@ const credentialPayloadSchema = z.object({
 });
 type CredentialPayload = z.infer<typeof credentialPayloadSchema>;
 
+export type CredentialRowKey = { userId: string; providerId: ProviderId };
+export type CredentialKeyUsage = { version: number; keyId: string | undefined; count: number };
+
 export function createConnectionStore(database: AppDatabase, config: Config) {
   return {
     async saveCredential(userId: string, providerId: ProviderId, credential: StoredCredential): Promise<void> {
-      const columns = credentialColumns(credential, config);
+      const columns = credentialColumns({ userId, providerId }, credential, config);
       await database
         .insert(providerCredentials)
         .values({ userId, providerId, ...columns })
@@ -49,15 +52,15 @@ export function createConnectionStore(database: AppDatabase, config: Config) {
     },
 
     /**
-     * Writes a refreshed credential only over the exact row the refresh started
-     * from. A disconnect or a reconnect that landed during the token exchange
-     * must win over the exchange: the first would otherwise be silently undone,
-     * the second overwritten with tokens for the previous account.
+     * Writes a credential only over the exact row its writer read, for a token
+     * refresh or a key rotation. A disconnect or a reconnect that landed in
+     * between must win: the first would otherwise be silently undone, the second
+     * overwritten with tokens for the previous account.
      */
-    async replaceRefreshedCredential(replacement: RefreshedCredentialReplacement): Promise<boolean> {
+    async replaceCredentialIfUnchanged(replacement: CredentialReplacement): Promise<boolean> {
       const rows = await database
         .update(providerCredentials)
-        .set({ ...credentialColumns(replacement.credential, config), updatedAt: sql`now()` })
+        .set({ ...credentialColumns(replacement, replacement.credential, config), updatedAt: sql`now()` })
         .where(and(
           eq(providerCredentials.userId, replacement.userId),
           eq(providerCredentials.providerId, replacement.providerId),
@@ -80,7 +83,8 @@ export function createConnectionStore(database: AppDatabase, config: Config) {
       if (!row) return undefined;
       // Parsed, not asserted: a row that decrypts to something else must fail
       // here rather than hand a non-string token to an outbound request.
-      const payload = credentialPayloadSchema.parse(JSON.parse(decryptSecret(row.encryptedPayload, config.encryptionKey)));
+      const plaintext = decryptSecret(row.encryptedPayload, config.encryptionKeyring, credentialContext({ userId, providerId }));
+      const payload = credentialPayloadSchema.parse(JSON.parse(plaintext));
       return {
         accessToken: payload.accessToken,
         ...(payload.refreshToken === undefined ? {} : { refreshToken: payload.refreshToken }),
@@ -119,6 +123,46 @@ export function createConnectionStore(database: AppDatabase, config: Config) {
       return rows.map((row) => ({ ...row, accountLabel: row.accountLabel ?? undefined }));
     },
 
+    /**
+     * The next rows, in key order after `after`, not yet sealed with the active
+     * key. Keyset pagination keeps a long rotation from rescanning or skipping
+     * rows while other writes land.
+     */
+    async credentialsToReencrypt(after: CredentialRowKey | undefined, limit: number): Promise<readonly CredentialRowKey[]> {
+      const payload = providerCredentials.encryptedPayload;
+      return database
+        .select({ userId: providerCredentials.userId, providerId: providerCredentials.providerId })
+        .from(providerCredentials)
+        .where(and(
+          or(
+            sql`${payload}->>'version' is distinct from ${String(KEYED_SECRET_VERSION)}`,
+            sql`${payload}->>'keyId' is distinct from ${config.encryptionKeyring.activeKeyId}`,
+          ),
+          after === undefined
+            ? undefined
+            : sql`(${providerCredentials.userId}, ${providerCredentials.providerId}) > (${after.userId}, ${after.providerId})`,
+        ))
+        .orderBy(asc(providerCredentials.userId), asc(providerCredentials.providerId))
+        .limit(limit);
+    },
+
+    /** How many credentials each key currently protects, so an operator can see when a key is safe to retire. */
+    async credentialKeyUsage(): Promise<readonly CredentialKeyUsage[]> {
+      const rows = await database.execute<{ version: string | null; keyId: string | null; count: string }>(sql`
+        select ${providerCredentials.encryptedPayload}->>'version' as "version",
+          ${providerCredentials.encryptedPayload}->>'keyId' as "keyId",
+          count(*) as "count"
+        from ${providerCredentials}
+        group by 1, 2
+        order by 1, 2
+      `);
+      return rows.rows.map((row) => ({
+        version: Number(row.version),
+        keyId: row.keyId ?? undefined,
+        count: Number(row.count),
+      }));
+    },
+
     /** Best-effort display name. A connection stays perfectly usable without one. */
     async setAccountLabel(userId: string, providerId: ProviderId, accountLabel: string): Promise<void> {
       await database
@@ -129,12 +173,17 @@ export function createConnectionStore(database: AppDatabase, config: Config) {
   };
 }
 
-function credentialColumns(credential: StoredCredential, config: Config) {
+/** The associated data every credential is sealed with: its own row identity. */
+function credentialContext(row: CredentialRowKey): string {
+  return `${row.userId}:${row.providerId}`;
+}
+
+function credentialColumns(row: CredentialRowKey, credential: StoredCredential, config: Config) {
   const payload: CredentialPayload = { accessToken: credential.accessToken };
   if (credential.refreshToken !== undefined) payload.refreshToken = credential.refreshToken;
   if (credential.oauthClientId !== undefined) payload.oauthClientId = credential.oauthClientId;
   return {
-    encryptedPayload: encryptSecret(JSON.stringify(payload), config.encryptionKey),
+    encryptedPayload: encryptSecret(JSON.stringify(payload), config.encryptionKeyring, credentialContext(row)),
     expiresAt: credential.expiresAt ?? null,
     scopes: [...credential.scopes],
   };

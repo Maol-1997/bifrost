@@ -6,9 +6,10 @@ import type { Database } from '../database/index.js';
 import { AgentFacingError } from '../errors.js';
 import { errorSummary, logger } from '../logger.js';
 import type { OAuthService } from '../oauth.js';
-import { callUpstreamTool } from '../providers/mcp-client.js';
+import { callCachedUpstreamTool } from '../providers/mcp-client.js';
 import { PROVIDER_REGISTRY } from '../providers/registry.js';
 import type { ProviderId, ProviderMount } from '../providers/types.js';
+import type { UpstreamClientPool } from '../providers/upstream-pool.js';
 import { effectivePolicyState, isToolEnabled, type DiscoveredTool } from './catalog.js';
 import type { ToolDiscoveryService } from './discovery.js';
 import { visibleTools } from './filter.js';
@@ -22,6 +23,7 @@ export type UserToolDependencies = {
   coordinator: Coordinator;
   oauth: OAuthService;
   toolDiscovery: ToolDiscoveryService;
+  upstreamClients: Pick<UpstreamClientPool, 'withClient'>;
   mounts: readonly ProviderMount[];
 };
 
@@ -32,23 +34,55 @@ export async function loadVisibleUserTools(request: {
   signal?: AbortSignal;
   dependencies: UserToolDependencies;
 }): Promise<readonly DiscoveredTool[]> {
+  return resolveVisibleTools(request, undefined);
+}
+
+/**
+ * The one tool a `tools/call` names, if this user may see it; otherwise
+ * undefined, exactly as if the full listing had left it out.
+ *
+ * It runs the same resolution as `loadVisibleUserTools` — same reads, same
+ * discovery service, same `isToolEnabled` and `visibleTools` — with two
+ * narrowings that only shrink the work: discovery is asked for the one
+ * provider whose prefix the name carries, and only definitions with that name
+ * reach the filter. Neither narrowing decides visibility.
+ */
+export async function loadVisibleUserTool(request: {
+  userId: string;
+  toolName: string;
+  signal?: AbortSignal;
+  dependencies: UserToolDependencies;
+}): Promise<DiscoveredTool | undefined> {
+  const provider = PROVIDER_REGISTRY.find((entry) => request.toolName.startsWith(entry.prefix));
+  if (!provider) return undefined;
+  const [tool] = await resolveVisibleTools(request, { providerId: provider.id, toolName: request.toolName });
+  return tool;
+}
+
+async function resolveVisibleTools(
+  request: { userId: string; signal?: AbortSignal; dependencies: UserToolDependencies },
+  only: { providerId: ProviderId; toolName: string } | undefined,
+): Promise<readonly DiscoveredTool[]> {
   const { database, mounts, toolDiscovery } = request.dependencies;
-  const [connectedProviders, hiddenProviders, toolPreferences, toolPolicies] = await Promise.all([
-    database.connectedProviders(request.userId),
-    database.hiddenProviders(request.userId),
-    database.toolPreferences(request.userId),
+  const [{ connectedProviders, hiddenProviders, toolPreferences }, toolPolicies] = await Promise.all([
+    database.userVisibilityState(request.userId),
     database.toolPolicyDecisions(),
   ]);
   const discovery = await toolDiscovery.discoverConnected({
     userId: request.userId,
-    connectedProviders,
+    // Discovery applies its own connected and hidden checks; this only keeps
+    // it from reading other providers' cached listings.
+    connectedProviders: only
+      ? new Set([...connectedProviders].filter((providerId) => providerId === only.providerId))
+      : connectedProviders,
     hiddenProviders,
     ...(request.signal ? { signal: request.signal } : {}),
   });
-  const enabledTools = new Set(discovery.tools
+  const candidates = only ? discovery.tools.filter((tool) => tool.name === only.toolName) : discovery.tools;
+  const enabledTools = new Set(candidates
     .filter((tool) => isToolEnabled(tool, toolPolicies, toolPreferences))
     .map((tool) => tool.name));
-  return visibleTools(discovery.tools, mounts, { connectedProviders, hiddenProviders, enabledTools });
+  return visibleTools(candidates, mounts, { connectedProviders, hiddenProviders, enabledTools });
 }
 
 export async function executeUserTool(request: {
@@ -90,6 +124,7 @@ export async function executeUserTool(request: {
         accessToken,
         provider,
         toolDiscovery: request.dependencies.toolDiscovery,
+        upstreamClients: request.dependencies.upstreamClients,
         ...(request.signal ? { signal: request.signal } : {}),
       }),
     });
@@ -125,6 +160,7 @@ type ProviderToolCall = {
   accessToken: string;
   provider: (typeof PROVIDER_REGISTRY)[number];
   toolDiscovery: ToolDiscoveryService;
+  upstreamClients: Pick<UpstreamClientPool, 'withClient'>;
   signal?: AbortSignal;
 };
 
@@ -132,18 +168,17 @@ type ProviderToolCall = {
  * A failed call is the one strong signal that this user's cached listing may no
  * longer describe reality — the tool may have been renamed, withdrawn, or had
  * its permissions changed upstream. Dropping the listing makes the next request
- * rediscover it. The call itself is never retried: the failure may well be a
- * side effect that already happened.
+ * rediscover it. A failure that reaches here is never retried: it may well be
+ * a side effect that already happened. The pool's single resend covers only a
+ * session the provider dropped before processing anything.
  */
 async function callProviderTool(request: ProviderToolCall): Promise<CallToolResult> {
   try {
-    const result = await callUpstreamTool({
-      provider: request.provider,
-      accessToken: request.accessToken,
-      tool: request.tool,
-      arguments: request.input,
-      ...(request.signal ? { signal: request.signal } : {}),
-    });
+    const signalOption = request.signal ? { signal: request.signal } : {};
+    const result = await request.upstreamClients.withClient(
+      { userId: request.userId, provider: request.provider, accessToken: request.accessToken, ...signalOption },
+      async (client) => callCachedUpstreamTool(client, { tool: request.tool, arguments: request.input, ...signalOption }),
+    );
     if (result.isError === true) await invalidateAfterFailedCall(request);
     return result;
   } catch (error) {

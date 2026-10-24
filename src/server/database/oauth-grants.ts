@@ -7,6 +7,8 @@ import { hashToken } from './token-hash.js';
 
 const OAUTH_TOKEN_BYTES = 32;
 const MILLISECONDS_PER_DAY = 86_400_000;
+/** "Sessions" shows last use to the minute; stamping it more often only adds a write to every MCP call. */
+const GRANT_TOUCH_INTERVAL_SECONDS = 60;
 
 export type StoredOAuthClient = {
   clientId: string;
@@ -204,21 +206,35 @@ export function createOAuthGrantStore(database: AppDatabase, config: Config) {
     /**
      * Resolves a bearer access token to the grant behind it.
      *
-     * Stamps `last_used_at` in the same statement, so "Sessions" stays honest
-     * without a second round trip on every MCP call. Expired tokens match nothing.
+     * Validation runs in full on every call: an expired token, or one whose
+     * grant was revoked (deleting the grant cascades to its tokens), matches
+     * nothing. `last_used_at` and the user agent are stamped in the same
+     * statement, but only once the stored stamp is older than
+     * GRANT_TOUCH_INTERVAL_SECONDS, so a busy agent costs a read, not a write
+     * per call. A data-modifying CTE always runs to completion, whether or not
+     * the outer select reads it.
      */
     async resolveOAuthAccessTokenAndTouch(token: string, userAgent?: string): Promise<OAuthIdentity | undefined> {
       const result = await database.execute<OAuthAccessTokenRow>(sql`
-        update ${oauthGrants}
-        set "last_used_at" = now(),
-          "user_agent" = coalesce(${userAgent ?? null}, ${oauthGrants.userAgent})
-        from ${oauthAccessTokens}
-        where ${oauthAccessTokens.tokenHash} = ${hashToken(token)}
-          and ${oauthAccessTokens.expiresAt} > now()
-          and ${oauthGrants.id} = ${oauthAccessTokens.grantId}
-        returning ${oauthGrants.id} as "grantId", ${oauthGrants.userId} as "userId",
-          ${oauthGrants.clientId} as "clientId", ${oauthGrants.resource} as "resource",
-          ${oauthGrants.scopes} as "scopes", ${oauthAccessTokens.expiresAt} as "expiresAt"
+        with resolved as (
+          select ${oauthGrants.id} as "grantId", ${oauthGrants.userId} as "userId",
+            ${oauthGrants.clientId} as "clientId", ${oauthGrants.resource} as "resource",
+            ${oauthGrants.scopes} as "scopes", ${oauthAccessTokens.expiresAt} as "expiresAt",
+            ${oauthGrants.lastUsedAt} as "lastUsedAt"
+          from ${oauthAccessTokens}
+          join ${oauthGrants} on ${oauthGrants.id} = ${oauthAccessTokens.grantId}
+          where ${oauthAccessTokens.tokenHash} = ${hashToken(token)}
+            and ${oauthAccessTokens.expiresAt} > now()
+        ), touched as (
+          update ${oauthGrants}
+          set "last_used_at" = now(),
+            "user_agent" = coalesce(${userAgent ?? null}, ${oauthGrants.userAgent})
+          from resolved
+          where ${oauthGrants.id} = resolved."grantId"
+            and resolved."lastUsedAt" < now() - make_interval(secs => ${GRANT_TOUCH_INTERVAL_SECONDS})
+          returning ${oauthGrants.id}
+        )
+        select "grantId", "userId", "clientId", "resource", "scopes", "expiresAt" from resolved
       `);
       const [row] = result.rows;
       if (!row) return undefined;

@@ -64,6 +64,15 @@ export function assertPrefixInvariant({
   }
   if (registryById.size !== registry.length) problems.push('provider ids are not unique');
   if (new Set(registry.map((provider) => provider.prefix)).size !== registry.length) problems.push('provider prefixes are not unique');
+  // A tool name is routed to its provider by prefix, so `google_drive_x` must
+  // not also read as a `google_` tool.
+  for (const provider of registry) {
+    for (const other of registry) {
+      if (other.prefix !== provider.prefix && other.prefix.startsWith(provider.prefix)) {
+        problems.push(`${other.id}: prefix starts with the ${provider.id} prefix`);
+      }
+    }
+  }
   if (new Set(apps).size !== apps.length) problems.push('supported apps are not unique');
   if (problems.length > 0) throw new Error(`Provider prefix invariant failed: ${problems.join('; ')}`);
 }

@@ -9,7 +9,9 @@ import { BrowserEventBus } from './http/events.js';
 import { errorSummary, logger } from './logger.js';
 import { createHumanMcpHandler } from './mcp.js';
 import { OAuthService } from './oauth.js';
+import { connectUpstreamClient } from './providers/mcp-client.js';
 import { assertPrefixInvariant, mountProviders } from './providers/registry.js';
+import { UpstreamClientPool } from './providers/upstream-pool.js';
 import { RedisRuntime } from './redis.js';
 import { isAccessRestricted } from './security/access.js';
 import { shutdownServer } from './shutdown.js';
@@ -37,9 +39,15 @@ async function main(): Promise<void> {
   const oauth = new OAuthService(config, database, coordinator);
   const events = new BrowserEventBus(redis);
   await events.start();
+  const upstreamClients = new UpstreamClientPool({
+    connect: connectUpstreamClient,
+    idleTtlMs: config.UPSTREAM_CLIENT_IDLE_SECONDS * 1000,
+    maxClients: config.UPSTREAM_CLIENT_MAX,
+  });
   const toolDiscovery = new ToolDiscoveryService({
     oauth,
     mounts,
+    upstreamClients,
     store: redis ? createRedisToolCacheStore(redis.commands) : createInMemoryToolCacheStore(),
     onFreshTools: (providerId, tools) => reconcileAutoPoliciesInBackground({
       providerId,
@@ -59,6 +67,7 @@ async function main(): Promise<void> {
     oauth,
     mounts,
     toolDiscovery,
+    upstreamClients,
   });
   const dependencies: AppDependencies = {
     config,
@@ -69,6 +78,7 @@ async function main(): Promise<void> {
     mcpHandler,
     events,
     toolDiscovery,
+    upstreamClients,
     ...(redis ? { redis } : {}),
   };
   const app = createApp(dependencies);
@@ -85,6 +95,7 @@ async function main(): Promise<void> {
       dependencies: [
         { name: 'database maintenance', close: () => maintenance.close() },
         { name: 'MCP handler', close: () => mcpHandler.close() },
+        { name: 'upstream MCP clients', close: () => upstreamClients.close() },
         { name: 'browser events', close: () => events.close() },
         ...(redis ? [{ name: 'Redis', close: () => redis.close() }] : []),
         { name: 'database', close: () => database.close() },

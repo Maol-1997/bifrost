@@ -1,8 +1,9 @@
 import { errorSummary, logger } from '../logger.js';
 import type { OAuthService } from '../oauth.js';
-import { listUpstreamTools } from '../providers/mcp-client.js';
+import { listClientTools } from '../providers/mcp-client.js';
 import { PROVIDER_REGISTRY } from '../providers/registry.js';
 import type { ProviderId, ProviderMount } from '../providers/types.js';
+import type { UpstreamClientPool } from '../providers/upstream-pool.js';
 import { mcpToolNameSchema, normalizeUpstreamTool, type DiscoveredTool } from './catalog.js';
 import type { ToolCacheStore } from './cache-store.js';
 import {
@@ -21,6 +22,7 @@ export type ToolDiscoveryDependencies = {
   oauth: OAuthService;
   mounts: readonly ProviderMount[];
   store: ToolCacheStore;
+  upstreamClients: Pick<UpstreamClientPool, 'withClient'>;
   now?: () => number;
   delay?: (ms: number) => Promise<void>;
   /** Sees every listing loaded from upstream, cached or not; must not throw or block. */
@@ -133,7 +135,10 @@ export class ToolDiscoveryService {
       throw new Error(`Provider is not mounted: ${provider.id}`);
     }
     const accessToken = await this.dependencies.oauth.getOrRefreshAccessToken(request.userId, provider.id);
-    const upstreamTools = await listUpstreamTools(provider, accessToken, request.signal);
+    const upstreamTools = await this.dependencies.upstreamClients.withClient(
+      { userId: request.userId, provider, accessToken, ...(request.signal ? { signal: request.signal } : {}) },
+      async (client) => listClientTools(client, request.signal),
+    );
     // One provider publishing a duplicate name must not take the whole MCP
     // endpoint down: registering the same name twice throws inside the
     // per-request server factory, which would fail every request for this user

@@ -243,6 +243,7 @@ async function finishProviderAuthorization(context: AppContext, expectedProvider
     );
     if (result.providerId !== expectedProvider) throw new Error('OAuth provider callback mismatch');
     await context.get('dependencies').toolDiscovery.invalidateProvider(result.userId, result.providerId);
+    await context.get('dependencies').upstreamClients.invalidate(result.userId, result.providerId);
     await context.get('dependencies').events.emit(result.userId, 'providers-changed');
     return context.redirect(APP_ROUTES.integrations);
   } catch (error) {
@@ -252,10 +253,11 @@ async function finishProviderAuthorization(context: AppContext, expectedProvider
 }
 
 async function disconnectProvider(context: AppContext, providerId: ProviderId) {
-  const { database, events, toolDiscovery } = context.get('dependencies');
+  const { database, events, toolDiscovery, upstreamClients } = context.get('dependencies');
   const userId = context.get('browserIdentity').userId;
   await database.deleteCredential(userId, providerId);
   await toolDiscovery.invalidateProvider(userId, providerId);
+  await upstreamClients.invalidate(userId, providerId);
   await events.emit(userId, 'providers-changed');
   return context.json({ connected: false });
 }
@@ -512,15 +514,13 @@ async function clientList(context: AppContext) {
 async function appConnections(context: AppContext) {
   const identity = context.get('browserIdentity');
   const { database, oauth, toolDiscovery } = context.get('dependencies');
-  const connectedProviders = await database.connectedProviders(identity.userId);
+  const { connectedProviders, hiddenProviders: hidden, toolPreferences: preferences } = await database.userVisibilityState(identity.userId);
   const connectionHealth = new Map(await Promise.all([...connectedProviders].map(async (providerId) => [
     providerId,
     await oauth.refreshProviderConnectionIfNeeded(identity.userId, providerId),
   ] as const)));
-  const [connections, hidden, preferences, policies, discovery] = await Promise.all([
+  const [connections, policies, discovery] = await Promise.all([
     database.listConnections(identity.userId),
-    database.hiddenProviders(identity.userId),
-    database.toolPreferences(identity.userId),
     database.toolPolicies(),
     toolDiscovery.discoverConnected({
       userId: identity.userId,

@@ -1,6 +1,5 @@
 import assert from 'node:assert/strict';
 import { randomBytes } from 'node:crypto';
-import { CLIENT_CAPABILITIES_META_KEY, PROTOCOL_VERSION_META_KEY } from '@modelcontextprotocol/server';
 import type { Config } from '../src/server/config.js';
 import type { Coordinator } from '../src/server/coordination.js';
 import type { Database } from '../src/server/database/index.js';
@@ -13,6 +12,7 @@ import { createInMemoryToolCacheStore } from '../src/server/tools/cache-store.js
 import { ToolDiscoveryCache } from '../src/server/tools/discovery-cache.js';
 import { ToolDiscoveryService } from '../src/server/tools/discovery.js';
 import { loadVisibleUserTools, type UserToolDependencies } from '../src/server/tools/user-toolset.js';
+import { modernRequestBody, modernRequestHeaders } from '../test/helpers/mcp-protocol.js';
 
 const TOOLS_PER_PROVIDER = 50;
 const SAMPLES = 7;
@@ -41,6 +41,8 @@ for (const provider of PROVIDER_REGISTRY) {
 }
 const mounts = PROVIDER_REGISTRY.map((provider) => ({ providerId: provider.id, name: provider.displayName, prefix: provider.prefix, isMounted: true }));
 const oauth = {} as OAuthService;
+// Discovery is pre-seeded, so nothing in these benchmarks reaches upstream.
+const upstreamClients = { withClient: async (): Promise<never> => { throw new Error('unexpected upstream call'); } };
 const policies = new Map(tools.map((tool) => [tool.name, { toolName: tool.name, fingerprint: tool.fingerprint, state: 'allowed_default_on' as const }]));
 const dependencies: UserToolDependencies = {
   config: {} as Config,
@@ -48,24 +50,25 @@ const dependencies: UserToolDependencies = {
   oauth,
   mounts,
   database: {
-    connectedProviders: async () => new Set(PROVIDER_REGISTRY.map((provider) => provider.id)),
-    hiddenProviders: async () => new Set(),
-    toolPreferences: async () => new Map(),
+    userVisibilityState: async () => ({
+      connectedProviders: new Set(PROVIDER_REGISTRY.map((provider) => provider.id)),
+      hiddenProviders: new Set(),
+      toolPreferences: new Map(),
+    }),
     toolPolicyDecisions: async () => policies,
   } as unknown as Database,
-  toolDiscovery: new ToolDiscoveryService({ oauth, mounts, store }),
+  toolDiscovery: new ToolDiscoveryService({ oauth, mounts, store, upstreamClients }),
+  upstreamClients,
 };
 const handler = createHumanMcpHandler(dependencies);
 const authInfo = { token: 'benchmark', clientId: 'benchmark', scopes: ['mcp'], extra: { userId } };
 
 async function request(method: string): Promise<unknown> {
+  const parsedBody = modernRequestBody(1, method);
   const response = await handler.fetch(new Request('http://localhost/mcp', {
     method: 'POST',
-    headers: { 'content-type': 'application/json', accept: 'application/json, text/event-stream', 'mcp-method': method },
-  }), {
-    authInfo,
-    parsedBody: { jsonrpc: '2.0', id: 1, method, params: { _meta: { [PROTOCOL_VERSION_META_KEY]: '2026-07-28', [CLIENT_CAPABILITIES_META_KEY]: {} } } },
-  });
+    headers: modernRequestHeaders(parsedBody),
+  }), { authInfo, parsedBody });
   const body: unknown = await response.json();
   assert.equal(response.status, 200, JSON.stringify(body));
   return body;
@@ -88,7 +91,8 @@ assert.equal(listing.result.tools.length, tools.length);
 await measure('visible tool loading (memory store, real discovery decode and policy filter)', () => loadVisibleUserTools({ userId, dependencies }));
 await measure('MCP assembly + server/discover transport (stub DB, warm discovery)', () => request('server/discover'));
 await measure('MCP assembly + tools/list serialization (stub DB, warm discovery)', () => request('tools/list'));
-const encryptionKey = randomBytes(32);
-const encrypted = encryptSecret(JSON.stringify({ accessToken: 'x'.repeat(512), refreshToken: 'y'.repeat(512) }), encryptionKey);
-await measure('AES-256-GCM decrypt 1KB', () => decryptSecret(encrypted, encryptionKey));
+const keyring = { activeKeyId: 'benchmark', keys: new Map([['benchmark', randomBytes(32)]]) };
+const credentialContext = `${userId}:github`;
+const encrypted = encryptSecret(JSON.stringify({ accessToken: 'x'.repeat(512), refreshToken: 'y'.repeat(512) }), keyring, credentialContext);
+await measure('AES-256-GCM decrypt 1KB', () => decryptSecret(encrypted, keyring, credentialContext));
 await handler.close();

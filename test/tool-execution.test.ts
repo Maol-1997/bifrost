@@ -12,7 +12,7 @@ import { PROVIDER_REGISTRY } from '../src/server/providers/registry.js';
 const upstreamCall = vi.hoisted(() => vi.fn());
 
 vi.mock('../src/server/providers/mcp-client.js', () => ({
-  callUpstreamTool: upstreamCall,
+  callCachedUpstreamTool: upstreamCall,
 }));
 
 const provider = PROVIDER_REGISTRY.find((entry) => entry.id === 'github')!;
@@ -51,6 +51,7 @@ function harness(): Harness {
       } as unknown as Coordinator,
       oauth: { getOrRefreshAccessToken: vi.fn(async () => 'access-token') } as unknown as OAuthService,
       toolDiscovery: { invalidateProvider } as unknown as ToolDiscoveryService,
+      upstreamClients: { withClient: async (_request, operation) => operation({} as never) },
     },
   };
 }

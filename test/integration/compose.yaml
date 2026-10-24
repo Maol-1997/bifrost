@@ -1,0 +1,29 @@
+# Throwaway infrastructure for `npm run test:integration` and `npm run bench:load`.
+# Its own project name, loopback-only ports and tmpfs storage keep it from ever
+# touching the development database or another checkout's containers.
+name: bifrost-integration
+services:
+  postgres:
+    image: postgres:17-bookworm
+    environment:
+      POSTGRES_USER: bifrost
+      POSTGRES_PASSWORD: bifrost
+      POSTGRES_DB: bifrost_test
+    ports:
+      - "127.0.0.1:25433:5432"
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bifrost -d bifrost_test"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+  redis:
+    image: redis:8-bookworm
+    ports:
+      - "127.0.0.1:26380:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      timeout: 3s
+      retries: 30

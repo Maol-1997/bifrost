@@ -286,3 +286,39 @@ describe('in-process ephemeral values', () => {
     expect(store.size).toBe(1);
   });
 });
+
+describe('Redis locks', () => {
+  /** A lock that stays held for the first `heldFor` attempts, then frees up. */
+  function heldLock(heldFor: number): { commands: RedisCommandsClient; attempts: () => number } {
+    let attempts = 0;
+    const commands = redisCommands(vi.fn().mockResolvedValue(1));
+    commands.set = vi.fn(async () => {
+      attempts += 1;
+      return attempts > heldFor ? 'OK' : null;
+    });
+    return { commands, attempts: () => attempts };
+  }
+
+  it('refuses a held lock at once', async () => {
+    const lock = heldLock(1);
+    const operation = vi.fn(async () => 'ran');
+
+    await expect(new Coordinator(lock.commands).withLock('refresh', operation)).rejects.toBeInstanceOf(AgentFacingError);
+    expect({ attempts: lock.attempts(), ran: operation.mock.calls.length }).toEqual({ attempts: 1, ran: 0 });
+  });
+
+  it('waits for a held lock to free up when asked to', async () => {
+    const lock = heldLock(3);
+
+    await expect(new Coordinator(lock.commands).withLockWaiting('refresh', 5_000, async () => 'ran')).resolves.toBe('ran');
+    expect(lock.attempts()).toBe(4);
+  });
+
+  it('gives up waiting once the deadline passes', async () => {
+    const lock = heldLock(Number.POSITIVE_INFINITY);
+    const operation = vi.fn(async () => 'ran');
+
+    await expect(new Coordinator(lock.commands).withLockWaiting('refresh', 120, operation)).rejects.toBeInstanceOf(AgentFacingError);
+    expect(operation).not.toHaveBeenCalled();
+  });
+});

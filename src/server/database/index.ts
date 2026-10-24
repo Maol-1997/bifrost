@@ -6,6 +6,7 @@ import { createPreferenceStore } from './preferences.js';
 import { createSessionStore } from './sessions.js';
 import { createToolPolicyStore } from './tool-policies.js';
 import { createUserStore } from './users.js';
+import { createVisibilityStore } from './visibility.js';
 
 /**
  * The one data-access object the rest of the server holds. Each aggregate —
@@ -14,7 +15,7 @@ import { createUserStore } from './users.js';
  * surface flat, so callers depend on one object and no store leaks out.
  */
 export function createDatabase(config: Config) {
-  const { client, database } = createDatabaseConnection(config.DATABASE_URL);
+  const { client, database } = createDatabaseConnection(config.DATABASE_URL, config.DATABASE_POOL_MAX);
   const sessions = createSessionStore(database);
   const grants = createOAuthGrantStore(database, config);
   return {
@@ -24,6 +25,7 @@ export function createDatabase(config: Config) {
     ...createConnectionStore(database, config),
     ...createPreferenceStore(database),
     ...createToolPolicyStore(database),
+    ...createVisibilityStore(database),
 
     /**
      * One sweep of everything that has lapsed. Composed here because it spans
@@ -50,10 +52,17 @@ export type ExpiredAuthStateCounts = {
 export type Database = ReturnType<typeof createDatabase>;
 
 export { SESSION_TTL_SECONDS } from './sessions.js';
-export type { RefreshedCredentialReplacement, StoredCredential, StoredCredentialRecord } from './connections.js';
+export type {
+  CredentialKeyUsage,
+  CredentialRowKey,
+  CredentialReplacement,
+  StoredCredential,
+  StoredCredentialRecord,
+} from './connections.js';
 export type {
   OAuthTokenPair,
   RefreshOutcome,
   StoredOAuthClient,
 } from './oauth-grants.js';
 export type { ProviderAgentNote } from './preferences.js';
+export type { UserVisibilityState } from './visibility.js';

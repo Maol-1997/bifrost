@@ -3,8 +3,8 @@ import type { CallToolResult } from '@modelcontextprotocol/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   callCachedUpstreamTool,
-  callUpstreamTool,
-  listUpstreamTools,
+  connectUpstreamClient,
+  listClientTools,
   type UpstreamToolExecutionClient,
 } from '../src/server/providers/mcp-client.js';
 import type { ProviderDefinition } from '../src/server/providers/types.js';
@@ -108,49 +108,32 @@ describe('calling an approved upstream tool', () => {
     expect(callTool.mock.calls[0]?.[0]).toMatchObject({ name: 'get_issue' });
   });
 
-  it('does not spend an upstream listing on every tool call', async () => {
-    await callUpstreamTool({ ...approvedCall, provider, accessToken: 'access-token' });
-
-    expect(sdkClient.listTools).not.toHaveBeenCalled();
-    expect(sdkClient.callTool).toHaveBeenCalledOnce();
-  });
 });
 
-describe('upstream connection cleanup', () => {
-  it('calls through the real connection wrapper and closes it', async () => {
-    await expect(callUpstreamTool({
-      ...approvedCall,
-      provider,
-      accessToken: 'access-token',
-    })).resolves.toBe(toolResult);
+describe('upstream connections', () => {
+  it('connects without any caller signal, since the client outlives the request that opened it', async () => {
+    const client = await connectUpstreamClient(provider, 'access-token');
 
-    expect(sdkClient.callTool).toHaveBeenCalledExactlyOnceWith(
-      { name: approvedDefinition.name, arguments: approvedCall.arguments },
-      { timeout: 60_000, toolDefinition: approvedCall.tool.contract.tool },
-    );
-    expect(sdkClient.close).toHaveBeenCalledOnce();
-  });
-
-  it('closes the client after a successful operation', async () => {
-    await expect(listUpstreamTools(provider, 'access-token')).resolves.toEqual([]);
-
-    expect(sdkClient.close).toHaveBeenCalledOnce();
-  });
-
-  it('closes the client after an operation failure', async () => {
-    const failure = new Error('list failed');
-    sdkClient.listTools.mockRejectedValue(failure);
-
-    await expect(listUpstreamTools(provider, 'access-token')).rejects.toBe(failure);
-    expect(sdkClient.close).toHaveBeenCalledOnce();
+    expect({
+      connectOptions: sdkClient.connect.mock.calls[0]?.[1],
+      closed: sdkClient.close.mock.calls.length,
+      hasCallTool: typeof client.callTool,
+    }).toEqual({ connectOptions: { timeout: 10_000 }, closed: 0, hasCallTool: 'function' });
   });
 
   it('closes the client after a connection failure', async () => {
     const failure = new Error('connect failed');
     sdkClient.connect.mockRejectedValue(failure);
 
-    await expect(listUpstreamTools(provider, 'access-token')).rejects.toBe(failure);
+    await expect(connectUpstreamClient(provider, 'access-token')).rejects.toBe(failure);
     expect(sdkClient.close).toHaveBeenCalledOnce();
-    expect(sdkClient.listTools).not.toHaveBeenCalled();
+  });
+
+  it('lists fresh, with the caller’s signal and a bounded timeout', async () => {
+    const signal = new AbortController().signal;
+    sdkClient.listTools.mockResolvedValue({ tools: [approvedDefinition] });
+
+    await expect(listClientTools({ listTools: sdkClient.listTools }, signal)).resolves.toEqual([approvedDefinition]);
+    expect(sdkClient.listTools).toHaveBeenCalledExactlyOnceWith(undefined, { signal, timeout: 15_000, cacheMode: 'refresh' });
   });
 });

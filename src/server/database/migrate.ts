@@ -2,7 +2,7 @@ import { migrate } from 'drizzle-orm/node-postgres/migrator';
 import { DEVELOPMENT_DATABASE_URL } from '../config.js';
 import { createDatabaseConnection } from './client.js';
 
-const connection = createDatabaseConnection(process.env.DATABASE_URL ?? DEVELOPMENT_DATABASE_URL);
+const connection = createDatabaseConnection(process.env.DATABASE_URL ?? DEVELOPMENT_DATABASE_URL, 1);
 
 try {
   await migrate(connection.database, { migrationsFolder: 'migrations' });

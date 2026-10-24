@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { parseAccessList, type AccessPolicy } from './security/access.js';
+import { ENCRYPTION_KEY_BYTES, LEGACY_KEY_ID, type EncryptionKeyring } from './security/secrets.js';
 
 export const DEVELOPMENT_DATABASE_URL = 'postgres://bifrost:bifrost@localhost:5432/bifrost';
 
@@ -30,8 +31,15 @@ const environmentSchema = z.object({
   PORT: z.coerce.number().int().positive().default(3000),
   PUBLIC_URL: z.url().default('http://localhost:3000'),
   DATABASE_URL: z.string().min(1).default(DEVELOPMENT_DATABASE_URL),
+  // Postgres connections per process, shared by every request.
+  DATABASE_POOL_MAX: z.coerce.number().int().positive().default(20),
   REDIS_URL: z.url().optional(),
-  ENCRYPTION_KEY: z.string().min(1),
+  // ENCRYPTION_KEY alone is the original single-key setup, read as key id
+  // `legacy`. Rotation adds ENCRYPTION_KEYS ({"id": "base64"}) and names the
+  // key new writes use with ENCRYPTION_ACTIVE_KEY_ID.
+  ENCRYPTION_KEY: optionalNonEmptyString,
+  ENCRYPTION_KEYS: optionalNonEmptyString,
+  ENCRYPTION_ACTIVE_KEY_ID: optionalNonEmptyString,
   GOOGLE_CLIENT_ID: optionalNonEmptyString,
   GOOGLE_CLIENT_SECRET: optionalNonEmptyString,
   GITHUB_CLIENT_ID: optionalNonEmptyString,
@@ -65,10 +73,17 @@ const environmentSchema = z.object({
   BIFROST_DEV_USER_ID: z.preprocess((value) => value === '' ? undefined : value, z.uuid().optional()),
   SLOW_REQUEST_MS: z.coerce.number().int().positive().default(1000),
   SLOW_TOOL_MS: z.coerce.number().int().positive().default(2000),
+  // Connected upstream MCP clients kept per process, one per user and provider.
+  UPSTREAM_CLIENT_IDLE_SECONDS: z.coerce.number().int().positive().default(300),
+  UPSTREAM_CLIENT_MAX: z.coerce.number().int().positive().default(200),
 });
 
+const KEY_GENERATION_HINT = 'Generate one with: openssl rand -base64 32';
+const keyIdSchema = z.string().regex(/^[A-Za-z0-9._-]{1,64}$/);
+const encryptionKeysSchema = z.record(keyIdSchema, z.string().min(1));
+
 export type Config = z.infer<typeof environmentSchema> & {
-  encryptionKey: Buffer;
+  encryptionKeyring: EncryptionKeyring;
   accessPolicy: AccessPolicy;
   adminEmails: ReadonlySet<string>;
 };
@@ -76,10 +91,6 @@ export type Config = z.infer<typeof environmentSchema> & {
 export function loadConfig(environment: NodeJS.ProcessEnv = process.env): Config {
   const parsed = environmentSchema.safeParse(environment);
   if (!parsed.success) {
-    const missingEncryptionKey = parsed.error.issues.some((issue) => issue.path[0] === 'ENCRYPTION_KEY');
-    if (missingEncryptionKey) {
-      throw new Error('ENCRYPTION_KEY is required. Generate one with: openssl rand -base64 32');
-    }
     throw new Error(`Invalid configuration: ${parsed.error.issues.map((issue) => issue.path.join('.')).join(', ')}`);
   }
 
@@ -87,10 +98,7 @@ export function loadConfig(environment: NodeJS.ProcessEnv = process.env): Config
     throw new Error('REDIS_URL is required in production');
   }
 
-  const encryptionKey = Buffer.from(parsed.data.ENCRYPTION_KEY, 'base64');
-  if (encryptionKey.length !== 32) {
-    throw new Error('ENCRYPTION_KEY must decode to exactly 32 bytes. Generate one with: openssl rand -base64 32');
-  }
+  const encryptionKeyring = parseEncryptionKeyring(parsed.data);
 
   // PUBLIC_URL is the OAuth issuer, and OAuth 2.1 requires every authorization
   // server endpoint to be served over TLS. Over plain HTTP the authorization
@@ -103,13 +111,65 @@ export function loadConfig(environment: NodeJS.ProcessEnv = process.env): Config
 
   return {
     ...parsed.data,
-    encryptionKey,
+    encryptionKeyring,
     accessPolicy: {
       allowedEmailDomains: parseAccessList(parsed.data.ALLOWED_EMAIL_DOMAINS),
       allowedEmails: parseAccessList(parsed.data.ALLOWED_EMAILS),
     },
     adminEmails: parseAccessList(parsed.data.ADMIN_EMAILS),
   };
+}
+
+/**
+ * Fails at startup rather than at the first credential read: a missing or
+ * malformed key would otherwise surface as every connection looking broken.
+ */
+function parseEncryptionKeyring(environment: {
+  ENCRYPTION_KEY?: string | undefined;
+  ENCRYPTION_KEYS?: string | undefined;
+  ENCRYPTION_ACTIVE_KEY_ID?: string | undefined;
+}): EncryptionKeyring {
+  const encodedKeys = new Map<string, string>(Object.entries(parseEncryptionKeys(environment.ENCRYPTION_KEYS)));
+  if (environment.ENCRYPTION_KEY !== undefined) {
+    const listed = encodedKeys.get(LEGACY_KEY_ID);
+    if (listed !== undefined && listed !== environment.ENCRYPTION_KEY) {
+      throw new Error(`ENCRYPTION_KEY and ENCRYPTION_KEYS.${LEGACY_KEY_ID} are different keys; keep only one`);
+    }
+    encodedKeys.set(LEGACY_KEY_ID, environment.ENCRYPTION_KEY);
+  }
+  if (encodedKeys.size === 0) throw new Error(`ENCRYPTION_KEY is required. ${KEY_GENERATION_HINT}`);
+
+  const keys = new Map<string, Buffer>();
+  for (const [keyId, encoded] of encodedKeys) {
+    const key = Buffer.from(encoded, 'base64');
+    if (key.length !== ENCRYPTION_KEY_BYTES) {
+      const name = environment.ENCRYPTION_KEYS === undefined ? 'ENCRYPTION_KEY' : `Encryption key "${keyId}"`;
+      throw new Error(`${name} must decode to exactly 32 bytes. ${KEY_GENERATION_HINT}`);
+    }
+    keys.set(keyId, key);
+  }
+
+  // Guessing which key is active would let a typo silently keep writing with
+  // the key being retired, so a keyring has to name it.
+  if (environment.ENCRYPTION_KEYS !== undefined && environment.ENCRYPTION_ACTIVE_KEY_ID === undefined) {
+    throw new Error('ENCRYPTION_ACTIVE_KEY_ID is required when ENCRYPTION_KEYS is set');
+  }
+  const activeKeyId = environment.ENCRYPTION_ACTIVE_KEY_ID ?? LEGACY_KEY_ID;
+  if (!keys.has(activeKeyId)) throw new Error(`ENCRYPTION_ACTIVE_KEY_ID "${activeKeyId}" is not a configured key`);
+  return { activeKeyId, keys };
+}
+
+function parseEncryptionKeys(raw: string | undefined): Record<string, string> {
+  if (raw === undefined) return {};
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    throw new Error('ENCRYPTION_KEYS must be a JSON object of key id to base64 key');
+  }
+  const keys = encryptionKeysSchema.safeParse(parsed);
+  if (!keys.success) throw new Error('ENCRYPTION_KEYS must map ids of letters, digits, ".", "_" or "-" to base64 keys');
+  return keys.data;
 }
 
 function isSecurePublicUrl(publicUrl: string): boolean {

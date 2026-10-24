@@ -1,8 +1,10 @@
 import { randomUUID } from 'node:crypto';
+import { setTimeout as sleep } from 'node:timers/promises';
 import { AgentFacingError } from './errors.js';
 import type { RedisCommandsClient } from './redis.js';
 
 const DEFAULT_LOCK_MS = 30_000;
+const LOCK_POLL_MS = 50;
 const RATE_WINDOW_SECONDS = 60;
 const RATE_WINDOW_MS = RATE_WINDOW_SECONDS * 1_000;
 // This must outlive expected tool calls so a dead worker cannot make live work
@@ -52,7 +54,18 @@ export class Coordinator {
   constructor(private readonly redis?: RedisCommandsClient) {}
 
   async withLock<T>(key: string, operation: () => Promise<T>): Promise<T> {
-    if (this.redis) return this.withRedisLock(key, operation);
+    if (this.redis) return this.withRedisLock(key, operation, 0);
+    return this.withLocalLock(key, operation);
+  }
+
+  /**
+   * Like `withLock`, but a lock held by another worker is waited for, up to
+   * `maxWaitMs`, instead of refused at once. For work whose result the waiter
+   * can reuse, such as a token refresh another request already started; the
+   * in-process lock already queues.
+   */
+  async withLockWaiting<T>(key: string, maxWaitMs: number, operation: () => Promise<T>): Promise<T> {
+    if (this.redis) return this.withRedisLock(key, operation, maxWaitMs);
     return this.withLocalLock(key, operation);
   }
 
@@ -144,11 +157,14 @@ export class Coordinator {
     return entry && entry.expiresAt > Date.now() ? entry.value : undefined;
   }
 
-  private async withRedisLock<T>(key: string, operation: () => Promise<T>): Promise<T> {
+  private async withRedisLock<T>(key: string, operation: () => Promise<T>, maxWaitMs: number): Promise<T> {
     const lockKey = key.startsWith('bifrost:v1:') ? key : `lock:${key}`;
     const owner = randomUUID();
-    const acquired = await this.redis?.set(lockKey, owner, { NX: true, PX: DEFAULT_LOCK_MS });
-    if (acquired !== 'OK') throw new AgentFacingError('Credential refresh already in progress; retry shortly');
+    const deadline = Date.now() + maxWaitMs;
+    while (await this.redis?.set(lockKey, owner, { NX: true, PX: DEFAULT_LOCK_MS }) !== 'OK') {
+      if (Date.now() >= deadline) throw new AgentFacingError('Credential refresh already in progress; retry shortly');
+      await sleep(LOCK_POLL_MS);
+    }
     try {
       return await operation();
     } finally {
