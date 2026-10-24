@@ -52,7 +52,7 @@ export function decryptSecret(encrypted: EncryptedSecret, keyring: EncryptionKey
   switch (encrypted.version) {
     case 1:
       return open(encrypted, keyFor(keyring, LEGACY_KEY_ID));
-    case 2:
+    case KEYED_SECRET_VERSION:
       return open(encrypted, keyFor(keyring, encrypted.keyId), context);
     default:
       throw new Error('Unsupported encrypted credential version');
