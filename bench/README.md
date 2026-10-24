@@ -131,3 +131,65 @@ until EVAL completes. Cases cover generation changes (including a deliberately
 faulty non-atomic store to test the retained retry), refresh publication, deletion,
 missing keys, malformed replies, noncanonical generations, fallback TTL and the
 write-publication race. The Lua VM is not imported into server or browser builds.
+
+## MCP load benchmark
+
+```sh
+npm run integration -- bench                          # throwaway Postgres + Redis on loopback
+npm run integration -- bench --upstream-latency-ms 20 --save bench/results/<name>.json
+```
+
+`bench/mcp-load.ts` runs on `test/integration/harness.ts`: the real Hono app and per-request MCP
+assembly, real PostgreSQL and Redis, bearer tokens from the grant store, and an in-process SDK MCP
+server standing in for GitHub over loopback HTTP. Requests are sequential, so each sample is a
+latency rather than queueing. Warm samples follow 30 warmup requests; **cold** samples invalidate
+the caller's cached listing first (outside the timed window), forcing a blocking upstream
+discovery. Calls rotate across 25 users to stay under GitHub's 80 calls per user per minute.
+`--upstream-latency-ms` delays every HTTP request the fake upstream answers. `bench:load` sets
+`LOG_LEVEL=warn` so per-request info logs do not flood the terminal. Options: `--tools` (default
+40), `--warm` (300), `--cold` (100), `--save <path>`.
+
+The Bifrost side is called in process (`app.request`), so client↔Bifrost TCP is not included.
+
+### Baseline (before any performance change)
+
+Node 24.22.1, macOS arm64, Postgres 17 and Redis 8 in local Docker, 40 tools, idle machine.
+Raw results: `bench/results/mcp-load-baseline.json` and `mcp-load-baseline-20ms.json`.
+
+| ms | Upstream +0 ms p50 | p95 | Upstream +20 ms p50 | p95 |
+| --- | ---: | ---: | ---: | ---: |
+| `tools/list` warm | 2.14 | 6.19 | 2.16 | 6.58 |
+| `tools/list` cold | 7.92 | 10.18 | 84.89 | 98.85 |
+| `tools/call` warm | 4.22 | 6.79 | 81.56 | 91.94 |
+| `tools/call` cold | 10.21 | 15.28 | 171.22 | 181.67 |
+
+With +20 ms per upstream HTTP request, a warm `tools/call` costs four upstream round trips:
+every call opens a new upstream MCP client, which sends `initialize`, `notifications/initialized`,
+a GET for the server-sent event stream, and only then the call. A cold call pays the same four
+again for discovery's `tools/list`. The +0 ms column is
+Bifrost's own overhead: auth, policy/preference reads, Redis catalog and limits, assembly and
+serialization.
+
+### After the hot-path changes
+
+Same machine and fixture. C1–C3 pool upstream clients, read per-user visibility in one query and
+stop stamping grants on every call. C4 resolves only the named tool for `tools/call`. Each +0 ms
+cell is the median of three runs, and identical code moved 2–3 ms at p50 between runs there, so
+read that column as noise unless a change is larger. Raw results are in
+`bench/results/mcp-load-after-{pooling,c4}{,-20ms}.json`.
+
+| ms, p50 / p95 | +0 before | +0 C1–C3 | +0 C1–C4 | +20 before | +20 C1–C3 | +20 C1–C4 |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| `tools/list` warm | 2.14 / 6.19 | 2.36 / 6.62 | 2.36 / 6.61 | 2.16 / 6.58 | 2.37 / 7.46 | 2.49 / 7.39 |
+| `tools/list` cold | 7.92 / 10.18 | 9.95 / 18.06 | 9.27 / 15.07 | 84.89 / 98.85 | 39.64 / 46.99 | 39.69 / 45.97 |
+| `tools/call` warm | 4.22 / 6.79 | 2.97 / 5.91 | 3.16 / 7.29 | 81.56 / 91.94 | 37.69 / 47.74 | 35.45 / 44.68 |
+| `tools/call` cold | 10.21 / 15.28 | 12.73 / 23.67 | 4.88 / 7.37 | 171.22 / 181.67 | 70.11 / 79.55 | 63.39 / 76.36 |
+
+The +20 ms columns show the pool. A warm call used to make four upstream round trips and now
+makes one; a cold one went from eight to two. C4 is what moves cold `tools/call` at +0 ms, from
+about 12 ms to 5: a call no longer registers and serializes all 40 tools, and discovery reads only
+the named tool's provider. Measured alone against the same local Postgres, the per-request reads
+dropped from 0.33 to 0.26 ms p50, and a bearer check inside the stamp window no longer writes.
+Interleaved in one process, a cold listing through a pooled client took 8.8 to 11.8 ms p50 against
+11.3 to 11.7 ms through a fresh one. What remains of a cold listing is discovery itself, meaning
+the Redis lock and write plus normalizing and fingerprinting 40 tools, which none of this touched.

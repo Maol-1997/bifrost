@@ -82,7 +82,7 @@ Generate the encryption key outside the repository:
 openssl rand -base64 32
 ```
 
-Put it in `ENCRYPTION_KEY`. There is intentionally no repository default or Compose fallback. Losing this key makes stored provider credentials unrecoverable; rotating it requires decrypting and re-encrypting every row under controlled operations.
+Put it in `ENCRYPTION_KEY`. There is intentionally no repository default or Compose fallback. Losing this key makes stored provider credentials unrecoverable. To rotate it, add the new key with `ENCRYPTION_KEYS` and `ENCRYPTION_ACTIVE_KEY_ID`, then re-encrypt the stored rows online with `npm run rotate:credentials`; the procedure is in [docs/encryption-keys.md](docs/encryption-keys.md).
 
 Configure the exact Google email addresses allowed to review provider tools, separated by commas:
 

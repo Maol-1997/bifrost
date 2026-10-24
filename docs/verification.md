@@ -8,16 +8,42 @@ npm run verify
 ```
 
 `verify` runs lint, both TypeScript configurations, the unit suite with its coverage gate,
-then both production builds. It stops on failure, reports completed stages, and exits nonzero.
-`npm test` remains database-free. Passing it is not proof of migrations, transaction behavior,
-real MCP serialization, OAuth browser navigation, or rendered React routes.
+the integration suite when `TEST_DATABASE_URL` and `TEST_REDIS_URL` are set, then both production
+builds. It stops on failure, reports completed and skipped stages, and exits nonzero on failure.
+`npm test` remains database-free. Neither proves OAuth browser navigation or rendered React routes.
 
 Coverage is printed and written to `coverage/coverage-summary.json`. The configured include list
 is selective; its percentage is **not whole-repository coverage**. For a focused unit iteration:
 `npx vitest run test/auth.test.ts` (run the full gate before committing).
 
-The integration and browser tiers described in [the audit](agent-verification-audit.md) are
-proposals, not installed commands. Do not claim to have run them.
+## Integration tests
+
+```bash
+npm run integration -- test    # starts test/integration/compose.yaml, then npm run test:integration
+npm run integration -- down
+```
+
+They use their own Compose project (`bifrost-integration`), loopback ports 25433/26380 and tmpfs
+storage, so they never touch the development database. Any reachable Postgres and Redis work too:
+set `TEST_DATABASE_URL` (its database name must contain `test`, because global setup drops and
+re-migrates the schema) and `TEST_REDIS_URL`, then `npm run test:integration`. With both set,
+`npm run verify` includes the stage; CI sets both.
+
+The suite builds the same dependency graph as `src/server/main.ts` and sends real MCP requests
+with bearer tokens issued by the grant store. Provider traffic goes to an in-process SDK MCP server
+over loopback HTTP: only `fetch` is rerouted for the registry's official MCP URLs, so registry,
+discovery, cache and execution code run unchanged. Provider token exchanges are injected through
+`OAuthService`'s existing dependency seam. It covers bearer auth → `tools/list` → `tools/call`, cold
+and warm discovery, immediate admin blocks and user switches, invisible tools, concurrent token
+refresh, and credential key rotation including its races with refresh.
+
+The browser tier described in [the audit](agent-verification-audit.md) is a proposal, not an
+installed command. Do not claim to have run it.
+
+## Load benchmark
+
+`npm run integration -- bench` measures `tools/list` and `tools/call` latency against the same
+fake upstream. See [bench/README.md](../bench/README.md#mcp-load-benchmark) for options and baseline.
 
 ## Parallel worktrees
 

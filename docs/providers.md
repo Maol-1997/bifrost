@@ -25,6 +25,17 @@ execution errors invalidate by advancing a generation, so an older refresh canno
 entry. Browser responses carry relative `freshForMs` and `nextCheckInMs` hints; TanStack uses the
 remaining server freshness, capped at one hour, plus 0–5 seconds of deterministic refetch jitter.
 
+`src/server/providers/upstream-pool.ts` keeps one connected upstream client per user and
+provider. Discovery and calls reuse it, so only the first request pays the `initialize` handshake.
+When a refresh or reconnect changes the access token, the pool opens a new client before it sends
+anything. It closes a client on disconnect, after `UPSTREAM_CLIENT_IDLE_SECONDS` without use, on
+shutdown, and when the process holds more than `UPSTREAM_CLIENT_MAX`, starting with the least
+recently used idle one. A failure retires the client. The pool sends an operation again only
+after a 404 on a client that held a session, which is how a Streamable HTTP server rejects a
+session it dropped without processing the request. It resends once, on a fresh connection.
+Concurrent calls share one client. The SDK matches responses by JSON-RPC id and Streamable HTTP
+sends each request as its own POST, so nothing queues.
+
 Execution reuses the exact cached upstream definition and therefore avoids a separate `tools/list`
 round trip. A thrown call or MCP error result invalidates the cache and is returned without an
 automatic retry, because retrying a write could duplicate it. The next request refreshes discovery

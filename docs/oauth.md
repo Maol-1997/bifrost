@@ -35,7 +35,7 @@ Two invariants on provider connections:
   refuses a mismatch before exchanging the code. Otherwise handing someone the authorization URL
   would connect their provider account to yours.
 - **A refresh never resurrects or overwrites a connection.** Refreshed tokens are written with
-  `replaceRefreshedCredential`, which only lands over the exact row the refresh started from (the
+  `replaceCredentialIfUnchanged`, which only lands over the exact row the refresh started from (the
   encrypted payload's IV is the version). A disconnect or reconnect that happened during the
   exchange wins, and the token just obtained is dropped.
 

@@ -33,7 +33,8 @@ The details live in `docs/`, one file per topic. Read the relevant one before to
 | [docs/http.md](docs/http.md) | Hono routers, validation, security headers, data model |
 | [docs/conventions.md](docs/conventions.md) | Code conventions and the verification commands |
 | [docs/gotchas.md](docs/gotchas.md) | Gotchas that cost real time, known gaps |
-| [docs/verification.md](docs/verification.md) | Verification scope, isolated worktrees, existing dev identity and MCP probes |
+| [docs/verification.md](docs/verification.md) | Verification scope, integration tests, isolated worktrees, dev identity and MCP probes |
+| [docs/encryption-keys.md](docs/encryption-keys.md) | Credential record format, keyring configuration, online key rotation |
 
 ## Layout
 
@@ -58,7 +59,7 @@ src/
   features/            cross-runtime product contracts and code
     bifrost-api/       reusable Hono RPC client inferred from the server routes
 migrations/            generated Drizzle SQL, applied on container boot
-test/                  vitest, pure units only; no database in tests
+test/                  vitest units, database-free; test/integration uses real Postgres and Redis
 ```
 
 **The frontend/backend boundary is enforced by configuration, not convention.** `tsconfig.json`
@@ -81,8 +82,9 @@ npm run verify
 
 This runs lint, both typechecks, database-free unit tests with coverage, and both production
 builds, stopping on failure. Coverage includes selected modules, not the whole repository.
-Integration and browser tiers are proposed, not implemented; passing this command is not
-end-to-end proof. For auth/OAuth, persistence, MCP or UI changes, also exercise the affected
+With `TEST_DATABASE_URL` and `TEST_REDIS_URL` set (CI sets both) it also runs the integration
+tests; otherwise it reports them as skipped. `npm run integration -- test` starts throwaway
+loopback infrastructure and runs them locally. The browser tier is not implemented. For auth/OAuth, persistence, MCP or UI changes, also exercise the affected
 runtime path and report the evidence or exact blocker. Do not weaken authentication or tool
 visibility to make a check pass.
 

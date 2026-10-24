@@ -1,0 +1,41 @@
+{
+  "measuredAt": "2026-10-24T18:34:21.157Z",
+  "node": "v24.22.1",
+  "platform": "darwin-arm64",
+  "upstreamLatencyMs": 0,
+  "toolsPerProvider": 40,
+  "results": [
+    {
+      "scenario": "tools/list warm",
+      "samples": 300,
+      "p50Ms": 3.14,
+      "p95Ms": 7.76,
+      "p99Ms": 10.09,
+      "meanMs": 3.68
+    },
+    {
+      "scenario": "tools/list cold",
+      "samples": 100,
+      "p50Ms": 9.95,
+      "p95Ms": 18.65,
+      "p99Ms": 22.56,
+      "meanMs": 11.28
+    },
+    {
+      "scenario": "tools/call warm",
+      "samples": 300,
+      "p50Ms": 2.93,
+      "p95Ms": 5.91,
+      "p99Ms": 8.1,
+      "meanMs": 3.39
+    },
+    {
+      "scenario": "tools/call cold",
+      "samples": 100,
+      "p50Ms": 11.54,
+      "p95Ms": 19.41,
+      "p99Ms": 31.7,
+      "meanMs": 12.37
+    }
+  ]
+}

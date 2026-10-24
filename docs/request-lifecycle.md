@@ -39,6 +39,15 @@ That makes filtering *the* enforcement mechanism, not a display concern. A tool 
 registered on the object handling this request. There is no second check to keep in sync.
 See [tool-visibility.md](tool-visibility.md) for the axes that can hide a tool.
 
+A `tools/call` does not assemble the whole set. `loadVisibleUserTool` resolves only the tool named
+in the `Mcp-Name` header, which the SDK checks against the body. It reads the same per-user state
+and live policies, asks discovery for that one provider's cached listing, and sends that single
+definition through the same `isToolEnabled` and `visibleTools` as the full listing.
+`test/tool-call-visibility.test.ts` compares both paths across every visibility axis. The SDK only
+dispatches calls to registered tools, so the server for a call holds that one tool or nothing. An
+invisible tool gets the same "Tool … not found" error as before. `tools/list` and every other
+method still register the full set.
+
 Registration is also where one bad definition must not become everyone's outage: discovery keeps
 the first of two upstream tools sharing a name, and a tool the SDK refuses to register is logged
 and left out rather than failing the request for every other provider.

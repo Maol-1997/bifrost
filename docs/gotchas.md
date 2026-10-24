@@ -15,6 +15,12 @@
 - **Never rename a constraint in an already-applied migration.** Rolling back to fix it destroys
   real rows. Write a new migration, or `ALTER ... RENAME CONSTRAINT` in place.
 - `ENCRYPTION_KEY` has no dev default by design and the server refuses to start without it.
+  Removing a key from `ENCRYPTION_KEYS` before `npm run rotate:credentials` reports no rows under
+  it makes those credentials unreadable. See [encryption-keys.md](encryption-keys.md).
+- **Only the provider refresh waits for a held Redis lock.** A second request refreshing the same
+  credential waits up to 12 seconds and then reuses the first one's token. Every other
+  `Coordinator.withLock` caller still fails fast on purpose: the maintenance sweep skips, automatic
+  rules report busy, and key rotation counts the row as busy.
 - `REDIS_URL` is mandatory in production. Redis owns distributed tool catalogs, browser events,
   locks and limits, so silently falling back to per-process state would make replicas disagree.
 
@@ -26,6 +32,13 @@
   from the tsx dev runner on Node 25.6.1; the compiled server completes consent successfully.
 - **Mock API mode still reads live chat configuration.** Its 401 can redirect mocked screens to
   sign-in because the chat stays mounted off-route. A mock user is not a real server session.
+
+- **A pooled upstream session can expire between calls.** The provider then answers 404 and the
+  pool resends that one request on a fresh connection. Any other failure, a 5xx or a timeout,
+  reaches the agent unrepeated, because the provider may already have run the call. Each pooled
+  client may also keep the SDK's GET event stream open.
+- **"Sessions" last-used times can lag by up to a minute.** The bearer check only stamps
+  `last_used_at` and the user agent when the stored stamp is over 60 seconds old.
 
 ## Known gaps
 
