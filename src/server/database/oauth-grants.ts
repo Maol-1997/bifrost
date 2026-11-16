@@ -125,7 +125,9 @@ export function createOAuthGrantStore(database: AppDatabase, config: Config) {
       const rows = await database
         .select({ id: oauthGrants.id })
         .from(oauthGrants)
-        .where(and(eq(oauthGrants.userId, userId), eq(oauthGrants.clientId, clientId), eq(oauthGrants.resource, resource)))
+        .where(
+          and(eq(oauthGrants.userId, userId), eq(oauthGrants.clientId, clientId), eq(oauthGrants.resource, resource)),
+        )
         .limit(1);
       return rows.length > 0;
     },
@@ -142,12 +144,20 @@ export function createOAuthGrantStore(database: AppDatabase, config: Config) {
      * own user agent arrives with its first MCP call and is stamped then.
      */
     async authorizeOAuthGrant(input: {
-      userId: string; clientId: string; scopes: readonly string[]; resource: string;
+      userId: string;
+      clientId: string;
+      scopes: readonly string[];
+      resource: string;
     }): Promise<OAuthTokenPair> {
       return database.transaction(async (transaction) => {
         const [grant] = await transaction
           .insert(oauthGrants)
-          .values({ userId: input.userId, clientId: input.clientId, scopes: [...input.scopes], resource: input.resource })
+          .values({
+            userId: input.userId,
+            clientId: input.clientId,
+            scopes: [...input.scopes],
+            resource: input.resource,
+          })
           .onConflictDoUpdate({
             target: [oauthGrants.userId, oauthGrants.clientId, oauthGrants.resource],
             set: { scopes: [...input.scopes], lastUsedAt: sql`now()` },
@@ -175,15 +185,20 @@ export function createOAuthGrantStore(database: AppDatabase, config: Config) {
         const [consumed] = await transaction
           .update(oauthRefreshTokens)
           .set({ consumedAt: sql`now()` })
-          .where(and(
-            eq(oauthRefreshTokens.tokenHash, tokenHash),
-            isNull(oauthRefreshTokens.consumedAt),
-            gt(oauthRefreshTokens.expiresAt, sql`now()`),
-            inArray(oauthRefreshTokens.grantId, grantsForClient),
-          ))
+          .where(
+            and(
+              eq(oauthRefreshTokens.tokenHash, tokenHash),
+              isNull(oauthRefreshTokens.consumedAt),
+              gt(oauthRefreshTokens.expiresAt, sql`now()`),
+              inArray(oauthRefreshTokens.grantId, grantsForClient),
+            ),
+          )
           .returning({ grantId: oauthRefreshTokens.grantId });
         if (consumed) {
-          await transaction.update(oauthGrants).set({ lastUsedAt: sql`now()` }).where(eq(oauthGrants.id, consumed.grantId));
+          await transaction
+            .update(oauthGrants)
+            .set({ lastUsedAt: sql`now()` })
+            .where(eq(oauthGrants.id, consumed.grantId));
           return { kind: 'rotated' as const, tokens: await issueTokenPair(transaction, consumed.grantId) };
         }
 
@@ -296,7 +311,9 @@ export function createOAuthGrantStore(database: AppDatabase, config: Config) {
      */
     async deleteExpiredOAuthTokens(): Promise<{ accessTokens: number; refreshTokens: number }> {
       const accessTokens = await database.delete(oauthAccessTokens).where(lte(oauthAccessTokens.expiresAt, sql`now()`));
-      const refreshTokens = await database.delete(oauthRefreshTokens).where(lte(oauthRefreshTokens.expiresAt, sql`now()`));
+      const refreshTokens = await database
+        .delete(oauthRefreshTokens)
+        .where(lte(oauthRefreshTokens.expiresAt, sql`now()`));
       return { accessTokens: accessTokens.rowCount ?? 0, refreshTokens: refreshTokens.rowCount ?? 0 };
     },
   };

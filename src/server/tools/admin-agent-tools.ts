@@ -23,7 +23,8 @@ import { isUncertainProbability, RULE_MATCH_AT, RULE_MISMATCH_AT } from './rule-
 
 const ADMIN_TOOL_NAMESPACE = {
   name: 'bifrost_admin',
-  description: 'Administrative tools for reviewing MCP providers, changing deployment tool policies, managing each provider\'s automatic tool rule, and maintaining one internal agent note per provider in Bifrost.',
+  description:
+    "Administrative tools for reviewing MCP providers, changing deployment tool policies, managing each provider's automatic tool rule, and maintaining one internal agent note per provider in Bifrost.",
 } as const;
 const ADMIN_TOOL_OPTIONS = {
   deferLoading: true,
@@ -34,30 +35,57 @@ const policyStateSchema = z.enum(TOOL_POLICY_STATES);
 const reviewKindSchema = z.enum(['approved', 'new', 'changed']);
 const listProviderToolsSchema = z.object({
   providerId: providerIdSchema,
-  query: z.string().trim().min(1).max(100).optional().describe('Optional case-insensitive search over tool name, title, and description.'),
+  query: z
+    .string()
+    .trim()
+    .min(1)
+    .max(100)
+    .optional()
+    .describe('Optional case-insensitive search over tool name, title, and description.'),
   mutability: z.enum(['read', 'write']).optional().describe('Optional filter for read-only or write-capable tools.'),
   states: z.array(policyStateSchema).min(1).optional().describe('Optional deployment policy states to include.'),
-  reviewKinds: z.array(reviewKindSchema).min(1).optional().describe('Optional review classification filter: approved, new, or changed.'),
-  decidedBy: z.enum(['rule', 'admin']).optional().describe('Optional filter: tools whose current policy was set by the automatic rule, or by an administrator.'),
+  reviewKinds: z
+    .array(reviewKindSchema)
+    .min(1)
+    .optional()
+    .describe('Optional review classification filter: approved, new, or changed.'),
+  decidedBy: z
+    .enum(['rule', 'admin'])
+    .optional()
+    .describe('Optional filter: tools whose current policy was set by the automatic rule, or by an administrator.'),
   uncertainOnly: z.boolean().optional().describe('Only tools the automatic rule could not clearly classify.'),
 });
 const setToolPoliciesSchema = z.object({
   providerId: providerIdSchema,
-  changes: z.array(z.object({
-    toolName: mcpToolNameSchema,
-    fingerprint: z.string().regex(/^[a-f0-9]{64}$/).describe('The fingerprint returned by list_mcp_tools.'),
-    state: policyStateSchema.describe('blocked disables the tool; allowed_default_off permits it off by default; allowed_default_on permits it on by default.'),
-  })).min(1).max(250),
+  changes: z
+    .array(
+      z.object({
+        toolName: mcpToolNameSchema,
+        fingerprint: z
+          .string()
+          .regex(/^[a-f0-9]{64}$/)
+          .describe('The fingerprint returned by list_mcp_tools.'),
+        state: policyStateSchema.describe(
+          'blocked disables the tool; allowed_default_off permits it off by default; allowed_default_on permits it on by default.',
+        ),
+      }),
+    )
+    .min(1)
+    .max(250),
 });
 const setProviderNoteSchema = z.object({
   providerId: providerIdSchema,
-  note: providerAgentNoteSchema.describe('The complete replacement note. Preserve still-relevant context from the previous note and never include secrets.'),
+  note: providerAgentNoteSchema.describe(
+    'The complete replacement note. Preserve still-relevant context from the previous note and never include secrets.',
+  ),
 });
 const clearProviderNoteSchema = z.object({ providerId: providerIdSchema });
 const providerOnlySchema = z.object({ providerId: providerIdSchema });
 const setToolRuleSchema = z.object({
   providerId: providerIdSchema,
-  instructions: toolRuleInstructionsSchema.describe('The complete replacement rule in plain language, e.g. "Only tools that create, edit, merge or push files to a pull request."'),
+  instructions: toolRuleInstructionsSchema.describe(
+    'The complete replacement rule in plain language, e.g. "Only tools that create, edit, merge or push files to a pull request."',
+  ),
 });
 const RULE_BEHAVIOUR = `Tools are classified against the rule: probability >= ${RULE_MATCH_AT} becomes allowed_default_on, anything lower becomes allowed_default_off, and between ${RULE_MISMATCH_AT} and ${RULE_MATCH_AT} is flagged uncertain. A rule never blocks a tool and never overrides an administrator's decision on the current definition.`;
 
@@ -79,7 +107,7 @@ export type AdminAgentContext = {
 };
 
 export async function createAdminAgentContext(request: AdminAgentToolRequest): Promise<AdminAgentContext> {
-  if (!await hasAdministratorAccess(request)) return { tools: {}, instructions: '' };
+  if (!(await hasAdministratorAccess(request))) return { tools: {}, instructions: '' };
   const notes = await request.dependencies.database.providerAgentNotes(request.identity.userId);
 
   return {
@@ -92,7 +120,8 @@ function createAdminAgentTools(request: AdminAgentToolRequest): ToolSet {
   return {
     bifrost_admin_list_mcp_providers: tool({
       title: 'List MCP providers',
-      description: 'List every MCP provider managed by Bifrost, its current agent note, its automatic tool rule, whether this admin account is connected, whether it is mounted, and counts for its stored deployment policies.',
+      description:
+        'List every MCP provider managed by Bifrost, its current agent note, its automatic tool rule, whether this admin account is connected, whether it is mounted, and counts for its stored deployment policies.',
       inputSchema: z.object({}),
       providerOptions: { openai: ADMIN_TOOL_OPTIONS },
       metadata: { source: 'bifrost-admin' },
@@ -103,7 +132,8 @@ function createAdminAgentTools(request: AdminAgentToolRequest): ToolSet {
     }),
     bifrost_admin_list_mcp_tools: tool({
       title: 'List MCP tools',
-      description: 'List tools discovered from one MCP provider with current deployment policy, who decided it (automatic rule or administrator) with the rule\'s probability, whether each tool is new or changed, exact contract changes when available, and fingerprint. Use filters to narrow large providers. Returns fingerprints required for batch policy changes; setting a policy by hand makes it an administrator decision the rule no longer changes.',
+      description:
+        "List tools discovered from one MCP provider with current deployment policy, who decided it (automatic rule or administrator) with the rule's probability, whether each tool is new or changed, exact contract changes when available, and fingerprint. Use filters to narrow large providers. Returns fingerprints required for batch policy changes; setting a policy by hand makes it an administrator decision the rule no longer changes.",
       inputSchema: listProviderToolsSchema,
       providerOptions: { openai: ADMIN_TOOL_OPTIONS },
       metadata: { source: 'bifrost-admin' },
@@ -118,7 +148,8 @@ function createAdminAgentTools(request: AdminAgentToolRequest): ToolSet {
     }),
     bifrost_admin_set_mcp_tool_policies: tool({
       title: 'Set MCP tool policies',
-      description: 'Atomically change deployment policies for up to 250 tools from one MCP provider. Always use fingerprints from list_mcp_tools. The entire batch is rejected if any definition changed, tool is unknown, or tool appears twice.',
+      description:
+        'Atomically change deployment policies for up to 250 tools from one MCP provider. Always use fingerprints from list_mcp_tools. The entire batch is rejected if any definition changed, tool is unknown, or tool appears twice.',
       inputSchema: setToolPoliciesSchema,
       providerOptions: { openai: ADMIN_TOOL_OPTIONS },
       metadata: { source: 'bifrost-admin' },
@@ -143,7 +174,9 @@ function createAdminAgentTools(request: AdminAgentToolRequest): ToolSet {
         return {
           providerId: input.providerId,
           isAvailable: Boolean(request.dependencies.config.OPENROUTER_API_KEY),
-          rule: rule ? { instructions: rule.instructions, revision: rule.revision, updatedAt: rule.updatedAt.toISOString() } : null,
+          rule: rule
+            ? { instructions: rule.instructions, revision: rule.revision, updatedAt: rule.updatedAt.toISOString() }
+            : null,
         };
       },
     }),
@@ -162,13 +195,15 @@ function createAdminAgentTools(request: AdminAgentToolRequest): ToolSet {
           signal: options.abortSignal ?? request.signal,
           dependencies: request.dependencies,
         });
-        if (result.status === 'not-configured') throw new Error('Automatic rules need OPENROUTER_API_KEY on the server');
+        if (result.status === 'not-configured')
+          throw new Error('Automatic rules need OPENROUTER_API_KEY on the server');
         return { providerId: input.providerId, ...result };
       },
     }),
     bifrost_admin_clear_mcp_tool_rule: tool({
       title: 'Clear MCP tool rule',
-      description: 'Remove the automatic tool rule for one MCP provider. Policies it already set stay as they are; new or changed tools go back to blocked until reviewed.',
+      description:
+        'Remove the automatic tool rule for one MCP provider. Policies it already set stay as they are; new or changed tools go back to blocked until reviewed.',
       inputSchema: providerOnlySchema,
       providerOptions: { openai: ADMIN_TOOL_OPTIONS },
       metadata: { source: 'bifrost-admin' },
@@ -180,17 +215,14 @@ function createAdminAgentTools(request: AdminAgentToolRequest): ToolSet {
     }),
     bifrost_admin_set_mcp_note: tool({
       title: 'Set MCP note',
-      description: 'Save the complete internal note for one MCP provider. This replaces its previous note. Use it only for durable user preferences or provider-specific working context, never secrets.',
+      description:
+        'Save the complete internal note for one MCP provider. This replaces its previous note. Use it only for durable user preferences or provider-specific working context, never secrets.',
       inputSchema: setProviderNoteSchema,
       providerOptions: { openai: ADMIN_TOOL_OPTIONS },
       metadata: { source: 'bifrost-admin' },
       execute: async (input) => {
         await assertAdministratorAccess(request);
-        await request.dependencies.database.setProviderAgentNote(
-          request.identity.userId,
-          input.providerId,
-          input.note,
-        );
+        await request.dependencies.database.setProviderAgentNote(request.identity.userId, input.providerId, input.note);
         return { providerId: input.providerId, note: input.note, status: 'saved' as const };
       },
     }),
@@ -229,12 +261,20 @@ async function listMcpProviders(request: AdminAgentToolRequest) {
   };
 }
 
-async function listMcpTools(request: AdminAgentToolRequest & {
-  input: z.infer<typeof listProviderToolsSchema>;
-}) {
+async function listMcpTools(
+  request: AdminAgentToolRequest & {
+    input: z.infer<typeof listProviderToolsSchema>;
+  },
+) {
   const connectedProviders = await request.dependencies.database.connectedProviders(request.identity.userId);
   if (!connectedProviders.has(request.input.providerId)) {
-    return { providerId: request.input.providerId, status: 'not-connected' as const, totalTools: 0, matchedTools: 0, tools: [] };
+    return {
+      providerId: request.input.providerId,
+      status: 'not-connected' as const,
+      totalTools: 0,
+      matchedTools: 0,
+      tools: [],
+    };
   }
   const [discovery, policies, origins] = await Promise.all([
     request.dependencies.toolDiscovery.discoverProvider({
@@ -247,13 +287,24 @@ async function listMcpTools(request: AdminAgentToolRequest & {
   ]);
   const normalizedQuery = request.input.query?.toLowerCase();
   const tools = discovery.tools
-    .map((entry) => ({ entry, review: toolContractReview(entry, policies), decision: currentDecision(entry, origins.get(entry.name)) }))
+    .map((entry) => ({
+      entry,
+      review: toolContractReview(entry, policies),
+      decision: currentDecision(entry, origins.get(entry.name)),
+    }))
     .filter(({ decision }) => request.input.decidedBy === undefined || decision.decidedBy === request.input.decidedBy)
     .filter(({ decision }) => request.input.uncertainOnly !== true || decision.isUncertain)
     .filter(({ entry }) => request.input.mutability === undefined || entry.mutability === request.input.mutability)
-    .filter(({ entry }) => request.input.states === undefined || request.input.states.includes(effectivePolicyState(entry, policies)))
+    .filter(
+      ({ entry }) =>
+        request.input.states === undefined || request.input.states.includes(effectivePolicyState(entry, policies)),
+    )
     .filter(({ review }) => request.input.reviewKinds === undefined || request.input.reviewKinds.includes(review.kind))
-    .filter(({ entry }) => normalizedQuery === undefined || `${entry.name} ${entry.title} ${entry.description}`.toLowerCase().includes(normalizedQuery))
+    .filter(
+      ({ entry }) =>
+        normalizedQuery === undefined ||
+        `${entry.name} ${entry.title} ${entry.description}`.toLowerCase().includes(normalizedQuery),
+    )
     .map(({ entry, review, decision }) => {
       return {
         toolName: entry.name,
@@ -276,9 +327,11 @@ async function listMcpTools(request: AdminAgentToolRequest & {
   };
 }
 
-async function setMcpToolPolicies(request: AdminAgentToolRequest & {
-  input: z.infer<typeof setToolPoliciesSchema>;
-}) {
+async function setMcpToolPolicies(
+  request: AdminAgentToolRequest & {
+    input: z.infer<typeof setToolPoliciesSchema>;
+  },
+) {
   const connectedProviders = await request.dependencies.database.connectedProviders(request.identity.userId);
   if (!connectedProviders.has(request.input.providerId)) {
     throw new Error(`The admin account is not connected to ${request.input.providerId}`);
@@ -291,7 +344,9 @@ async function setMcpToolPolicies(request: AdminAgentToolRequest & {
     dependencies: request.dependencies,
   });
   if (outcome.status === 'stale') {
-    throw new Error('The batch was not saved because a selected tool changed, is unknown, or appears more than once. List the tools again before retrying.');
+    throw new Error(
+      'The batch was not saved because a selected tool changed, is unknown, or appears more than once. List the tools again before retrying.',
+    );
   }
   return {
     providerId: outcome.providerId,
@@ -302,9 +357,15 @@ async function setMcpToolPolicies(request: AdminAgentToolRequest & {
 
 /** Who decided the policy for this exact definition; null when nobody has yet. */
 function currentDecision(tool: DiscoveredTool, origin: ToolPolicyOrigin | undefined) {
-  if (!origin || origin.fingerprint !== tool.fingerprint) return { decidedBy: null, ruleProbability: null, isUncertain: false };
-  if (origin.source === 'admin' || origin.autoProbability === null) return { decidedBy: 'admin' as const, ruleProbability: null, isUncertain: false };
-  return { decidedBy: 'rule' as const, ruleProbability: origin.autoProbability, isUncertain: isUncertainProbability(origin.autoProbability) };
+  if (!origin || origin.fingerprint !== tool.fingerprint)
+    return { decidedBy: null, ruleProbability: null, isUncertain: false };
+  if (origin.source === 'admin' || origin.autoProbability === null)
+    return { decidedBy: 'admin' as const, ruleProbability: null, isUncertain: false };
+  return {
+    decidedBy: 'rule' as const,
+    ruleProbability: origin.autoProbability,
+    isUncertain: isUncertainProbability(origin.autoProbability),
+  };
 }
 
 function countProviderPolicies(providerId: ProviderId, policies: ReadonlyMap<string, StoredToolPolicy>) {
@@ -319,5 +380,5 @@ async function hasAdministratorAccess(request: AdminAgentToolRequest): Promise<b
 }
 
 async function assertAdministratorAccess(request: AdminAgentToolRequest): Promise<void> {
-  if (!await hasAdministratorAccess(request)) throw new Error('Administrator access required');
+  if (!(await hasAdministratorAccess(request))) throw new Error('Administrator access required');
 }

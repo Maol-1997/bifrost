@@ -31,14 +31,20 @@ type Harness = {
 
 function harness(): Harness {
   const invalidateProvider = vi.fn(async () => undefined);
-  const withConcurrencyLease = vi.fn(async (request: { operation: () => Promise<unknown> }) => (
-    request.operation()
-  ));
-  const toolPolicyDecisions = vi.fn(async () => new Map([[discoveredTool.name, {
-    toolName: discoveredTool.name,
-    fingerprint: discoveredTool.fingerprint,
-    state: 'allowed_default_on' as const,
-  }]]));
+  const withConcurrencyLease = vi.fn(async (request: { operation: () => Promise<unknown> }) => request.operation());
+  const toolPolicyDecisions = vi.fn(
+    async () =>
+      new Map([
+        [
+          discoveredTool.name,
+          {
+            toolName: discoveredTool.name,
+            fingerprint: discoveredTool.fingerprint,
+            state: 'allowed_default_on' as const,
+          },
+        ],
+      ]),
+  );
   return {
     invalidateProvider,
     toolPolicyDecisions,
@@ -74,11 +80,18 @@ beforeEach(() => {
 describe('cached tool execution', () => {
   it('checks the current database policy before making an upstream call', async () => {
     const testHarness = harness();
-    testHarness.toolPolicyDecisions.mockResolvedValue(new Map([[discoveredTool.name, {
-      toolName: discoveredTool.name,
-      fingerprint: '0'.repeat(64),
-      state: 'allowed_default_on',
-    }]]));
+    testHarness.toolPolicyDecisions.mockResolvedValue(
+      new Map([
+        [
+          discoveredTool.name,
+          {
+            toolName: discoveredTool.name,
+            fingerprint: '0'.repeat(64),
+            state: 'allowed_default_on',
+          },
+        ],
+      ]),
+    );
 
     const result = await execute(testHarness.dependencies);
 

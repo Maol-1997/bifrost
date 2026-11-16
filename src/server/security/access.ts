@@ -14,7 +14,12 @@ export type AccessPolicy = {
 };
 
 export function parseAccessList(raw: string): ReadonlySet<string> {
-  return new Set(raw.split(',').map((entry) => entry.trim().toLowerCase()).filter(Boolean));
+  return new Set(
+    raw
+      .split(',')
+      .map((entry) => entry.trim().toLowerCase())
+      .filter(Boolean),
+  );
 }
 
 export function isAccessRestricted(policy: AccessPolicy): boolean {

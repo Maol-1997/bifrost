@@ -62,9 +62,12 @@ async function executeMcp(context: AppContext): Promise<Response> {
 
 function mcpMissingCredential(context: AppContext, config: Config): Response {
   context.header('WWW-Authenticate', bearerChallenge(config.PUBLIC_URL));
-  return context.json({
-    error: 'Authorization required. This server speaks OAuth 2.1; your MCP client can set it up for you',
-  }, 401);
+  return context.json(
+    {
+      error: 'Authorization required. This server speaks OAuth 2.1; your MCP client can set it up for you',
+    },
+    401,
+  );
 }
 
 function mcpInvalidCredential(context: AppContext, config: Config): Response {
@@ -98,10 +101,12 @@ function logMcpRequest(request: McpRequestLog): void {
 }
 
 function inspectMcpRequest(body: unknown): { method: string; toolName?: string } {
-  const parsed = z.object({
-    method: z.string(),
-    params: z.object({ name: z.string().optional() }).loose().optional(),
-  }).safeParse(body);
+  const parsed = z
+    .object({
+      method: z.string(),
+      params: z.object({ name: z.string().optional() }).loose().optional(),
+    })
+    .safeParse(body);
   if (!parsed.success) return { method: 'invalid' };
   return {
     method: parsed.data.method,

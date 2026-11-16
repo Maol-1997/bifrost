@@ -7,7 +7,12 @@ import type { Database } from '../src/server/database/index.js';
 import type { OAuthService } from '../src/server/oauth.js';
 import { PROVIDER_REGISTRY } from '../src/server/providers/registry.js';
 import { normalizeUpstreamTool } from '../src/server/tools/catalog.js';
-import { createRedisToolCacheStore, parseToolCacheGeneration, type ToolCacheRedisCommands, type ToolCacheStore } from '../src/server/tools/cache-store.js';
+import {
+  createRedisToolCacheStore,
+  parseToolCacheGeneration,
+  type ToolCacheRedisCommands,
+  type ToolCacheStore,
+} from '../src/server/tools/cache-store.js';
 import { toolCacheKey, ToolDiscoveryCache } from '../src/server/tools/discovery-cache.js';
 import { ToolDiscoveryService } from '../src/server/tools/discovery.js';
 import { loadVisibleUserTools, type UserToolDependencies } from '../src/server/tools/user-toolset.js';
@@ -18,7 +23,9 @@ const userId = randomUUID();
 const url = process.env.REDIS_URL;
 assert.ok(url, 'Set REDIS_URL to the isolated benchmark Redis');
 const redis = createClient({ url });
-redis.on('error', (error: Error) => { throw error; });
+redis.on('error', (error: Error) => {
+  throw error;
+});
 await redis.connect();
 const commandsByProvider = new Map<string, number>();
 const commands: ToolCacheRedisCommands = {
@@ -40,30 +47,62 @@ const serialStore: ToolCacheStore = {
     return { generationBefore, value, generationAfter: await atomicStore.read(key.generationKey) };
   },
 };
-const tools = PROVIDER_REGISTRY.flatMap((provider) => Array.from({ length: 50 }, (_, index) => normalizeUpstreamTool(provider, {
-  name: `search_records_${index}`,
-  description: `Search ${provider.displayName} records with pagination and filters. Tool ${index}.`,
-  inputSchema: {
-    type: 'object',
-    properties: {
-      query: { type: 'string', description: 'Search expression' },
-      page: { type: 'integer', minimum: 1 },
-      limit: { type: 'integer', minimum: 1, maximum: 100 },
-      filters: { type: 'object', properties: { state: { type: 'string', enum: ['open', 'closed'] }, labels: { type: 'array', items: { type: 'string' } } } },
-    },
-    required: ['query'],
-  },
-  outputSchema: { type: 'object', properties: { records: { type: 'array', items: { type: 'object', properties: { id: { type: 'string' }, title: { type: 'string' } } } }, nextPage: { type: 'integer' } } },
-  annotations: { readOnlyHint: true },
-})));
+const tools = PROVIDER_REGISTRY.flatMap((provider) =>
+  Array.from({ length: 50 }, (_, index) =>
+    normalizeUpstreamTool(provider, {
+      name: `search_records_${index}`,
+      description: `Search ${provider.displayName} records with pagination and filters. Tool ${index}.`,
+      inputSchema: {
+        type: 'object',
+        properties: {
+          query: { type: 'string', description: 'Search expression' },
+          page: { type: 'integer', minimum: 1 },
+          limit: { type: 'integer', minimum: 1, maximum: 100 },
+          filters: {
+            type: 'object',
+            properties: {
+              state: { type: 'string', enum: ['open', 'closed'] },
+              labels: { type: 'array', items: { type: 'string' } },
+            },
+          },
+        },
+        required: ['query'],
+      },
+      outputSchema: {
+        type: 'object',
+        properties: {
+          records: {
+            type: 'array',
+            items: { type: 'object', properties: { id: { type: 'string' }, title: { type: 'string' } } },
+          },
+          nextPage: { type: 'integer' },
+        },
+      },
+      annotations: { readOnlyHint: true },
+    }),
+  ),
+);
 const keys = PROVIDER_REGISTRY.map((provider) => ({ userId, providerId: provider.id }));
-const cleanupKeys = keys.flatMap((key, generation) => [toolCacheKey(key, 'generation'), toolCacheKey(key, 'entry', generation), toolCacheKey(key, 'refresh', generation)]);
+const cleanupKeys = keys.flatMap((key, generation) => [
+  toolCacheKey(key, 'generation'),
+  toolCacheKey(key, 'entry', generation),
+  toolCacheKey(key, 'refresh', generation),
+]);
 const seed = new ToolDiscoveryCache({ store: atomicStore });
-const policies = new Map(tools.map((tool) => [tool.name, { toolName: tool.name, fingerprint: tool.fingerprint, state: 'allowed_default_on' as const }]));
+const policies = new Map(
+  tools.map((tool) => [
+    tool.name,
+    { toolName: tool.name, fingerprint: tool.fingerprint, state: 'allowed_default_on' as const },
+  ]),
+);
 const mounts = PROVIDER_REGISTRY.map((provider) => ({ providerId: provider.id, isMounted: true }));
 const oauth = {} as OAuthService;
 // Discovery is pre-seeded, so nothing in these benchmarks reaches upstream.
-const upstreamClients = { withClient: async (): Promise<never> => { throw new Error('unexpected upstream call'); } };
+const upstreamClients = {
+  withClient: async (): Promise<never> => {
+    throw new Error('unexpected upstream call');
+  },
+};
 function dependencies(store: ToolCacheStore): UserToolDependencies {
   return {
     config: {} as Config,
@@ -83,8 +122,20 @@ function dependencies(store: ToolCacheStore): UserToolDependencies {
   };
 }
 const variants = [
-  { label: 'before: serial reads', dependencies: dependencies(serialStore), expectedCommands: 18, expectedWaves: 3, samples: [] as number[] },
-  { label: 'after: Lua snapshot', dependencies: dependencies(atomicStore), expectedCommands: 6, expectedWaves: 1, samples: [] as number[] },
+  {
+    label: 'before: serial reads',
+    dependencies: dependencies(serialStore),
+    expectedCommands: 18,
+    expectedWaves: 3,
+    samples: [] as number[],
+  },
+  {
+    label: 'after: Lua snapshot',
+    dependencies: dependencies(atomicStore),
+    expectedCommands: 6,
+    expectedWaves: 1,
+    samples: [] as number[],
+  },
 ];
 try {
   for (const [generation, key] of keys.entries()) {
@@ -98,7 +149,10 @@ try {
     }
     commandsByProvider.clear();
     await loadVisibleUserTools({ userId, dependencies: variant.dependencies });
-    assert.equal([...commandsByProvider.values()].reduce((sum, count) => sum + count, 0), variant.expectedCommands);
+    assert.equal(
+      [...commandsByProvider.values()].reduce((sum, count) => sum + count, 0),
+      variant.expectedCommands,
+    );
     assert.equal(Math.max(...commandsByProvider.values()), variant.expectedWaves);
   }
   // Alternate order to reduce shared-host and warmup bias.
@@ -113,7 +167,16 @@ try {
   }
   for (const variant of variants) {
     variant.samples.sort((left, right) => left - right);
-    console.log(JSON.stringify({ label: variant.label, tools: tools.length, commandsPerRequest: variant.expectedCommands, dependencyWaves: variant.expectedWaves, medianMs: variant.samples[Math.floor(SAMPLES / 2)], samplesMs: variant.samples }));
+    console.log(
+      JSON.stringify({
+        label: variant.label,
+        tools: tools.length,
+        commandsPerRequest: variant.expectedCommands,
+        dependencyWaves: variant.expectedWaves,
+        medianMs: variant.samples[Math.floor(SAMPLES / 2)],
+        samplesMs: variant.samples,
+      }),
+    );
   }
 } finally {
   await redis.del(cleanupKeys);

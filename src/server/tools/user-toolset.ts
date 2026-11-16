@@ -14,8 +14,22 @@ import { effectivePolicyState, isToolEnabled, type DiscoveredTool } from './cata
 import type { ToolDiscoveryService } from './discovery.js';
 import { visibleTools } from './filter.js';
 
-const RATE_LIMITS_PER_MINUTE: Readonly<Record<ProviderId, number>> = { github: 80, linear: 120, sentry: 50, slack: 50, notion: 50, granola: 100 };
-const CONCURRENCY_LIMITS: Readonly<Record<ProviderId, number>> = { github: 10, linear: 10, sentry: 5, slack: 5, notion: 5, granola: 5 };
+const RATE_LIMITS_PER_MINUTE: Readonly<Record<ProviderId, number>> = {
+  github: 80,
+  linear: 120,
+  sentry: 50,
+  slack: 50,
+  notion: 50,
+  granola: 100,
+};
+const CONCURRENCY_LIMITS: Readonly<Record<ProviderId, number>> = {
+  github: 10,
+  linear: 10,
+  sentry: 5,
+  slack: 5,
+  notion: 5,
+  granola: 5,
+};
 
 export type UserToolDependencies = {
   config: Config;
@@ -79,9 +93,9 @@ async function resolveVisibleTools(
     ...(request.signal ? { signal: request.signal } : {}),
   });
   const candidates = only ? discovery.tools.filter((tool) => tool.name === only.toolName) : discovery.tools;
-  const enabledTools = new Set(candidates
-    .filter((tool) => isToolEnabled(tool, toolPolicies, toolPreferences))
-    .map((tool) => tool.name));
+  const enabledTools = new Set(
+    candidates.filter((tool) => isToolEnabled(tool, toolPolicies, toolPreferences)).map((tool) => tool.name),
+  );
   return visibleTools(candidates, mounts, { connectedProviders, hiddenProviders, enabledTools });
 }
 
@@ -117,35 +131,43 @@ export async function executeUserTool(request: {
       provider: provider.id,
       userId: request.userId,
       maximumInFlight: CONCURRENCY_LIMITS[provider.id],
-      operation: () => callProviderTool({
-        userId: request.userId,
-        tool: request.tool,
-        input: request.input,
-        accessToken,
-        provider,
-        toolDiscovery: request.dependencies.toolDiscovery,
-        upstreamClients: request.dependencies.upstreamClients,
-        ...(request.signal ? { signal: request.signal } : {}),
-      }),
+      operation: () =>
+        callProviderTool({
+          userId: request.userId,
+          tool: request.tool,
+          input: request.input,
+          accessToken,
+          provider,
+          toolDiscovery: request.dependencies.toolDiscovery,
+          upstreamClients: request.dependencies.upstreamClients,
+          ...(request.signal ? { signal: request.signal } : {}),
+        }),
     });
-    logToolCall({
-      startedAt,
-      userId: request.userId,
-      clientId: request.clientId,
-      toolName: request.tool.name,
-      requestId,
-      status: result.isError === true ? 'error' : 'ok',
-    }, request.dependencies.config.SLOW_TOOL_MS);
+    logToolCall(
+      {
+        startedAt,
+        userId: request.userId,
+        clientId: request.clientId,
+        toolName: request.tool.name,
+        requestId,
+        status: result.isError === true ? 'error' : 'ok',
+      },
+      request.dependencies.config.SLOW_TOOL_MS,
+    );
     return result;
   } catch (error) {
-    logToolCall({
-      startedAt,
-      userId: request.userId,
-      clientId: request.clientId,
-      toolName: request.tool.name,
-      requestId,
-      status: 'error',
-    }, request.dependencies.config.SLOW_TOOL_MS, error);
+    logToolCall(
+      {
+        startedAt,
+        userId: request.userId,
+        clientId: request.clientId,
+        toolName: request.tool.name,
+        requestId,
+        status: 'error',
+      },
+      request.dependencies.config.SLOW_TOOL_MS,
+      error,
+    );
     return {
       content: [{ type: 'text', text: error instanceof AgentFacingError ? error.message : 'Tool call failed' }],
       isError: true,
@@ -177,7 +199,8 @@ async function callProviderTool(request: ProviderToolCall): Promise<CallToolResu
     const signalOption = request.signal ? { signal: request.signal } : {};
     const result = await request.upstreamClients.withClient(
       { userId: request.userId, provider: request.provider, accessToken: request.accessToken, ...signalOption },
-      async (client) => callCachedUpstreamTool(client, { tool: request.tool, arguments: request.input, ...signalOption }),
+      async (client) =>
+        callCachedUpstreamTool(client, { tool: request.tool, arguments: request.input, ...signalOption }),
     );
     if (result.isError === true) await invalidateAfterFailedCall(request);
     return result;
@@ -193,12 +216,22 @@ async function invalidateAfterFailedCall(request: ProviderToolCall): Promise<voi
   } catch (error) {
     // The tool failure is the news; losing the invalidation only costs a stale
     // listing until it expires, and must not replace the original error.
-    logger.warn({ providerId: request.tool.providerId, ...errorSummary(error) }, 'Failed to invalidate cached MCP tools after a tool call failure');
+    logger.warn(
+      { providerId: request.tool.providerId, ...errorSummary(error) },
+      'Failed to invalidate cached MCP tools after a tool call failure',
+    );
   }
 }
 
 function logToolCall(
-  details: { startedAt: number; userId: string; clientId: string; toolName: string; requestId: string; status: 'ok' | 'error' },
+  details: {
+    startedAt: number;
+    userId: string;
+    clientId: string;
+    toolName: string;
+    requestId: string;
+    status: 'ok' | 'error';
+  },
   slowThresholdMs: number,
   error?: unknown,
 ): void {

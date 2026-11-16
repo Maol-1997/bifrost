@@ -28,14 +28,20 @@ services:
       ALLOWED_EMAILS: ${ALLOWED_EMAILS:-}
       BIFROST_DEV_USER_ID: ${BIFROST_DEV_USER_ID:-}
     ports:
-      - "3000:3000"
+      - '3000:3000'
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://localhost:3000/healthz').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://localhost:3000/healthz').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))",
+        ]
       interval: 5s
       timeout: 3s
       retries: 12
@@ -48,26 +54,26 @@ services:
     # Published so host tooling can reach the same database the app uses:
     # `npm run migrate` and `npm run dev:server` both run outside the network.
     ports:
-      - "5432:5432"
+      - '5432:5432'
     volumes:
       - bifrost-postgres:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U bifrost -d bifrost"]
+      test: ['CMD-SHELL', 'pg_isready -U bifrost -d bifrost']
       interval: 3s
       timeout: 3s
       retries: 20
   redis:
     image: redis:8-bookworm
-    command: ["redis-server", "--appendonly", "yes"]
+    command: ['redis-server', '--appendonly', 'yes']
     # Published for the same reason as postgres: `npm run dev:server` runs on the
     # host, and without a reachable Redis it silently degrades to in-process
     # locks and rate limits, which is not the behaviour we want to develop against.
     ports:
-      - "6379:6379"
+      - '6379:6379'
     volumes:
       - bifrost-redis:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ['CMD', 'redis-cli', 'ping']
       interval: 3s
       timeout: 3s
       retries: 20

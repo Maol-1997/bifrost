@@ -30,8 +30,7 @@ export type ToolRuleDependencies = AutoPolicyDependencies & {
 export type ToolRuleApplication = AutoPolicyOutcome['status'] | 'not-connected' | 'failed';
 
 export type SaveToolRuleResult =
-  | { status: 'not-configured' }
-  | { status: 'saved'; revision: number; classification: ToolRuleApplication };
+  { status: 'not-configured' } | { status: 'saved'; revision: number; classification: ToolRuleApplication };
 
 export type AutoPolicyOutcome =
   | { status: 'not-configured' | 'no-rule' | 'busy' | 'backing-off' }
@@ -93,19 +92,21 @@ export async function reconcileAutoPolicies(request: {
         await coordinator.setEphemeral(backoffKey, '1', FAILURE_BACKOFF_SECONDS);
         throw error;
       }
-      const written = await database.setAutoToolPolicies(pending.map((tool) => {
-        const autoProbability = probabilities.get(tool.name);
-        if (autoProbability === undefined) throw new Error(`Missing classification for ${tool.name}`);
-        return {
-          providerId: request.providerId,
-          toolName: tool.name,
-          fingerprint: tool.fingerprint,
-          contract: tool.contract,
-          state: autoPolicyFor(autoProbability).state,
-          autoProbability,
-          ruleRevision: rule.revision,
-        };
-      }));
+      const written = await database.setAutoToolPolicies(
+        pending.map((tool) => {
+          const autoProbability = probabilities.get(tool.name);
+          if (autoProbability === undefined) throw new Error(`Missing classification for ${tool.name}`);
+          return {
+            providerId: request.providerId,
+            toolName: tool.name,
+            fingerprint: tool.fingerprint,
+            contract: tool.contract,
+            state: autoPolicyFor(autoProbability).state,
+            autoProbability,
+            ruleRevision: rule.revision,
+          };
+        }),
+      );
       if (written.length > 0) {
         // Policies are deployment-wide, so every signed-in browser may be showing a stale list.
         await events.broadcast('providers-changed');
@@ -189,6 +190,9 @@ export function reconcileAutoPoliciesInBackground(request: Parameters<typeof rec
       }
     })
     .catch((error: unknown) => {
-      logger.warn({ providerId: request.providerId, ...errorSummary(error) }, 'Automatic tool policy classification failed');
+      logger.warn(
+        { providerId: request.providerId, ...errorSummary(error) },
+        'Automatic tool policy classification failed',
+      );
     });
 }

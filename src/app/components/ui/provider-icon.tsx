@@ -18,10 +18,15 @@ import { Slack } from './svgs/slack';
 // same keeps Granola's requested green independent from SVGL's light/dark fill.
 // Partial on purpose: a catalog entry can exist before its logo does, and it
 // must fall back to its monogram rather than render an empty tile.
-const providerLogos: Partial<Record<ProviderId, {
-  Mark: ComponentType<SVGProps<SVGSVGElement>>;
-  className?: string;
-}>> = {
+const providerLogos: Partial<
+  Record<
+    ProviderId,
+    {
+      Mark: ComponentType<SVGProps<SVGSVGElement>>;
+      className?: string;
+    }
+  >
+> = {
   github: { Mark: GithubDark },
   granola: { Mark: Granola, className: 'text-[#B2C248] [&_path]:fill-current' },
   linear: { Mark: Linear },
@@ -57,7 +62,11 @@ export function ProviderIcon({
         tileSizes[size],
       )}
     >
-      {Logo ? <Logo aria-hidden className={cn('text-logo', logoSizes[size], logo.className)} /> : monogram ?? providerId.charAt(0).toUpperCase()}
+      {Logo ? (
+        <Logo aria-hidden className={cn('text-logo', logoSizes[size], logo.className)} />
+      ) : (
+        (monogram ?? providerId.charAt(0).toUpperCase())
+      )}
     </div>
   );
 }

@@ -40,16 +40,22 @@ try {
   harness.upstream.setTools(tools);
   const adminUserId = await harness.createUser();
   await harness.connectProvider(adminUserId);
-  await harness.decideTools(adminUserId, Object.fromEntries(tools.map((tool) => [`github_${tool.name}`, 'allowed_default_on'])));
-  const agents = await Promise.all(Array.from({ length: USERS }, async () => {
-    const userId = await harness.createUser();
-    await harness.connectProvider(userId);
-    return { userId, bearer: await harness.issueBearer(userId) };
-  }));
+  await harness.decideTools(
+    adminUserId,
+    Object.fromEntries(tools.map((tool) => [`github_${tool.name}`, 'allowed_default_on'])),
+  );
+  const agents = await Promise.all(
+    Array.from({ length: USERS }, async () => {
+      const userId = await harness.createUser();
+      await harness.connectProvider(userId);
+      return { userId, bearer: await harness.issueBearer(userId) };
+    }),
+  );
   harness.upstream.latencyMs = UPSTREAM_LATENCY_MS;
 
   const list = (agent: Agent): Promise<McpResponse> => harness.listTools(agent.bearer);
-  const call = (agent: Agent): Promise<McpResponse> => harness.callTool(agent.bearer, 'github_echo', { message: 'benchmark' });
+  const call = (agent: Agent): Promise<McpResponse> =>
+    harness.callTool(agent.bearer, 'github_echo', { message: 'benchmark' });
   const results = [
     await measure(harness, agents, 'tools/list warm', list, WARM_SAMPLES),
     await measure(harness, agents, 'tools/list cold', list, COLD_SAMPLES),

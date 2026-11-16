@@ -1,7 +1,9 @@
 import type { ProviderDefinition } from './types.js';
 
 export const notionProvider: ProviderDefinition = {
-  id: 'notion', prefix: 'notion_', displayName: 'Notion',
+  id: 'notion',
+  prefix: 'notion_',
+  displayName: 'Notion',
   mcpUrl: 'https://mcp.notion.com/mcp',
   oauth: {
     kind: 'dynamic',

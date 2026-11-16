@@ -30,7 +30,9 @@ class FakeBrowserEventBroker {
 }
 
 describe('BrowserEventBus', () => {
-  afterEach(() => { vi.restoreAllMocks(); });
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
 
   it('delivers an emitted event to every listener of that user', async () => {
     const bus = new BrowserEventBus();
@@ -45,7 +47,7 @@ describe('BrowserEventBus', () => {
     expect(second).toHaveBeenCalledExactlyOnceWith('providers-changed');
   });
 
-  it('does not deliver another user\'s event', async () => {
+  it("does not deliver another user's event", async () => {
     const bus = new BrowserEventBus();
     const listener = vi.fn();
     bus.subscribe('user-a', listener);

@@ -102,10 +102,12 @@ export function createUserStore(database: AppDatabase) {
 }
 
 export function isUniqueViolation(error: unknown): boolean {
-  return error !== null
-    && typeof error === 'object'
-    && 'code' in error
-    && (error as { code: unknown }).code === UNIQUE_VIOLATION;
+  return (
+    error !== null &&
+    typeof error === 'object' &&
+    'code' in error &&
+    (error as { code: unknown }).code === UNIQUE_VIOLATION
+  );
 }
 
 function isIdentityResolutionRace(error: unknown): boolean {

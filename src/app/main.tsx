@@ -23,14 +23,17 @@ const queryClient = new QueryClient({
 
 const app = (
   <BrowserRouter>
-    <App /><Toaster />
+    <App />
+    <Toaster />
   </BrowserRouter>
 );
 
 createRoot(root).render(
   <StrictMode>
     {isPersistenceEnabled ? (
-      <PersistQueryClientProvider client={queryClient} persistOptions={persistOptions}>{app}</PersistQueryClientProvider>
+      <PersistQueryClientProvider client={queryClient} persistOptions={persistOptions}>
+        {app}
+      </PersistQueryClientProvider>
     ) : (
       <QueryClientProvider client={queryClient}>{app}</QueryClientProvider>
     )}

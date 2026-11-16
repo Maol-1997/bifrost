@@ -39,20 +39,24 @@ const TOKEN_EXCHANGE_TIMEOUT_MS = 10_000;
 const REFRESH_LOCK_WAIT_MS = TOKEN_EXCHANGE_TIMEOUT_MS + 2_000;
 const googleJwks = createRemoteJWKSet(new URL('https://www.googleapis.com/oauth2/v3/certs'));
 
-const tokenResponseSchema = z.object({
-  access_token: z.string().min(1).optional(),
-  refresh_token: z.string().min(1).optional(),
-  expires_in: z.number().positive().optional(),
-  scope: z.string().optional(),
-  id_token: z.string().optional(),
-  authed_user: z.object({
+const tokenResponseSchema = z
+  .object({
     access_token: z.string().min(1).optional(),
     refresh_token: z.string().min(1).optional(),
     expires_in: z.number().positive().optional(),
     scope: z.string().optional(),
-  }).optional(),
-  error: z.string().optional(),
-}).loose();
+    id_token: z.string().optional(),
+    authed_user: z
+      .object({
+        access_token: z.string().min(1).optional(),
+        refresh_token: z.string().min(1).optional(),
+        expires_in: z.number().positive().optional(),
+        scope: z.string().optional(),
+      })
+      .optional(),
+    error: z.string().optional(),
+  })
+  .loose();
 const returnToSchema = z.string().refine(isSafeReturnTo);
 export const googleIdentityClaimsSchema = z.object({
   sub: z.string().min(1),
@@ -62,8 +66,14 @@ export const googleIdentityClaimsSchema = z.object({
 });
 
 type ProviderTokenResponse = z.infer<typeof tokenResponseSchema>;
-type OAuthDatabase = Pick<Database,
-  'createSession' | 'getCredential' | 'replaceCredentialIfUnchanged' | 'saveCredential' | 'setAccountLabel' | 'upsertGoogleUser'
+type OAuthDatabase = Pick<
+  Database,
+  | 'createSession'
+  | 'getCredential'
+  | 'replaceCredentialIfUnchanged'
+  | 'saveCredential'
+  | 'setAccountLabel'
+  | 'upsertGoogleUser'
 >;
 type OAuthCoordinator = Pick<Coordinator, 'setEphemeral' | 'takeEphemeral' | 'withLockWaiting'>;
 
@@ -88,17 +98,15 @@ type ProviderOAuthDependencies = {
 };
 
 const defaultProviderOAuthDependencies: ProviderOAuthDependencies = {
-  authorizationCodeGrant: async (request) => await authorizationCodeGrant(
-    request.configuration,
-    request.callbackUrl,
-    { pkceCodeVerifier: request.verifier, expectedState: request.state },
-    request.tokenEndpointParameters,
-  ),
-  refreshTokenGrant: async (request) => await refreshTokenGrant(
-    request.configuration,
-    request.refreshToken,
-    request.tokenEndpointParameters,
-  ),
+  authorizationCodeGrant: async (request) =>
+    await authorizationCodeGrant(
+      request.configuration,
+      request.callbackUrl,
+      { pkceCodeVerifier: request.verifier, expectedState: request.state },
+      request.tokenEndpointParameters,
+    ),
+  refreshTokenGrant: async (request) =>
+    await refreshTokenGrant(request.configuration, request.refreshToken, request.tokenEndpointParameters),
   readAccountLabel: async (request) => await request.reader(request.accessToken, request.signal),
 };
 
@@ -106,7 +114,10 @@ const oauthStateSchema = z.object({
   userId: z.uuid().optional(),
   providerId: z.enum(SUPPORTED_APPS).optional(),
   oauthClientId: z.string().min(1).optional(),
-  browserNonceHash: z.string().regex(/^[A-Za-z0-9_-]{43}$/).optional(),
+  browserNonceHash: z
+    .string()
+    .regex(/^[A-Za-z0-9_-]{43}$/)
+    .optional(),
   verifier: z.string().min(43),
   returnTo: returnToSchema,
 });
@@ -170,15 +181,23 @@ export class OAuthService {
     const safeReturnTo = returnToSchema.parse(returnTo);
     const { state, verifier, challenge } = await createPkce();
     const browserNonce = randomBytes(GOOGLE_BROWSER_NONCE_BYTES).toString('base64url');
-    await this.coordinator.setEphemeral(`oauth:state:${state}`, JSON.stringify({
-      browserNonceHash: hashBrowserNonce(browserNonce),
-      verifier,
-      returnTo: safeReturnTo,
-    }), OAUTH_STATE_TTL_SECONDS);
+    await this.coordinator.setEphemeral(
+      `oauth:state:${state}`,
+      JSON.stringify({
+        browserNonceHash: hashBrowserNonce(browserNonce),
+        verifier,
+        returnTo: safeReturnTo,
+      }),
+      OAUTH_STATE_TTL_SECONDS,
+    );
     const location = buildAuthorizationUrl(googleConfiguration(clientId), {
       redirect_uri: `${this.config.PUBLIC_URL}/auth/google/callback`,
-      response_type: 'code', scope: 'openid email profile', state,
-      code_challenge: challenge, code_challenge_method: 'S256', prompt: 'select_account',
+      response_type: 'code',
+      scope: 'openid email profile',
+      state,
+      code_challenge: challenge,
+      code_challenge_method: 'S256',
+      prompt: 'select_account',
     }).href;
     return { location, browserNonce, expiresInSeconds: OAUTH_STATE_TTL_SECONDS };
   }
@@ -193,17 +212,23 @@ export class OAuthService {
       throw new Error('Google sign-in browser binding is invalid or expired');
     }
     const response = await fetch('https://oauth2.googleapis.com/token', {
-      method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       signal: AbortSignal.timeout(TOKEN_EXCHANGE_TIMEOUT_MS),
       body: new URLSearchParams({
-        code, client_id: this.requiredConfig('GOOGLE_CLIENT_ID'), client_secret: this.requiredConfig('GOOGLE_CLIENT_SECRET'),
-        redirect_uri: `${this.config.PUBLIC_URL}/auth/google/callback`, grant_type: 'authorization_code', code_verifier: storedState.verifier,
+        code,
+        client_id: this.requiredConfig('GOOGLE_CLIENT_ID'),
+        client_secret: this.requiredConfig('GOOGLE_CLIENT_SECRET'),
+        redirect_uri: `${this.config.PUBLIC_URL}/auth/google/callback`,
+        grant_type: 'authorization_code',
+        code_verifier: storedState.verifier,
       }),
     });
     const tokens = tokenResponseSchema.parse(await response.json());
     if (!response.ok || !tokens.id_token) throw new Error('Google sign-in failed');
     const verified = await jwtVerify(tokens.id_token, googleJwks, {
-      issuer: ['https://accounts.google.com', 'accounts.google.com'], audience: this.requiredConfig('GOOGLE_CLIENT_ID'),
+      issuer: ['https://accounts.google.com', 'accounts.google.com'],
+      audience: this.requiredConfig('GOOGLE_CLIENT_ID'),
     });
     // `sub` is required, not optional: it is the only stable Google identifier —
     // an email can be renamed or reassigned, so an account keyed on it alone
@@ -213,7 +238,10 @@ export class OAuthService {
     // Checked before the upsert on purpose: a rejected account must leave no
     // row behind, or "who has an account here" stops meaning anything.
     if (!isEmailAllowed(claims.email, this.config.accessPolicy)) {
-      logger.warn({ domain: emailDomain(claims.email.toLowerCase()) }, 'Rejected sign-in from a domain that is not allowed');
+      logger.warn(
+        { domain: emailDomain(claims.email.toLowerCase()) },
+        'Rejected sign-in from a domain that is not allowed',
+      );
       throw new EmailNotAllowedError();
     }
     const userId = await this.database.upsertGoogleUser({
@@ -229,16 +257,23 @@ export class OAuthService {
     const provider = findProvider(providerId);
     const client = await this.createProviderOAuthClient(provider);
     const { state, verifier, challenge } = await createPkce();
-    await this.coordinator.setEphemeral(`oauth:state:${state}`, JSON.stringify({
-      userId,
-      providerId,
-      verifier,
-      returnTo: '/',
-      ...(client.oauthClientId === undefined ? {} : { oauthClientId: client.oauthClientId }),
-    }), OAUTH_STATE_TTL_SECONDS);
+    await this.coordinator.setEphemeral(
+      `oauth:state:${state}`,
+      JSON.stringify({
+        userId,
+        providerId,
+        verifier,
+        returnTo: '/',
+        ...(client.oauthClientId === undefined ? {} : { oauthClientId: client.oauthClientId }),
+      }),
+      OAUTH_STATE_TTL_SECONDS,
+    );
     const parameters = new URLSearchParams({
       redirect_uri: this.providerRedirectUri(providerId),
-      response_type: 'code', state, code_challenge: challenge, code_challenge_method: 'S256',
+      response_type: 'code',
+      state,
+      code_challenge: challenge,
+      code_challenge_method: 'S256',
     });
     parameters.set('scope', provider.oauth.scopes.join(providerId === 'slack' ? ',' : ' '));
     if (provider.oauth.kind === 'dynamic') parameters.set('resource', provider.oauth.resource);
@@ -251,10 +286,16 @@ export class OAuthService {
    * be the same person, or one user's provider account would be connected to
    * another user's Bifrost account by handing them the authorization URL.
    */
-  async finishProvider(code: string, state: string, expectedUserId: string): Promise<{ userId: string; providerId: ProviderId }> {
+  async finishProvider(
+    code: string,
+    state: string,
+    expectedUserId: string,
+  ): Promise<{ userId: string; providerId: ProviderId }> {
     const storedState = await this.takeState(state);
-    if (!storedState.userId || !storedState.providerId) throw new Error('OAuth state is not a provider connection state');
-    if (storedState.userId !== expectedUserId) throw new Error('OAuth provider callback was delivered by a different account than the one that started it');
+    if (!storedState.userId || !storedState.providerId)
+      throw new Error('OAuth state is not a provider connection state');
+    if (storedState.userId !== expectedUserId)
+      throw new Error('OAuth provider callback was delivered by a different account than the one that started it');
     const provider = findProvider(storedState.providerId);
     const configuration = this.providerConfiguration(provider, storedState.oauthClientId);
     const callbackUrl = new URL(this.providerRedirectUri(provider.id));
@@ -312,52 +353,58 @@ export class OAuthService {
   async getOrRefreshAccessToken(userId: string, providerId: ProviderId): Promise<string> {
     const credential = await this.database.getCredential(userId, providerId);
     if (!credential) throw new ReconnectRequiredError(providerId);
-    if (!credential.expiresAt || credential.expiresAt.getTime() > Date.now() + EXPIRY_SKEW_MS) return credential.accessToken;
+    if (!credential.expiresAt || credential.expiresAt.getTime() > Date.now() + EXPIRY_SKEW_MS)
+      return credential.accessToken;
     // A concurrent request may be refreshing this credential already. Waiting
     // for it, then rereading the row, hands this caller that request's token
     // instead of failing it or spending the refresh token twice.
-    return this.coordinator.withLockWaiting(providerRefreshLockKey(userId, providerId), REFRESH_LOCK_WAIT_MS, async () => {
-      const latest = await this.database.getCredential(userId, providerId);
-      if (!latest) throw new ReconnectRequiredError(providerId);
-      if (!latest.expiresAt || latest.expiresAt.getTime() > Date.now() + EXPIRY_SKEW_MS) return latest.accessToken;
-      if (!latest.refreshToken) throw new ReconnectRequiredError(providerId);
-      const provider = findProvider(providerId);
-      let exchanged: ProviderTokenResponse;
-      try {
-        exchanged = await this.refreshProviderToken(provider, latest.refreshToken, latest.oauthClientId);
-      } catch (error) {
-        // Only the provider saying no means the user has to reconnect. A
-        // network fault or a timeout says nothing about the grant, and telling
-        // the user to reconnect over it would be both wrong and irreversible.
-        if (error instanceof TokenExchangeRejectedError) throw new ReconnectRequiredError(providerId);
-        throw error;
-      }
-      const refreshed = normalizeCredential(exchanged, {
-        fallbackRefreshToken: latest.refreshToken,
-        fallbackScopes: latest.scopes,
-        oauthClientId: latest.oauthClientId,
-      });
-      const replaced = await this.database.replaceCredentialIfUnchanged({
-        userId, providerId, credential: refreshed, expectedVersion: latest.version,
-      });
-      if (replaced) return refreshed.accessToken;
-      // The row changed under the exchange: the user disconnected or reconnected
-      // meanwhile, and that action stands. The token just obtained is dropped.
-      const current = await this.database.getCredential(userId, providerId);
-      if (!current) throw new ReconnectRequiredError(providerId);
-      return current.accessToken;
-    });
+    return this.coordinator.withLockWaiting(
+      providerRefreshLockKey(userId, providerId),
+      REFRESH_LOCK_WAIT_MS,
+      async () => {
+        const latest = await this.database.getCredential(userId, providerId);
+        if (!latest) throw new ReconnectRequiredError(providerId);
+        if (!latest.expiresAt || latest.expiresAt.getTime() > Date.now() + EXPIRY_SKEW_MS) return latest.accessToken;
+        if (!latest.refreshToken) throw new ReconnectRequiredError(providerId);
+        const provider = findProvider(providerId);
+        let exchanged: ProviderTokenResponse;
+        try {
+          exchanged = await this.refreshProviderToken(provider, latest.refreshToken, latest.oauthClientId);
+        } catch (error) {
+          // Only the provider saying no means the user has to reconnect. A
+          // network fault or a timeout says nothing about the grant, and telling
+          // the user to reconnect over it would be both wrong and irreversible.
+          if (error instanceof TokenExchangeRejectedError) throw new ReconnectRequiredError(providerId);
+          throw error;
+        }
+        const refreshed = normalizeCredential(exchanged, {
+          fallbackRefreshToken: latest.refreshToken,
+          fallbackScopes: latest.scopes,
+          oauthClientId: latest.oauthClientId,
+        });
+        const replaced = await this.database.replaceCredentialIfUnchanged({
+          userId,
+          providerId,
+          credential: refreshed,
+          expectedVersion: latest.version,
+        });
+        if (replaced) return refreshed.accessToken;
+        // The row changed under the exchange: the user disconnected or reconnected
+        // meanwhile, and that action stands. The token just obtained is dropped.
+        const current = await this.database.getCredential(userId, providerId);
+        if (!current) throw new ReconnectRequiredError(providerId);
+        return current.accessToken;
+      },
+    );
   }
 
-  private async exchangeProviderCode(
-    request: {
-      provider: ProviderDefinition;
-      configuration: Configuration;
-      callbackUrl: URL;
-      verifier: string;
-      state: string;
-    },
-  ): Promise<ProviderTokenResponse> {
+  private async exchangeProviderCode(request: {
+    provider: ProviderDefinition;
+    configuration: Configuration;
+    callbackUrl: URL;
+    verifier: string;
+    state: string;
+  }): Promise<ProviderTokenResponse> {
     try {
       const tokens = await this.providerOAuth.authorizationCodeGrant({
         configuration: request.configuration,
@@ -393,17 +440,22 @@ export class OAuthService {
 
   private async createProviderOAuthClient(provider: ProviderDefinition): Promise<ProviderOAuthClient> {
     if (provider.oauth.kind === 'static') return { configuration: this.providerConfiguration(provider) };
-    const configuration = await dynamicClientRegistration(new URL(provider.oauth.issuer), {
-      client_name: 'Bifrost',
-      redirect_uris: [this.providerRedirectUri(provider.id)],
-      grant_types: ['authorization_code', 'refresh_token'],
-      response_types: ['code'],
-      token_endpoint_auth_method: 'none',
-      scope: provider.oauth.scopes.join(' '),
-    }, None(), {
-      algorithm: provider.oauth.discoveryAlgorithm,
-      timeout: TOKEN_EXCHANGE_TIMEOUT_MS / 1000,
-    });
+    const configuration = await dynamicClientRegistration(
+      new URL(provider.oauth.issuer),
+      {
+        client_name: 'Bifrost',
+        redirect_uris: [this.providerRedirectUri(provider.id)],
+        grant_types: ['authorization_code', 'refresh_token'],
+        response_types: ['code'],
+        token_endpoint_auth_method: 'none',
+        scope: provider.oauth.scopes.join(' '),
+      },
+      None(),
+      {
+        algorithm: provider.oauth.discoveryAlgorithm,
+        timeout: TOKEN_EXCHANGE_TIMEOUT_MS / 1000,
+      },
+    );
     const oauthClientId = configuration.clientMetadata().client_id;
     if (!oauthClientId) throw new Error(`${provider.displayName} dynamic registration did not return a client ID`);
     return { configuration, oauthClientId };
@@ -412,28 +464,37 @@ export class OAuthService {
   private providerConfiguration(provider: ProviderDefinition, oauthClientId?: string): Configuration {
     if (provider.oauth.kind === 'dynamic') {
       if (!oauthClientId) throw new ReconnectRequiredError(provider.id);
-      const configuration = new Configuration({
-        issuer: provider.oauth.issuer,
-        authorization_endpoint: provider.oauth.authorizationUrl,
-        token_endpoint: provider.oauth.tokenUrl,
-      }, oauthClientId, { token_endpoint_auth_method: 'none' }, None());
+      const configuration = new Configuration(
+        {
+          issuer: provider.oauth.issuer,
+          authorization_endpoint: provider.oauth.authorizationUrl,
+          token_endpoint: provider.oauth.tokenUrl,
+        },
+        oauthClientId,
+        { token_endpoint_auth_method: 'none' },
+        None(),
+      );
       configuration.timeout = TOKEN_EXCHANGE_TIMEOUT_MS / 1000;
       return configuration;
     }
     const clientSecret = this.providerClientSecret(provider.id);
-    const configuration = new Configuration({
-      issuer: new URL(provider.oauth.authorizationUrl).origin,
-      authorization_endpoint: provider.oauth.authorizationUrl,
-      token_endpoint: provider.oauth.tokenUrl,
-    }, this.providerClientId(provider.id), {
-      client_secret: clientSecret,
-      token_endpoint_auth_method: 'client_secret_post',
-    }, ClientSecretPost(clientSecret));
+    const configuration = new Configuration(
+      {
+        issuer: new URL(provider.oauth.authorizationUrl).origin,
+        authorization_endpoint: provider.oauth.authorizationUrl,
+        token_endpoint: provider.oauth.tokenUrl,
+      },
+      this.providerClientId(provider.id),
+      {
+        client_secret: clientSecret,
+        token_endpoint_auth_method: 'client_secret_post',
+      },
+      ClientSecretPost(clientSecret),
+    );
     configuration.timeout = TOKEN_EXCHANGE_TIMEOUT_MS / 1000;
     if (provider.id === 'slack') {
-      configuration[customFetch] = async (url, options) => normalizeSlackTokenResponse(
-        await fetch(url, fetchOptions(options)),
-      );
+      configuration[customFetch] = async (url, options) =>
+        normalizeSlackTokenResponse(await fetch(url, fetchOptions(options)));
     }
     return configuration;
   }
@@ -475,20 +536,25 @@ async function createPkce(): Promise<{ state: string; verifier: string; challeng
 }
 
 function googleConfiguration(clientId: string): Configuration {
-  return new Configuration({
-    issuer: 'https://accounts.google.com',
-    authorization_endpoint: 'https://accounts.google.com/o/oauth2/v2/auth',
-    token_endpoint: 'https://oauth2.googleapis.com/token',
-    jwks_uri: 'https://www.googleapis.com/oauth2/v3/certs',
-  }, clientId);
+  return new Configuration(
+    {
+      issuer: 'https://accounts.google.com',
+      authorization_endpoint: 'https://accounts.google.com/o/oauth2/v2/auth',
+      token_endpoint: 'https://oauth2.googleapis.com/token',
+      jwks_uri: 'https://www.googleapis.com/oauth2/v3/certs',
+    },
+    clientId,
+  );
 }
 
 function isProviderRejection(error: unknown): boolean {
   if (error instanceof ResponseBodyError || error instanceof AuthorizationResponseError) return true;
-  return error instanceof ClientError
-    && error.code !== 'OAUTH_TIMEOUT'
-    && error.code !== 'OAUTH_ABORT'
-    && error.message !== 'something went wrong';
+  return (
+    error instanceof ClientError &&
+    error.code !== 'OAUTH_TIMEOUT' &&
+    error.code !== 'OAUTH_ABORT' &&
+    error.message !== 'something went wrong'
+  );
 }
 
 function isTransientProviderFailure(error: unknown): boolean {
@@ -546,9 +612,8 @@ function normalizeCredential(
   const refreshToken = userTokens.refresh_token ?? context.fallbackRefreshToken;
   const expiresIn = userTokens.expires_in;
   const returnedScopes = userTokens.scope ?? tokens.authed_user?.scope;
-  const scopes = returnedScopes === undefined
-    ? context.fallbackScopes ?? []
-    : returnedScopes.split(/[ ,]/).filter(Boolean);
+  const scopes =
+    returnedScopes === undefined ? (context.fallbackScopes ?? []) : returnedScopes.split(/[ ,]/).filter(Boolean);
   return {
     accessToken,
     ...(refreshToken === undefined ? {} : { refreshToken }),

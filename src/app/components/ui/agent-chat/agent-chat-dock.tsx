@@ -1,56 +1,47 @@
-import * as React from "react"
+import * as React from 'react';
 
-import {
-  AgentChat,
-  type AgentChatConversation,
-  type AgentChatHistory,
-} from "./agent-chat"
-import { AgentChatMini } from "./agent-chat-mini"
+import { AgentChat, type AgentChatConversation, type AgentChatHistory } from './agent-chat';
+import { AgentChatMini } from './agent-chat-mini';
 
-type AgentChatPlacement = "minimized" | "page" | "toolbar"
+type AgentChatPlacement = 'minimized' | 'page' | 'toolbar';
 
-type AgentChatDockConversation = Omit<AgentChatConversation, "onMoveToToolbar">
+type AgentChatDockConversation = Omit<AgentChatConversation, 'onMoveToToolbar'>;
 type AgentChatPlacementControl =
   | {
-    current: AgentChatPlacement
-    kind: "controlled"
-    onChange: (placement: AgentChatPlacement) => void
-  }
+      current: AgentChatPlacement;
+      kind: 'controlled';
+      onChange: (placement: AgentChatPlacement) => void;
+    }
   | {
-    defaultPlacement?: AgentChatPlacement
-    kind: "uncontrolled"
-    onChange?: (placement: AgentChatPlacement) => void
-  }
+      defaultPlacement?: AgentChatPlacement;
+      kind: 'uncontrolled';
+      onChange?: (placement: AgentChatPlacement) => void;
+    };
 
 type AgentChatDockProps = {
-  children: React.ReactNode
-  className?: string
-  conversation?: AgentChatDockConversation
-  history?: AgentChatHistory
-  onOpenFullPage?: () => void
-  pageVisible?: boolean
-  placement?: AgentChatPlacementControl
-  title?: string
-}
+  children: React.ReactNode;
+  className?: string;
+  conversation?: AgentChatDockConversation;
+  history?: AgentChatHistory;
+  onOpenFullPage?: () => void;
+  pageVisible?: boolean;
+  placement?: AgentChatPlacementControl;
+  title?: string;
+};
 
 function useAgentChatPlacement(control?: AgentChatPlacementControl) {
-  const defaultPlacement = control?.kind === "uncontrolled"
-    ? control.defaultPlacement ?? "page"
-    : "page"
-  const [internalPlacement, setInternalPlacement] =
-    React.useState<AgentChatPlacement>(defaultPlacement)
-  const currentPlacement = control?.kind === "controlled"
-    ? control.current
-    : internalPlacement
+  const defaultPlacement = control?.kind === 'uncontrolled' ? (control.defaultPlacement ?? 'page') : 'page';
+  const [internalPlacement, setInternalPlacement] = React.useState<AgentChatPlacement>(defaultPlacement);
+  const currentPlacement = control?.kind === 'controlled' ? control.current : internalPlacement;
 
   function changePlacement(nextPlacement: AgentChatPlacement) {
-    if (control?.kind !== "controlled") {
-      setInternalPlacement(nextPlacement)
+    if (control?.kind !== 'controlled') {
+      setInternalPlacement(nextPlacement);
     }
-    control?.onChange?.(nextPlacement)
+    control?.onChange?.(nextPlacement);
   }
 
-  return [currentPlacement, changePlacement] as const
+  return [currentPlacement, changePlacement] as const;
 }
 
 function AgentChatDock({
@@ -61,59 +52,60 @@ function AgentChatDock({
   onOpenFullPage,
   pageVisible = true,
   placement,
-  title = "New chat",
+  title = 'New chat',
 }: AgentChatDockProps) {
-  const [currentPlacement, changePlacement] = useAgentChatPlacement(placement)
+  const [currentPlacement, changePlacement] = useAgentChatPlacement(placement);
 
   function openFullPage(): void {
-    changePlacement("page")
-    onOpenFullPage?.()
+    changePlacement('page');
+    onOpenFullPage?.();
   }
 
-  if (currentPlacement === "page") {
-    if (!pageVisible) return null
+  if (currentPlacement === 'page') {
+    if (!pageVisible) return null;
 
     return (
       <AgentChat
         {...(className ? { className } : {})}
-        {...(conversation ? {
-          conversation: {
-            ...conversation,
-            onMoveToToolbar: () => changePlacement("toolbar"),
-          },
-        } : {})}
+        {...(conversation
+          ? {
+              conversation: {
+                ...conversation,
+                onMoveToToolbar: () => changePlacement('toolbar'),
+              },
+            }
+          : {})}
         {...(history ? { history } : {})}
         title={title}
       >
         {children}
       </AgentChat>
-    )
+    );
   }
 
-  if (currentPlacement === "minimized") return null
+  if (currentPlacement === 'minimized') return null;
 
   return (
     <AgentChatMini
-      {...(conversation ? {
-        actions: {
-          onCopyAsMarkdown: conversation.onCopyAsMarkdown,
-          onDelete: conversation.onDelete,
-        },
-      } : {})}
+      {...(conversation
+        ? {
+            actions: {
+              onCopyAsMarkdown: conversation.onCopyAsMarkdown,
+              onDelete: conversation.onDelete,
+            },
+          }
+        : {})}
       controls={{
-        onClose: () => changePlacement("minimized"),
-        onMinimize: () => changePlacement("minimized"),
+        onClose: () => changePlacement('minimized'),
+        onMinimize: () => changePlacement('minimized'),
         onOpenFullPage: openFullPage,
       }}
-      position={pageVisible ? "contained" : "fixed"}
+      position={pageVisible ? 'contained' : 'fixed'}
       title={title}
     >
       {children}
     </AgentChatMini>
-  )
+  );
 }
 
-export {
-  AgentChatDock,
-  type AgentChatPlacement,
-}
+export { AgentChatDock, type AgentChatPlacement };

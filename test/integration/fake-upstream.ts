@@ -2,7 +2,13 @@ import { randomUUID } from 'node:crypto';
 import type { AddressInfo } from 'node:net';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { serve, type ServerType } from '@hono/node-server';
-import { createMcpHandler, fromJsonSchema, McpServer, type CallToolResult, type JsonSchemaType } from '@modelcontextprotocol/server';
+import {
+  createMcpHandler,
+  fromJsonSchema,
+  McpServer,
+  type CallToolResult,
+  type JsonSchemaType,
+} from '@modelcontextprotocol/server';
 
 export type FakeUpstreamTool = {
   name: string;
@@ -59,7 +65,7 @@ export class FakeUpstream {
     await this.handler.close();
     const server = this.server;
     if (!server) return;
-    await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+    await new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())));
   }
 
   setTools(tools: readonly FakeUpstreamTool[]): void {
@@ -67,7 +73,9 @@ export class FakeUpstream {
   }
 
   count(method: string, toolName?: string): number {
-    return this.requests.filter((request) => request.method === method && (toolName === undefined || request.toolName === toolName)).length;
+    return this.requests.filter(
+      (request) => request.method === method && (toolName === undefined || request.toolName === toolName),
+    ).length;
   }
 
   /** The next `tools/call` reaches the server and is recorded, then fails at the HTTP level. */
@@ -93,7 +101,8 @@ export class FakeUpstream {
     const recorded = request.method === 'POST' ? this.record(request, await request.clone().json()) : undefined;
     if (this.latencyMs > 0) await sleep(this.latencyMs);
     const session = request.headers.get('mcp-session-id');
-    if (session !== null && this.expiredSessions.has(session)) return new Response('Session not found', { status: 404 });
+    if (session !== null && this.expiredSessions.has(session))
+      return new Response('Session not found', { status: 404 });
     if (recorded?.method === 'tools/call' && this.failNextToolCall) {
       this.failNextToolCall = false;
       return new Response('upstream exploded mid-call', { status: 500 });
@@ -116,7 +125,9 @@ export class FakeUpstream {
     const recorded = {
       method: message.method ?? 'unknown',
       authorization: request.headers.get('authorization') ?? undefined,
-      ...(message.params?.name === undefined ? {} : { toolName: message.params.name, arguments: message.params.arguments }),
+      ...(message.params?.name === undefined
+        ? {}
+        : { toolName: message.params.name, arguments: message.params.arguments }),
     };
     this.requests.push(recorded);
     return recorded;
@@ -125,14 +136,18 @@ export class FakeUpstream {
   private createServer(): McpServer {
     const server = new McpServer({ name: 'fake-upstream', version: '1.0.0' }, { capabilities: { tools: {} } });
     for (const tool of this.tools) {
-      server.registerTool(tool.name, {
-        description: tool.description,
-        inputSchema: fromJsonSchema(ECHO_INPUT_SCHEMA as unknown as JsonSchemaType),
-        annotations: { readOnlyHint: tool.readOnly },
-      }, async (input): Promise<CallToolResult> => {
-        this.executions += 1;
-        return { content: [{ type: 'text', text: `${tool.name}:${(input as { message: string }).message}` }] };
-      });
+      server.registerTool(
+        tool.name,
+        {
+          description: tool.description,
+          inputSchema: fromJsonSchema(ECHO_INPUT_SCHEMA as unknown as JsonSchemaType),
+          annotations: { readOnlyHint: tool.readOnly },
+        },
+        async (input): Promise<CallToolResult> => {
+          this.executions += 1;
+          return { content: [{ type: 'text', text: `${tool.name}:${(input as { message: string }).message}` }] };
+        },
+      );
     }
     return server;
   }

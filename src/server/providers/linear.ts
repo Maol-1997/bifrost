@@ -8,20 +8,33 @@ const graphQlEnvelopeSchema = z.object({
   errors: z.array(z.object({ message: z.string() })).optional(),
 });
 
-async function linearGraphQl(query: string, variables: Record<string, unknown>, context: ProviderRequestContext): Promise<JsonValue> {
-  const result = graphQlEnvelopeSchema.parse(await fetchJson('https://api.linear.app/graphql', {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${context.accessToken}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ query, variables }),
-  }, context.signal));
-  if (result.errors?.length) throw new Error(`Linear request failed: ${result.errors[0]?.message ?? 'unknown GraphQL error'}`);
+async function linearGraphQl(
+  query: string,
+  variables: Record<string, unknown>,
+  context: ProviderRequestContext,
+): Promise<JsonValue> {
+  const result = graphQlEnvelopeSchema.parse(
+    await fetchJson(
+      'https://api.linear.app/graphql',
+      {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${context.accessToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query, variables }),
+      },
+      context.signal,
+    ),
+  );
+  if (result.errors?.length)
+    throw new Error(`Linear request failed: ${result.errors[0]?.message ?? 'unknown GraphQL error'}`);
   return result.data ?? null;
 }
 
 const viewerSchema = z.object({ viewer: z.object({ email: z.string().min(1) }) });
 
 export const linearProvider: ProviderDefinition = {
-  id: 'linear', prefix: 'linear_', displayName: 'Linear',
+  id: 'linear',
+  prefix: 'linear_',
+  displayName: 'Linear',
   mcpUrl: 'https://mcp.linear.app/mcp',
   oauth: {
     kind: 'dynamic',

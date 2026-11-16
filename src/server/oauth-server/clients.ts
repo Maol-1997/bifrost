@@ -28,19 +28,23 @@ const DOCUMENT_DEFAULT_CACHE_MS = 3_600_000;
 const DOCUMENT_MAX_CACHE_MS = 86_400_000;
 const MAX_REDIRECT_URIS = 20;
 
-const registrationRequestSchema = z.object({
-  client_name: z.string().min(1).max(200).optional(),
-  redirect_uris: z.array(z.string().min(1)).min(1).max(MAX_REDIRECT_URIS),
-  grant_types: z.array(z.string()).optional(),
-  response_types: z.array(z.string()).optional(),
-  token_endpoint_auth_method: z.string().optional(),
-}).loose();
+const registrationRequestSchema = z
+  .object({
+    client_name: z.string().min(1).max(200).optional(),
+    redirect_uris: z.array(z.string().min(1)).min(1).max(MAX_REDIRECT_URIS),
+    grant_types: z.array(z.string()).optional(),
+    response_types: z.array(z.string()).optional(),
+    token_endpoint_auth_method: z.string().optional(),
+  })
+  .loose();
 
-const clientMetadataDocumentSchema = z.object({
-  client_id: z.string().min(1),
-  client_name: z.string().min(1).max(200),
-  redirect_uris: z.array(z.string().min(1)).min(1).max(MAX_REDIRECT_URIS),
-}).loose();
+const clientMetadataDocumentSchema = z
+  .object({
+    client_id: z.string().min(1),
+    client_name: z.string().min(1).max(200),
+    redirect_uris: z.array(z.string().min(1)).min(1).max(MAX_REDIRECT_URIS),
+  })
+  .loose();
 
 /** The one place the supported grants are named; metadata, registration and the token endpoint all read it. */
 export const SUPPORTED_GRANT_TYPES = ['authorization_code', 'refresh_token'] as const;
@@ -69,17 +73,29 @@ export function isClientIdMetadataDocumentUrl(clientId: string): boolean {
 export function parseRegistrationRequest(payload: unknown): { clientName: string; redirectUris: readonly string[] } {
   const parsed = registrationRequestSchema.safeParse(payload);
   if (!parsed.success) throw new OAuthError('invalid_request', 'Registration requires redirect_uris');
-  const { client_name: clientName, redirect_uris: redirectUris, grant_types: grantTypes, response_types: responseTypes, token_endpoint_auth_method: authMethod } = parsed.data;
+  const {
+    client_name: clientName,
+    redirect_uris: redirectUris,
+    grant_types: grantTypes,
+    response_types: responseTypes,
+    token_endpoint_auth_method: authMethod,
+  } = parsed.data;
   if (grantTypes?.some((grantType) => !supportedGrantTypeSet.has(grantType))) {
     throw new OAuthError('invalid_request', `Only the ${SUPPORTED_GRANT_TYPES.join(' and ')} grants are supported`);
   }
   // Absent means "code" per RFC 7591; an empty list or anything else declares a
   // flow this server does not run, and registering it would only defer the failure.
-  if (responseTypes !== undefined && (responseTypes.length === 0 || responseTypes.some((responseType) => responseType !== 'code'))) {
+  if (
+    responseTypes !== undefined &&
+    (responseTypes.length === 0 || responseTypes.some((responseType) => responseType !== 'code'))
+  ) {
     throw new OAuthError('invalid_request', 'Only the code response type is supported');
   }
   if (authMethod !== undefined && authMethod !== 'none') {
-    throw new OAuthError('invalid_request', 'Only public clients are supported, so token_endpoint_auth_method must be none');
+    throw new OAuthError(
+      'invalid_request',
+      'Only public clients are supported, so token_endpoint_auth_method must be none',
+    );
   }
   assertRegistrableRedirectUris(redirectUris);
   return { clientName: clientName ?? 'Unnamed MCP client', redirectUris };
@@ -107,8 +123,13 @@ export function registrationResponse(client: RegisteredClient): Record<string, u
  */
 export function parseClientMetadataDocument(clientId: string, payload: unknown): RegisteredClient {
   const parsed = clientMetadataDocumentSchema.safeParse(payload);
-  if (!parsed.success) throw new OAuthError('invalid_client', 'Client metadata document is missing client_id, client_name or redirect_uris');
-  if (parsed.data.client_id !== clientId) throw new OAuthError('invalid_client', 'Client metadata document does not claim the URL it was served from');
+  if (!parsed.success)
+    throw new OAuthError(
+      'invalid_client',
+      'Client metadata document is missing client_id, client_name or redirect_uris',
+    );
+  if (parsed.data.client_id !== clientId)
+    throw new OAuthError('invalid_client', 'Client metadata document does not claim the URL it was served from');
   assertRegistrableRedirectUris(parsed.data.redirect_uris);
   return {
     clientId,
@@ -129,15 +150,21 @@ export function parseClientMetadataDocument(clientId: string, payload: unknown):
  * need a pinned-IP agent. The exposure is bounded by `handleAuthorize` refusing
  * to resolve a client until the browser has a signed-in session.
  */
-export async function fetchClientMetadataDocument(clientId: string): Promise<{ client: RegisteredClient; cacheForMs: number }> {
-  if (!isClientIdMetadataDocumentUrl(clientId)) throw new OAuthError('invalid_client', 'A client_id URL must use https and include a path');
+export async function fetchClientMetadataDocument(
+  clientId: string,
+): Promise<{ client: RegisteredClient; cacheForMs: number }> {
+  if (!isClientIdMetadataDocumentUrl(clientId))
+    throw new OAuthError('invalid_client', 'A client_id URL must use https and include a path');
   await assertPubliclyRoutableHost(new URL(clientId).hostname);
   const response = await fetch(clientId, {
     redirect: 'manual',
     signal: AbortSignal.timeout(DOCUMENT_TIMEOUT_MS),
     headers: { Accept: 'application/json' },
-  }).catch(() => { throw new OAuthError('invalid_client', 'Could not reach the client metadata document'); });
-  if (!response.ok) throw new OAuthError('invalid_client', `Client metadata document responded with status ${response.status}`);
+  }).catch(() => {
+    throw new OAuthError('invalid_client', 'Could not reach the client metadata document');
+  });
+  if (!response.ok)
+    throw new OAuthError('invalid_client', `Client metadata document responded with status ${response.status}`);
   const body = await readCapped(response);
   let payload: unknown;
   try {
@@ -145,19 +172,26 @@ export async function fetchClientMetadataDocument(clientId: string): Promise<{ c
   } catch {
     throw new OAuthError('invalid_client', 'Client metadata document is not valid JSON');
   }
-  return { client: parseClientMetadataDocument(clientId, payload), cacheForMs: cacheLifetimeMs(response.headers.get('cache-control')) };
+  return {
+    client: parseClientMetadataDocument(clientId, payload),
+    cacheForMs: cacheLifetimeMs(response.headers.get('cache-control')),
+  };
 }
 
 function assertRegistrableRedirectUris(redirectUris: readonly string[]): void {
   const invalid = redirectUris.find((uri) => !isRedirectUriRegistrable(uri));
   if (invalid !== undefined) {
-    throw new OAuthError('invalid_request', 'Every redirect_uri must use https or point at loopback, and must not contain a fragment');
+    throw new OAuthError(
+      'invalid_request',
+      'Every redirect_uri must use https or point at loopback, and must not contain a fragment',
+    );
   }
 }
 
 async function assertPubliclyRoutableHost(hostname: string): Promise<void> {
-  const addresses = await lookup(hostname, { all: true })
-    .catch(() => { throw new OAuthError('invalid_client', 'Could not resolve the client metadata document host'); });
+  const addresses = await lookup(hostname, { all: true }).catch(() => {
+    throw new OAuthError('invalid_client', 'Could not resolve the client metadata document host');
+  });
   if (addresses.length === 0 || !addresses.every((entry) => isPubliclyRoutableAddress(entry.address))) {
     throw new OAuthError('invalid_client', 'Client metadata documents must be hosted on a publicly routable address');
   }

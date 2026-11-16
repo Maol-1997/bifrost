@@ -8,7 +8,17 @@ import { IntegrationsIcon } from '@app/components/ui/icons/integrations-icon';
 import type { LinearIconProps } from '@app/components/ui/icons/linear-icon';
 import { PulseIcon } from '@app/components/ui/icons/pulse-icon';
 import { SidebarAgentIcon } from '@app/components/ui/icons/sidebar-agent-icon';
-import { Sidebar, SidebarBackdrop, SidebarContent, SidebarGroup, SidebarHeader, SidebarLink, SidebarMobileHeader, SidebarSpacer, SidebarTrigger } from '@app/components/ui/sidebar';
+import {
+  Sidebar,
+  SidebarBackdrop,
+  SidebarContent,
+  SidebarGroup,
+  SidebarHeader,
+  SidebarLink,
+  SidebarMobileHeader,
+  SidebarSpacer,
+  SidebarTrigger,
+} from '@app/components/ui/sidebar';
 import { cn } from '@app/lib/cn';
 import { initialsOf } from '@app/lib/initials';
 import { getCurrentUser, type CurrentUser, type HealthSnapshot } from '@app/api/bifrost';
@@ -43,7 +53,11 @@ function statusBadge(snapshot: HealthSnapshot | undefined): { text: string; clas
   const down = snapshot.apps.filter((app) => app.health === 'down').length;
   const degraded = snapshot.apps.filter((app) => app.health === 'degraded').length;
   const issues = down + degraded;
-  if (issues > 0) return { text: `${issues} ${issues === 1 ? 'issue' : 'issues'}`, className: down > 0 ? 'bg-danger/15 text-danger' : 'bg-warning/15 text-warning' };
+  if (issues > 0)
+    return {
+      text: `${issues} ${issues === 1 ? 'issue' : 'issues'}`,
+      className: down > 0 ? 'bg-danger/15 text-danger' : 'bg-warning/15 text-warning',
+    };
   return undefined;
 }
 
@@ -74,30 +88,53 @@ export function AppShell(): React.JSX.Element {
       if (event.key === 'Escape') setIsSidebarOpen(false);
     }
     window.addEventListener('keydown', closeSidebarWithEscape);
-    return () => { window.removeEventListener('keydown', closeSidebarWithEscape); };
+    return () => {
+      window.removeEventListener('keydown', closeSidebarWithEscape);
+    };
   }, [isSidebarOpen]);
 
   return (
     <div className="flex h-dvh min-w-0 overflow-hidden bg-linear-sidebar-background text-linear-foreground">
-      <SidebarBackdrop open={isSidebarOpen} aria-label="Close navigation" onClick={() => { setIsSidebarOpen(false); }} />
-      <Sidebar id="bifrost-sidebar" aria-label="Primary navigation" open={isSidebarOpen} onOpenChange={setIsSidebarOpen}>
+      <SidebarBackdrop
+        open={isSidebarOpen}
+        aria-label="Close navigation"
+        onClick={() => {
+          setIsSidebarOpen(false);
+        }}
+      />
+      <Sidebar
+        id="bifrost-sidebar"
+        aria-label="Primary navigation"
+        open={isSidebarOpen}
+        onOpenChange={setIsSidebarOpen}
+      >
         <SidebarHeader className="h-auto px-4 pb-5">
-          <div className="flex select-none items-center gap-2"><BifrostMark className="size-[22px]" /><span className="text-sm font-semibold text-linear-bright">Bifrost</span></div>
+          <div className="flex select-none items-center gap-2">
+            <BifrostMark className="size-[22px]" />
+            <span className="text-sm font-semibold text-linear-bright">Bifrost</span>
+          </div>
         </SidebarHeader>
         <SidebarContent className="pt-2">
           <SidebarGroup>
             <nav aria-label="Primary">
-          {navItems.map((item) => {
-            const Icon = item.icon;
-            return (
-                <SidebarLink key={item.to} asChild active={isActiveRoute(location.pathname, item.to)}>
-                  <NavLink to={item.to}>
-                    <Icon aria-hidden="true" />
-                    <span>{item.label}</span>{item.to === APP_ROUTES.serviceStatus && badge ? <span className={cn('ml-auto rounded-full px-1.5 py-0.5 text-xs font-semibold', badge.className)}>{badge.text}</span> : null}
-                  </NavLink>
-                </SidebarLink>
-            );
-          })}
+              {navItems.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <SidebarLink key={item.to} asChild active={isActiveRoute(location.pathname, item.to)}>
+                    <NavLink to={item.to}>
+                      <Icon aria-hidden="true" />
+                      <span>{item.label}</span>
+                      {item.to === APP_ROUTES.serviceStatus && badge ? (
+                        <span
+                          className={cn('ml-auto rounded-full px-1.5 py-0.5 text-xs font-semibold', badge.className)}
+                        >
+                          {badge.text}
+                        </span>
+                      ) : null}
+                    </NavLink>
+                  </SidebarLink>
+                );
+              })}
             </nav>
           </SidebarGroup>
           {user?.isAdmin ? <AdminToolNavigation /> : null}
@@ -105,31 +142,46 @@ export function AppShell(): React.JSX.Element {
         {user ? (
           <SidebarLink asChild active={location.pathname === APP_ROUTES.accountSecurity} className="mb-3 h-auto py-2">
             <NavLink to={APP_ROUTES.accountSecurity} aria-label="Account & security">
-            <div className="flex size-6 shrink-0 items-center justify-center rounded-full bg-brand/25 text-xs font-semibold text-brand-hover">{initialsOf(user.name)}</div>
-            <div className="min-w-0"><div className="truncate text-xs font-medium">{user.name}</div><div className="truncate text-xs text-app-text-quaternary">Account & security</div></div>
+              <div className="flex size-6 shrink-0 items-center justify-center rounded-full bg-brand/25 text-xs font-semibold text-brand-hover">
+                {initialsOf(user.name)}
+              </div>
+              <div className="min-w-0">
+                <div className="truncate text-xs font-medium">{user.name}</div>
+                <div className="truncate text-xs text-app-text-quaternary">Account & security</div>
+              </div>
             </NavLink>
           </SidebarLink>
         ) : null}
       </Sidebar>
       <SidebarSpacer />
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-        <main className={cn('flex min-h-0 min-w-0 flex-1 flex-col bg-linear-gallery-main min-[1025px]:mr-2 min-[1025px]:mt-2 min-[1025px]:rounded-xl min-[1025px]:linear-border-hairline min-[1025px]:border-linear-border min-[1025px]:shadow-linear-control', isChat ? 'overflow-hidden' : 'overflow-y-auto')}>
+        <main
+          className={cn(
+            'flex min-h-0 min-w-0 flex-1 flex-col bg-linear-gallery-main min-[1025px]:mr-2 min-[1025px]:mt-2 min-[1025px]:rounded-xl min-[1025px]:linear-border-hairline min-[1025px]:border-linear-border min-[1025px]:shadow-linear-control',
+            isChat ? 'overflow-hidden' : 'overflow-y-auto',
+          )}
+        >
           <SidebarMobileHeader>
-            <SidebarTrigger aria-label="Open navigation" aria-controls="bifrost-sidebar" aria-expanded={isSidebarOpen} onClick={() => { setIsSidebarOpen(true); }} />
+            <SidebarTrigger
+              aria-label="Open navigation"
+              aria-controls="bifrost-sidebar"
+              aria-expanded={isSidebarOpen}
+              onClick={() => {
+                setIsSidebarOpen(true);
+              }}
+            />
             <span className="font-medium text-linear-bright">Bifrost</span>
           </SidebarMobileHeader>
           <Suspense fallback={isChat ? <BifrostNewChatLoadingState /> : null}>
-            <Chat
-              active={isChat}
-              toolbarHost={agentToolbarHost}
-              {...(user ? { owner: user.email } : {})}
-            />
+            <Chat active={isChat} toolbarHost={agentToolbarHost} {...(user ? { owner: user.email } : {})} />
           </Suspense>
           {!isChat ? (
-            <div className={cn(
-              'mx-auto w-full px-5 pb-24 pt-8 sm:px-10 sm:pt-11',
-              location.pathname.startsWith(APP_ROUTES.adminTools) ? 'max-w-5xl' : 'max-w-[760px]',
-            )}>
+            <div
+              className={cn(
+                'mx-auto w-full px-5 pb-24 pt-8 sm:px-10 sm:pt-11',
+                location.pathname.startsWith(APP_ROUTES.adminTools) ? 'max-w-5xl' : 'max-w-[760px]',
+              )}
+            >
               <Outlet context={{ health, user } satisfies AppShellContext} />
             </div>
           ) : null}

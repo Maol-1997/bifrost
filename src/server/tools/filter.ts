@@ -13,10 +13,11 @@ export function visibleTools(
   visibility: UserToolVisibility,
 ): readonly DiscoveredTool[] {
   const mounted = new Set(mounts.filter((mount) => mount.isMounted).map((mount) => mount.providerId));
-  return tools.filter((tool) => (
-    mounted.has(tool.providerId)
-    && visibility.connectedProviders.has(tool.providerId)
-    && !visibility.hiddenProviders.has(tool.providerId)
-    && visibility.enabledTools.has(tool.name)
-  ));
+  return tools.filter(
+    (tool) =>
+      mounted.has(tool.providerId) &&
+      visibility.connectedProviders.has(tool.providerId) &&
+      !visibility.hiddenProviders.has(tool.providerId) &&
+      visibility.enabledTools.has(tool.name),
+  );
 }

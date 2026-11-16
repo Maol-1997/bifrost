@@ -1,22 +1,18 @@
-import * as React from "react"
+import * as React from 'react';
 
-import { Tooltip, TooltipContent, TooltipTrigger } from "@app/components/ui/tooltip"
-import { cn } from "@app/lib/cn"
-import { CloseChatIcon, EditMessageIcon } from "./agent-chat-icons"
+import { Tooltip, TooltipContent, TooltipTrigger } from '@app/components/ui/tooltip';
+import { cn } from '@app/lib/cn';
+import { CloseChatIcon, EditMessageIcon } from './agent-chat-icons';
 
-type AgentChatEditingBannerProps = React.ComponentPropsWithoutRef<"div"> & {
-  onCancel?: () => void
-}
+type AgentChatEditingBannerProps = React.ComponentPropsWithoutRef<'div'> & {
+  onCancel?: () => void;
+};
 
-function AgentChatEditingBanner({
-  className,
-  onCancel,
-  ...props
-}: AgentChatEditingBannerProps) {
+function AgentChatEditingBanner({ className, onCancel, ...props }: AgentChatEditingBannerProps) {
   return (
     <div
       className={cn(
-        "mx-auto flex h-[27px] w-[calc(100%-24px)] max-w-[821px] items-start justify-between gap-2 pb-1",
+        'mx-auto flex h-[27px] w-[calc(100%-24px)] max-w-[821px] items-start justify-between gap-2 pb-1',
         className,
       )}
       {...props}
@@ -41,7 +37,7 @@ function AgentChatEditingBanner({
         </TooltipContent>
       </Tooltip>
     </div>
-  )
+  );
 }
 
-export { AgentChatEditingBanner }
+export { AgentChatEditingBanner };

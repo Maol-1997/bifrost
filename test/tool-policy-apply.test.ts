@@ -53,7 +53,14 @@ function harness(): Harness {
   };
 }
 
-function apply(harnessed: Harness, changes: readonly { toolName: string; fingerprint: string; state: 'blocked' | 'allowed_default_off' | 'allowed_default_on' }[]) {
+function apply(
+  harnessed: Harness,
+  changes: readonly {
+    toolName: string;
+    fingerprint: string;
+    state: 'blocked' | 'allowed_default_off' | 'allowed_default_on';
+  }[],
+) {
   return applyToolPolicies({
     userId: adminUserId,
     providerId: 'github',
@@ -70,7 +77,9 @@ describe('applying deployment tool policies', () => {
   it('approves against a fresh listing rather than the cached one', async () => {
     const harnessed = harness();
 
-    await apply(harnessed, [{ toolName: readTool.name, fingerprint: readTool.fingerprint, state: 'allowed_default_on' }]);
+    await apply(harnessed, [
+      { toolName: readTool.name, fingerprint: readTool.fingerprint, state: 'allowed_default_on' },
+    ]);
 
     expect(harnessed.discoverProviderFresh).toHaveBeenCalledExactlyOnceWith({
       userId: adminUserId,
@@ -82,16 +91,20 @@ describe('applying deployment tool policies', () => {
   it('writes the contract that produced the approved fingerprint', async () => {
     const harnessed = harness();
 
-    await apply(harnessed, [{ toolName: readTool.name, fingerprint: readTool.fingerprint, state: 'allowed_default_on' }]);
+    await apply(harnessed, [
+      { toolName: readTool.name, fingerprint: readTool.fingerprint, state: 'allowed_default_on' },
+    ]);
 
-    expect(harnessed.setToolPolicies).toHaveBeenCalledExactlyOnceWith([{
-      providerId: 'github',
-      toolName: readTool.name,
-      fingerprint: readTool.fingerprint,
-      contract: readTool.contract,
-      state: 'allowed_default_on',
-      updatedByUserId: adminUserId,
-    }]);
+    expect(harnessed.setToolPolicies).toHaveBeenCalledExactlyOnceWith([
+      {
+        providerId: 'github',
+        toolName: readTool.name,
+        fingerprint: readTool.fingerprint,
+        contract: readTool.contract,
+        state: 'allowed_default_on',
+        updatedByUserId: adminUserId,
+      },
+    ]);
   });
 
   it('tells every open browser that the deployment tool list moved', async () => {
@@ -154,37 +167,38 @@ describe('applying deployment tool policies', () => {
 
 describe('reconciling user overrides with a policy change', () => {
   it('clears every override when the approved contract changed', () => {
-    expect(reconcileToolPreferences(
-      { fingerprint: readTool.fingerprint, state: 'allowed_default_on' },
-      '0'.repeat(64),
-    )).toEqual({ kind: 'clear-all' });
+    expect(
+      reconcileToolPreferences({ fingerprint: readTool.fingerprint, state: 'allowed_default_on' }, '0'.repeat(64)),
+    ).toEqual({ kind: 'clear-all' });
   });
 
   it('clears every override for a tool with no previous policy', () => {
-    expect(reconcileToolPreferences(
-      { fingerprint: readTool.fingerprint, state: 'allowed_default_off' },
-      undefined,
-    )).toEqual({ kind: 'clear-all' });
+    expect(
+      reconcileToolPreferences({ fingerprint: readTool.fingerprint, state: 'allowed_default_off' }, undefined),
+    ).toEqual({ kind: 'clear-all' });
   });
 
   it('clears every override when the tool is blocked', () => {
-    expect(reconcileToolPreferences(
-      { fingerprint: readTool.fingerprint, state: 'blocked' },
-      readTool.fingerprint,
-    )).toEqual({ kind: 'clear-all' });
+    expect(
+      reconcileToolPreferences({ fingerprint: readTool.fingerprint, state: 'blocked' }, readTool.fingerprint),
+    ).toEqual({ kind: 'clear-all' });
   });
 
   it('clears the overrides that only restate an on-by-default policy', () => {
-    expect(reconcileToolPreferences(
-      { fingerprint: readTool.fingerprint, state: 'allowed_default_on' },
-      readTool.fingerprint,
-    )).toEqual({ kind: 'clear-redundant', isEnabled: true });
+    expect(
+      reconcileToolPreferences(
+        { fingerprint: readTool.fingerprint, state: 'allowed_default_on' },
+        readTool.fingerprint,
+      ),
+    ).toEqual({ kind: 'clear-redundant', isEnabled: true });
   });
 
   it('clears the overrides that only restate an off-by-default policy', () => {
-    expect(reconcileToolPreferences(
-      { fingerprint: readTool.fingerprint, state: 'allowed_default_off' },
-      readTool.fingerprint,
-    )).toEqual({ kind: 'clear-redundant', isEnabled: false });
+    expect(
+      reconcileToolPreferences(
+        { fingerprint: readTool.fingerprint, state: 'allowed_default_off' },
+        readTool.fingerprint,
+      ),
+    ).toEqual({ kind: 'clear-redundant', isEnabled: false });
   });
 });

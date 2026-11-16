@@ -11,7 +11,9 @@ describe('logger redaction', () => {
   });
 
   it('redacts a secret nested below non-sensitive keys', () => {
-    expect(sanitizeForLogs({ method: 'POST', request: { path: '/mcp', headers: { authorization: 'Bearer abc' } } })).toEqual({
+    expect(
+      sanitizeForLogs({ method: 'POST', request: { path: '/mcp', headers: { authorization: 'Bearer abc' } } }),
+    ).toEqual({
       method: 'POST',
       request: { path: '/mcp', headers: { authorization: '[REDACTED]' } },
     });
@@ -25,12 +27,14 @@ describe('logger redaction', () => {
   });
 
   it('normalizes key casing and separators before matching', () => {
-    expect(sanitizeForLogs({ 'Access-Token': 'a', ACCESS_TOKEN: 'b', client_secret: 'c', Authorization: 'd' })).toEqual({
-      'Access-Token': '[REDACTED]',
-      ACCESS_TOKEN: '[REDACTED]',
-      client_secret: '[REDACTED]',
-      Authorization: '[REDACTED]',
-    });
+    expect(sanitizeForLogs({ 'Access-Token': 'a', ACCESS_TOKEN: 'b', client_secret: 'c', Authorization: 'd' })).toEqual(
+      {
+        'Access-Token': '[REDACTED]',
+        ACCESS_TOKEN: '[REDACTED]',
+        client_secret: '[REDACTED]',
+        Authorization: '[REDACTED]',
+      },
+    );
   });
 
   it('redacts any key whose normalized name ends in token or secret', () => {
@@ -51,7 +55,9 @@ describe('logger redaction', () => {
 
   it('redacts credential-shaped keys that carry neither a token nor a secret suffix', () => {
     expect(sanitizeForLogs({ apiKey: 'k', password: 'p', private_key: 'pk' })).toEqual({
-      apiKey: '[REDACTED]', password: '[REDACTED]', private_key: '[REDACTED]',
+      apiKey: '[REDACTED]',
+      password: '[REDACTED]',
+      private_key: '[REDACTED]',
     });
   });
 

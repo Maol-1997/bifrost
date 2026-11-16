@@ -1,22 +1,19 @@
-import { memo, type ReactNode, useLayoutEffect, useRef } from "react"
+import { memo, type ReactNode, useLayoutEffect, useRef } from 'react';
 
-import { cn } from "@app/lib/cn"
-import {
-  AgentChatMessageActionButton,
-  AgentChatUserActions,
-} from "./agent-chat-actions"
-import { CopyMessageIcon } from "./agent-chat-icons"
+import { cn } from '@app/lib/cn';
+import { AgentChatMessageActionButton, AgentChatUserActions } from './agent-chat-actions';
+import { CopyMessageIcon } from './agent-chat-icons';
 
-type AgentChatMessageRole = "assistant" | "user"
+type AgentChatMessageRole = 'assistant' | 'user';
 
 type AgentChatMessageProps = {
-  actions?: boolean
-  children: ReactNode
-  className?: string
-  onCopyMessage?: () => void
-  onEditMessage?: () => void
-  role: AgentChatMessageRole
-}
+  actions?: boolean;
+  children: ReactNode;
+  className?: string;
+  onCopyMessage?: () => void;
+  onEditMessage?: () => void;
+  role: AgentChatMessageRole;
+};
 
 function AssistantMessageActions({ onCopyMessage }: { onCopyMessage: () => void }) {
   return (
@@ -25,7 +22,7 @@ function AssistantMessageActions({ onCopyMessage }: { onCopyMessage: () => void 
         <CopyMessageIcon />
       </AgentChatMessageActionButton>
     </div>
-  )
+  );
 }
 
 const AgentChatMessage = memo(function AgentChatMessage({
@@ -36,23 +33,22 @@ const AgentChatMessage = memo(function AgentChatMessage({
   onEditMessage,
   role,
 }: AgentChatMessageProps) {
-  const isUser = role === "user"
+  const isUser = role === 'user';
 
   return (
     <article
       className={cn(
-        "agent-chat-message group flex w-full flex-col",
-        isUser ? "items-end" : "items-start gap-1.5",
+        'agent-chat-message group flex w-full flex-col',
+        isUser ? 'items-end' : 'items-start gap-1.5',
         className,
       )}
       data-role={role}
     >
       <div
         className={cn(
-          "whitespace-pre-wrap break-words text-[15px] font-[450] leading-6 tracking-[-0.1px] text-linear-foreground",
-          !isUser && "ml-2.5 w-[calc(100%-20px)]",
-          isUser &&
-            "max-w-[75%] overflow-clip rounded-lg bg-linear-agent-message px-3 py-2 text-linear-bright",
+          'whitespace-pre-wrap break-words text-[15px] font-[450] leading-6 tracking-[-0.1px] text-linear-foreground',
+          !isUser && 'ml-2.5 w-[calc(100%-20px)]',
+          isUser && 'max-w-[75%] overflow-clip rounded-lg bg-linear-agent-message px-3 py-2 text-linear-bright',
         )}
       >
         {children}
@@ -63,23 +59,21 @@ const AgentChatMessage = memo(function AgentChatMessage({
           {...(onEditMessage ? { onEditMessage } : {})}
         />
       )}
-      {actions && !isUser && onCopyMessage
-        ? <AssistantMessageActions onCopyMessage={onCopyMessage} />
-        : null}
+      {actions && !isUser && onCopyMessage ? <AssistantMessageActions onCopyMessage={onCopyMessage} /> : null}
     </article>
-  )
-})
+  );
+});
 
 type AgentChatMessagesProps = {
-  children: ReactNode
-  className?: string
-  follow?: boolean
-  preserveInitialTimestamp?: boolean
-  timestamp?: string
-}
+  children: ReactNode;
+  className?: string;
+  follow?: boolean;
+  preserveInitialTimestamp?: boolean;
+  timestamp?: string;
+};
 
-const followThreshold = 48
-const pinnedPromptGap = 16
+const followThreshold = 48;
+const pinnedPromptGap = 16;
 
 function AgentChatMessages({
   children,
@@ -88,33 +82,29 @@ function AgentChatMessages({
   preserveInitialTimestamp = false,
   timestamp,
 }: AgentChatMessagesProps) {
-  const contentRef = useRef<HTMLDivElement>(null)
-  const shouldFollow = useRef(true)
-  const spacerRef = useRef<HTMLDivElement>(null)
-  const viewportRef = useRef<HTMLDivElement>(null)
+  const contentRef = useRef<HTMLDivElement>(null);
+  const shouldFollow = useRef(true);
+  const spacerRef = useRef<HTMLDivElement>(null);
+  const viewportRef = useRef<HTMLDivElement>(null);
 
   useLayoutEffect(() => {
-    const scrollContent = contentRef.current
-    const scrollSpacer = spacerRef.current
-    const scrollViewport = viewportRef.current
+    const scrollContent = contentRef.current;
+    const scrollSpacer = spacerRef.current;
+    const scrollViewport = viewportRef.current;
     if (!scrollContent || !scrollSpacer || !scrollViewport) {
-      return
+      return;
     }
-    const contentElement = scrollContent
-    const spacerElement = scrollSpacer
-    const viewportElement = scrollViewport
-    const initialPrompts = contentElement.querySelectorAll('[data-role="user"]')
-    let pinnedPrompt = preserveInitialTimestamp
-      ? initialPrompts[initialPrompts.length - 1]
-      : undefined
-    let shouldPreserveInitialPosition = preserveInitialTimestamp
+    const contentElement = scrollContent;
+    const spacerElement = scrollSpacer;
+    const viewportElement = scrollViewport;
+    const initialPrompts = contentElement.querySelectorAll('[data-role="user"]');
+    let pinnedPrompt = preserveInitialTimestamp ? initialPrompts[initialPrompts.length - 1] : undefined;
+    let shouldPreserveInitialPosition = preserveInitialTimestamp;
 
     function updateFollowAnchor() {
       const distanceFromBottom =
-        viewportElement.scrollHeight -
-        viewportElement.clientHeight -
-        viewportElement.scrollTop
-      shouldFollow.current = distanceFromBottom <= followThreshold
+        viewportElement.scrollHeight - viewportElement.clientHeight - viewportElement.scrollTop;
+      shouldFollow.current = distanceFromBottom <= followThreshold;
     }
 
     // Reserving the room the newest turn still lacks to fill the viewport is what keeps a
@@ -122,64 +112,55 @@ function AgentChatMessages({
     // consumes the reserved room instead of pushing the prompt back up. Once the turn is
     // taller than the viewport nothing is reserved and following the bottom resumes.
     function reserveRoomBelowLatestPrompt() {
-      const prompts = contentElement.querySelectorAll('[data-role="user"]')
-      const latestPrompt = prompts[prompts.length - 1]
+      const prompts = contentElement.querySelectorAll('[data-role="user"]');
+      const latestPrompt = prompts[prompts.length - 1];
       if (!latestPrompt) {
-        spacerElement.style.height = "0px"
-        return
+        spacerElement.style.height = '0px';
+        return;
       }
       if (latestPrompt !== pinnedPrompt) {
-        pinnedPrompt = latestPrompt
-        shouldPreserveInitialPosition = false
-        shouldFollow.current = true
+        pinnedPrompt = latestPrompt;
+        shouldPreserveInitialPosition = false;
+        shouldFollow.current = true;
       }
-      const promptTop =
-        latestPrompt.getBoundingClientRect().top - contentElement.getBoundingClientRect().top
-      const turnHeight = contentElement.offsetHeight - promptTop
-      const reservedRoom = viewportElement.clientHeight - turnHeight - pinnedPromptGap
-      spacerElement.style.height = `${Math.max(0, reservedRoom)}px`
+      const promptTop = latestPrompt.getBoundingClientRect().top - contentElement.getBoundingClientRect().top;
+      const turnHeight = contentElement.offsetHeight - promptTop;
+      const reservedRoom = viewportElement.clientHeight - turnHeight - pinnedPromptGap;
+      spacerElement.style.height = `${Math.max(0, reservedRoom)}px`;
     }
 
     function followLatestPrompt() {
-      const contentFits = contentElement.offsetHeight <= viewportElement.clientHeight
-      reserveRoomBelowLatestPrompt()
+      const contentFits = contentElement.offsetHeight <= viewportElement.clientHeight;
+      reserveRoomBelowLatestPrompt();
       if (follow && shouldFollow.current) {
         if (shouldPreserveInitialPosition && contentFits) {
-          viewportElement.scrollTop = 0
-          return
+          viewportElement.scrollTop = 0;
+          return;
         }
-        shouldPreserveInitialPosition = false
-        viewportElement.scrollTop = Number.MAX_SAFE_INTEGER
+        shouldPreserveInitialPosition = false;
+        viewportElement.scrollTop = Number.MAX_SAFE_INTEGER;
       }
     }
 
-    followLatestPrompt()
-    viewportElement.addEventListener("scroll", updateFollowAnchor, { passive: true })
+    followLatestPrompt();
+    viewportElement.addEventListener('scroll', updateFollowAnchor, { passive: true });
 
-    const resizeObserver =
-      typeof ResizeObserver === "undefined"
-        ? undefined
-        : new ResizeObserver(followLatestPrompt)
-    resizeObserver?.observe(contentElement)
-    resizeObserver?.observe(viewportElement)
+    const resizeObserver = typeof ResizeObserver === 'undefined' ? undefined : new ResizeObserver(followLatestPrompt);
+    resizeObserver?.observe(contentElement);
+    resizeObserver?.observe(viewportElement);
 
     return () => {
-      viewportElement.removeEventListener("scroll", updateFollowAnchor)
-      resizeObserver?.disconnect()
-    }
-  }, [follow, preserveInitialTimestamp])
+      viewportElement.removeEventListener('scroll', updateFollowAnchor);
+      resizeObserver?.disconnect();
+    };
+  }, [follow, preserveInitialTimestamp]);
 
   return (
-    <div
-      ref={viewportRef}
-      className="min-h-0 flex-1 overflow-y-auto"
-      role="group"
-      aria-label="Agent conversation"
-    >
+    <div ref={viewportRef} className="min-h-0 flex-1 overflow-y-auto" role="group" aria-label="Agent conversation">
       <div
         ref={contentRef}
         className={cn(
-          "mx-auto flex w-full max-w-[821px] flex-col gap-[26px] px-3 pb-5 pt-3 min-[1025px]:px-0",
+          'mx-auto flex w-full max-w-[821px] flex-col gap-[26px] px-3 pb-5 pt-3 min-[1025px]:px-0',
           className,
         )}
         data-agent-chat-message-list=""
@@ -196,10 +177,7 @@ function AgentChatMessages({
       </div>
       <div ref={spacerRef} aria-hidden="true" />
     </div>
-  )
+  );
 }
 
-export {
-  AgentChatMessage,
-  AgentChatMessages,
-}
+export { AgentChatMessage, AgentChatMessages };

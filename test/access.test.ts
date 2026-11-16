@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { emailDomain, isAdministrator, isEmailAllowed, parseAccessList, type AccessPolicy } from '../src/server/security/access.js';
+import {
+  emailDomain,
+  isAdministrator,
+  isEmailAllowed,
+  parseAccessList,
+  type AccessPolicy,
+} from '../src/server/security/access.js';
 
 const policy = (domains: string, emails: string): AccessPolicy => ({
   allowedEmailDomains: parseAccessList(domains),

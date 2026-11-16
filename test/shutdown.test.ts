@@ -12,7 +12,12 @@ function deferredServerClose(): {
       finish = callback;
     },
   } as unknown as ServerType;
-  return { server, finish: (error) => { finish(error); } };
+  return {
+    server,
+    finish: (error) => {
+      finish(error);
+    },
+  };
 }
 
 describe('graceful shutdown', () => {

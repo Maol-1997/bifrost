@@ -46,12 +46,12 @@ export type ApplyToolPoliciesRequest = {
 export type ApplyToolPoliciesResult =
   | { status: 'stale' }
   | {
-    status: 'applied';
-    providerId: ProviderId;
-    changes: readonly ToolPolicyChange[];
-    counts: ToolPolicyCounts;
-    cache: ToolCacheHint;
-  };
+      status: 'applied';
+      providerId: ProviderId;
+      changes: readonly ToolPolicyChange[];
+      counts: ToolPolicyCounts;
+      cache: ToolCacheHint;
+    };
 
 /**
  * The one path that changes deployment tool policy, shared by the admin HTTP
@@ -75,14 +75,16 @@ export async function applyToolPolicies(request: ApplyToolPoliciesRequest): Prom
     return { status: 'stale' };
   }
 
-  await database.setToolPolicies(request.changes.map((change) => ({
-    providerId: request.providerId,
-    toolName: change.toolName,
-    fingerprint: change.fingerprint,
-    contract: contractForToolPolicyReview(discovery.tools, change),
-    state: change.state,
-    updatedByUserId: request.userId,
-  })));
+  await database.setToolPolicies(
+    request.changes.map((change) => ({
+      providerId: request.providerId,
+      toolName: change.toolName,
+      fingerprint: change.fingerprint,
+      contract: contractForToolPolicyReview(discovery.tools, change),
+      state: change.state,
+      updatedByUserId: request.userId,
+    })),
+  );
 
   // Policies are deployment-wide, so this is not one person's tool list that
   // just changed; it is everyone's.
@@ -97,9 +99,7 @@ export async function applyToolPolicies(request: ApplyToolPoliciesRequest): Prom
   };
 }
 
-export function countToolPolicyStates(
-  policies: readonly { state: ToolPolicyState }[],
-): ToolPolicyCounts {
+export function countToolPolicyStates(policies: readonly { state: ToolPolicyState }[]): ToolPolicyCounts {
   return {
     blocked: policies.filter((policy) => policy.state === 'blocked').length,
     allowedDefaultOff: policies.filter((policy) => policy.state === 'allowed_default_off').length,

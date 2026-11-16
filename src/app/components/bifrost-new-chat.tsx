@@ -1,11 +1,8 @@
 // Direct imports on purpose: this file loads eagerly with the app shell, and
 // the agent-chat barrel would drag markdown-it + highlight.js into the main
 // bundle through agent-chat-markdown.
-import {
-  AgentChat,
-  AgentChatEmptyState,
-} from "@app/components/ui/agent-chat/agent-chat"
-import { AgentChatComposer } from "@app/components/ui/agent-chat/agent-chat-composer"
+import { AgentChat, AgentChatEmptyState } from '@app/components/ui/agent-chat/agent-chat';
+import { AgentChatComposer } from '@app/components/ui/agent-chat/agent-chat-composer';
 
 function BifrostNewChatLoadingState(): React.JSX.Element {
   return (
@@ -19,7 +16,7 @@ function BifrostNewChatLoadingState(): React.JSX.Element {
         </AgentChat>
       </div>
     </div>
-  )
+  );
 }
 
-export { BifrostNewChatLoadingState }
+export { BifrostNewChatLoadingState };

@@ -26,12 +26,33 @@ function statusColor(status: StatusValue): string {
 
 function StatusDot({ status, className }: { status: StatusValue; className?: string }): React.JSX.Element {
   const isHollow = status === 'not-connected';
-  return <span aria-hidden className={cn('size-1.5 shrink-0 rounded-full', statusColor(status), isHollow ? 'border-[1.5px] border-current bg-transparent' : 'bg-current', className)} />;
+  return (
+    <span
+      aria-hidden
+      className={cn(
+        'size-1.5 shrink-0 rounded-full',
+        statusColor(status),
+        isHollow ? 'border-[1.5px] border-current bg-transparent' : 'bg-current',
+        className,
+      )}
+    />
+  );
 }
 
-export function StatusBadge({ status, label, className }: { status: StatusValue; label?: string; className?: string }): React.JSX.Element {
+export function StatusBadge({
+  status,
+  label,
+  className,
+}: {
+  status: StatusValue;
+  label?: string;
+  className?: string;
+}): React.JSX.Element {
   return (
-    <Badge variant="outline" className={cn('h-auto gap-1.5 border-0 bg-transparent p-0 text-xs font-normal', statusColor(status), className)}>
+    <Badge
+      variant="outline"
+      className={cn('h-auto gap-1.5 border-0 bg-transparent p-0 text-xs font-normal', statusColor(status), className)}
+    >
       <StatusDot status={status} />
       {label ?? statusLabels[status]}
     </Badge>

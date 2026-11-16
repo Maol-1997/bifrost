@@ -28,12 +28,27 @@ const coordinator = new Coordinator();
 const oauth = new OAuthService(config, database, coordinator);
 const mounts: readonly ProviderMount[] = [];
 const upstreamClients = new UpstreamClientPool({
-  connect: async () => { throw new Error('No provider is mounted in these tests'); },
+  connect: async () => {
+    throw new Error('No provider is mounted in these tests');
+  },
   idleTtlMs: 60_000,
   maxClients: 1,
 });
-const toolDiscovery = new ToolDiscoveryService({ oauth, mounts, store: createInMemoryToolCacheStore(), upstreamClients });
-const mcpHandler = createHumanMcpHandler({ config, database, coordinator, oauth, mounts, toolDiscovery, upstreamClients });
+const toolDiscovery = new ToolDiscoveryService({
+  oauth,
+  mounts,
+  store: createInMemoryToolCacheStore(),
+  upstreamClients,
+});
+const mcpHandler = createHumanMcpHandler({
+  config,
+  database,
+  coordinator,
+  oauth,
+  mounts,
+  toolDiscovery,
+  upstreamClients,
+});
 const dependencies: AppDependencies = {
   config,
   database,
@@ -184,7 +199,9 @@ describe('request handling', () => {
   it('returns relative tool-cache freshness for frontend query scheduling', async () => {
     const spies = [
       vi.spyOn(database, 'listConnections').mockResolvedValue([]),
-      vi.spyOn(database, 'userVisibilityState').mockResolvedValue({ connectedProviders: new Set(), hiddenProviders: new Set(), toolPreferences: new Map() }),
+      vi
+        .spyOn(database, 'userVisibilityState')
+        .mockResolvedValue({ connectedProviders: new Set(), hiddenProviders: new Set(), toolPreferences: new Map() }),
       vi.spyOn(database, 'toolPolicies').mockResolvedValue(new Map()),
     ];
     try {
@@ -204,19 +221,27 @@ describe('request handling', () => {
   it('refreshes provider credentials before reading connection metadata', async () => {
     const callOrder: string[] = [];
     const spies = [
-      vi.spyOn(database, 'userVisibilityState').mockResolvedValue({ connectedProviders: new Set(['linear']), hiddenProviders: new Set(), toolPreferences: new Map() }),
+      vi
+        .spyOn(database, 'userVisibilityState')
+        .mockResolvedValue({
+          connectedProviders: new Set(['linear']),
+          hiddenProviders: new Set(),
+          toolPreferences: new Map(),
+        }),
       vi.spyOn(oauth, 'refreshProviderConnectionIfNeeded').mockImplementation(async () => {
         callOrder.push('refresh');
         return 'connected';
       }),
       vi.spyOn(database, 'listConnections').mockImplementation(async () => {
         callOrder.push('list');
-        return [{
-          providerId: 'linear',
-          connectedAt: new Date('2026-08-30T00:00:00.000Z'),
-          accountLabel: undefined,
-          scopes: ['read', 'write'],
-        }];
+        return [
+          {
+            providerId: 'linear',
+            connectedAt: new Date('2026-08-30T00:00:00.000Z'),
+            accountLabel: undefined,
+            scopes: ['read', 'write'],
+          },
+        ];
       }),
       vi.spyOn(database, 'toolPolicies').mockResolvedValue(new Map()),
       vi.spyOn(toolDiscovery, 'discoverConnected').mockResolvedValue({
@@ -229,7 +254,7 @@ describe('request handling', () => {
       const response = await request('/api/app-connections.json', {
         headers: { 'X-Bifrost-Dev-User': DEVELOPMENT_USER_ID },
       });
-      const payload = await response.json() as { apps: { providerId: string; needsReconnect: boolean }[] };
+      const payload = (await response.json()) as { apps: { providerId: string; needsReconnect: boolean }[] };
 
       expect({
         callOrder,

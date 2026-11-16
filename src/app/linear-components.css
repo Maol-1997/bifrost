@@ -1,18 +1,18 @@
 @font-face {
-  font-family: "Inter Variable";
+  font-family: 'Inter Variable';
   font-style: normal;
   font-weight: 100 900;
   font-display: swap;
-  src: url("/fonts/InterVariable.woff2") format("woff2");
+  src: url('/fonts/InterVariable.woff2') format('woff2');
   unicode-range: U+0-2B1B, U+2B1D-10FFFF;
 }
 
 @font-face {
-  font-family: "Inter Variable";
+  font-family: 'Inter Variable';
   font-style: italic;
   font-weight: 100 900;
   font-display: swap;
-  src: url("/fonts/InterVariable-Italic.woff2") format("woff2");
+  src: url('/fonts/InterVariable-Italic.woff2') format('woff2');
   unicode-range: U+0-2B1B, U+2B1D-10FFFF;
 }
 
@@ -106,7 +106,7 @@
   --shadow-linear-settings: var(--linear-shadow-settings);
   --shadow-linear-dialog: var(--linear-shadow-dialog);
   --drop-shadow-linear-agent-prompt: 0 0 4px var(--linear-agent-prompt-glow);
-  --font-sans: "Inter Variable", "SF Pro Display", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-sans: 'Inter Variable', 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 }
 
 @utility linear-border-hairline {
@@ -220,7 +220,9 @@
   --linear-shadow-popover: 0 3px 8px lch(0 0 0 / 12.5%), 0 2px 5px lch(0 0 0 / 12.5%), 0 1px 1px lch(0 0 0 / 12.5%);
   --linear-shadow-tooltip: 0 0.5px 1px 1px lch(0 0 0 / 30%);
   --linear-shadow-settings: 0 0 0 0.5px lch(100 0 0 / 8.3%), 0 0.5px 1px 1px lch(0 0 0 / 30%);
-  --linear-shadow-dialog: 0 4px 40px lch(0 0 0 / 10%), 0 3px 20px lch(0 0 0 / 12.5%), 0 3px 12px lch(0 0 0 / 12.5%), 0 2px 8px lch(0 0 0 / 12.5%), 0 1px 1px lch(0 0 0 / 12.5%);
+  --linear-shadow-dialog:
+    0 4px 40px lch(0 0 0 / 10%), 0 3px 20px lch(0 0 0 / 12.5%), 0 3px 12px lch(0 0 0 / 12.5%),
+    0 2px 8px lch(0 0 0 / 12.5%), 0 1px 1px lch(0 0 0 / 12.5%);
   background: var(--linear-canvas);
   color: var(--linear-foreground);
   font-family: var(--font-sans);
@@ -242,30 +244,24 @@ body {
   min-width: 320px;
   min-height: 100vh;
   margin: 0;
-  background:
-    radial-gradient(circle at 50% -20%, var(--linear-gallery-glow), transparent 38rem),
-    var(--linear-canvas);
+  background: radial-gradient(circle at 50% -20%, var(--linear-gallery-glow), transparent 38rem), var(--linear-canvas);
 }
 
 button:not(:disabled),
-[role="button"]:not([aria-disabled="true"]) {
+[role='button']:not([aria-disabled='true']) {
   cursor: default;
 }
 
-.agent-chat-surface:not([data-conversation="true"]) {
-  background: linear-gradient(
-    to bottom,
-    var(--linear-gallery-main) 0%,
-    var(--linear-agent-mini) 100%
-  );
+.agent-chat-surface:not([data-conversation='true']) {
+  background: linear-gradient(to bottom, var(--linear-gallery-main) 0%, var(--linear-agent-mini) 100%);
 }
 
-.agent-chat-composer-shell[data-variant="conversation"]::before {
+.agent-chat-composer-shell[data-variant='conversation']::before {
   position: absolute;
   inset: 0;
   z-index: -1;
   pointer-events: none;
-  content: "";
+  content: '';
   background: linear-gradient(
     to bottom,
     var(--linear-agent-composer-shell-top),
@@ -279,7 +275,7 @@ button:not(:disabled),
   inset: -0.5px;
   border: var(--linear-border-width-hairline) solid transparent;
   pointer-events: none;
-  content: "";
+  content: '';
   background-image: linear-gradient(
     to bottom,
     var(--linear-agent-composer-border-top),
@@ -303,7 +299,7 @@ button:not(:disabled),
   );
 }
 
-.agent-chat-composer[data-variant="conversation"]::before {
+.agent-chat-composer[data-variant='conversation']::before {
   background-image: linear-gradient(
     to bottom,
     var(--linear-agent-composer-border-conversation),
@@ -315,11 +311,11 @@ button:not(:disabled),
   --linear-agent-composer-border-bottom: var(--linear-agent-composer-border-focus);
 }
 
-.agent-chat-mini .agent-chat-composer-shell[data-variant="conversation"]::before {
+.agent-chat-mini .agent-chat-composer-shell[data-variant='conversation']::before {
   opacity: 0;
 }
 
-.agent-chat-mini .agent-chat-composer[data-size="mini"]::before {
+.agent-chat-mini .agent-chat-composer[data-size='mini']::before {
   border-radius: 8px;
 }
 
@@ -343,7 +339,7 @@ button:not(:disabled),
   letter-spacing: normal;
 }
 
-.agent-chat-mini .agent-chat-message[data-role="user"] > :first-child {
+.agent-chat-mini .agent-chat-message[data-role='user'] > :first-child {
   border-radius: 8px;
 }
 
@@ -353,11 +349,11 @@ button:not(:disabled),
   letter-spacing: normal;
 }
 
-.agent-chat-mini .agent-chat-message[data-role="assistant"] {
+.agent-chat-mini .agent-chat-message[data-role='assistant'] {
   gap: 12px;
 }
 
-.agent-chat-mini .agent-chat-message[data-role="assistant"] > :last-child {
+.agent-chat-mini .agent-chat-message[data-role='assistant'] > :last-child {
   margin-left: 8px;
 }
 
@@ -373,11 +369,11 @@ button:not(:disabled),
 
 @media (pointer: coarse) {
   button::before,
-  [role="button"]::before {
+  [role='button']::before {
     position: absolute;
     width: max(100%, 44px);
     height: max(100%, 44px);
-    content: "";
+    content: '';
   }
 
   [data-agent-composer-control] {
@@ -389,7 +385,7 @@ button:not(:disabled),
     height: 28px;
   }
 
-  .agent-chat-composer[data-variant="conversation"]::before {
+  .agent-chat-composer[data-variant='conversation']::before {
     background-image: linear-gradient(
       to bottom,
       var(--linear-agent-composer-border-touch),

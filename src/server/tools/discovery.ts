@@ -62,17 +62,20 @@ export class ToolDiscoveryService {
     private readonly dependencies: ToolDiscoveryDependencies,
     options?: ToolDiscoveryCacheOptions,
   ) {
-    this.cache = new ToolDiscoveryCache({
-      store: dependencies.store,
-      ...(dependencies.now ? { now: dependencies.now } : {}),
-      ...(dependencies.delay ? { delay: dependencies.delay } : {}),
-      onBackgroundError: (error) => {
-        logger.warn(errorSummary(error), 'Official MCP background revalidation failed');
+    this.cache = new ToolDiscoveryCache(
+      {
+        store: dependencies.store,
+        ...(dependencies.now ? { now: dependencies.now } : {}),
+        ...(dependencies.delay ? { delay: dependencies.delay } : {}),
+        onBackgroundError: (error) => {
+          logger.warn(errorSummary(error), 'Official MCP background revalidation failed');
+        },
+        onUnreadableEntry: (error) => {
+          logger.warn(errorSummary(error), 'Discarded an unreadable cached MCP tool listing');
+        },
       },
-      onUnreadableEntry: (error) => {
-        logger.warn(errorSummary(error), 'Discarded an unreadable cached MCP tool listing');
-      },
-    }, options);
+      options,
+    );
   }
 
   async discoverProvider(request: ProviderDiscoveryRequest): Promise<CachedToolDiscovery> {
@@ -80,10 +83,11 @@ export class ToolDiscoveryService {
       blocking: () => this.loadProviderTools(request),
       // The background loader deliberately drops the signal: the revalidation
       // outlives the request that noticed the entry had gone stale.
-      background: () => this.loadProviderTools({
-        userId: request.userId,
-        providerId: request.providerId,
-      }),
+      background: () =>
+        this.loadProviderTools({
+          userId: request.userId,
+          providerId: request.providerId,
+        }),
     });
   }
 
@@ -96,19 +100,19 @@ export class ToolDiscoveryService {
   }
 
   async discoverConnected(request: ConnectedDiscoveryRequest): Promise<ToolDiscoveryResult> {
-    const providerIds = PROVIDER_REGISTRY
-      .map((provider) => provider.id)
-      .filter((providerId) => (
-        request.connectedProviders.has(providerId) && !request.hiddenProviders.has(providerId)
-      ));
-    const results = await Promise.allSettled(providerIds.map(async (providerId) => ({
-      providerId,
-      discovery: await this.discoverProvider({
-        userId: request.userId,
+    const providerIds = PROVIDER_REGISTRY.map((provider) => provider.id).filter(
+      (providerId) => request.connectedProviders.has(providerId) && !request.hiddenProviders.has(providerId),
+    );
+    const results = await Promise.allSettled(
+      providerIds.map(async (providerId) => ({
         providerId,
-        ...(request.signal ? { signal: request.signal } : {}),
-      }),
-    })));
+        discovery: await this.discoverProvider({
+          userId: request.userId,
+          providerId,
+          ...(request.signal ? { signal: request.signal } : {}),
+        }),
+      })),
+    );
 
     const tools: DiscoveredTool[] = [];
     const failures: { providerId: ProviderId; message: string }[] = [];
@@ -148,11 +152,17 @@ export class ToolDiscoveryService {
       .map((tool) => normalizeUpstreamTool(provider, tool))
       .filter((tool) => {
         if (!mcpToolNameSchema.safeParse(tool.name).success) {
-          logger.warn({ providerId: provider.id, upstreamToolName: tool.upstreamName }, 'Ignored upstream tool with an invalid Bifrost name');
+          logger.warn(
+            { providerId: provider.id, upstreamToolName: tool.upstreamName },
+            'Ignored upstream tool with an invalid Bifrost name',
+          );
           return false;
         }
         if (seenNames.has(tool.name)) {
-          logger.warn({ providerId: provider.id, toolName: tool.name }, 'Ignored upstream tool whose name is already published by this provider');
+          logger.warn(
+            { providerId: provider.id, toolName: tool.name },
+            'Ignored upstream tool whose name is already published by this provider',
+          );
           return false;
         }
         seenNames.add(tool.name);

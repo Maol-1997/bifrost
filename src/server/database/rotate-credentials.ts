@@ -18,24 +18,38 @@ if (!Number.isInteger(batchSize) || batchSize < 1) throw new Error('--batch-size
 
 const config = loadConfig();
 // Only a shared Redis lock excludes refreshes running in the live servers.
-const redis = await RedisRuntime.connect({ required: config.NODE_ENV === 'production', ...(config.REDIS_URL ? { url: config.REDIS_URL } : {}) });
+const redis = await RedisRuntime.connect({
+  required: config.NODE_ENV === 'production',
+  ...(config.REDIS_URL ? { url: config.REDIS_URL } : {}),
+});
 if (!redis && options.apply) {
-  logger.warn({}, 'No Redis: rotation cannot hold the refresh lock of other processes; only the version check protects concurrent refreshes');
+  logger.warn(
+    {},
+    'No Redis: rotation cannot hold the refresh lock of other processes; only the version check protects concurrent refreshes',
+  );
 }
 const coordinator = new Coordinator(redis?.commands);
 const database = createDatabase(config);
 
 try {
-  logger.info({ activeKeyId: config.encryptionKeyring.activeKeyId, usage: await database.credentialKeyUsage() }, 'Credential keys before rotation');
+  logger.info(
+    { activeKeyId: config.encryptionKeyring.activeKeyId, usage: await database.credentialKeyUsage() },
+    'Credential keys before rotation',
+  );
   const report = await rotateCredentials({
     store: database,
-    withRowLock: (row, operation) => coordinator.withLock(providerRefreshLockKey(row.userId, row.providerId), operation),
+    withRowLock: (row, operation) =>
+      coordinator.withLock(providerRefreshLockKey(row.userId, row.providerId), operation),
     apply: options.apply,
     batchSize,
   });
-  for (const failure of report.failed) logger.error(failure, 'Credential could not be decrypted with any configured key');
+  for (const failure of report.failed)
+    logger.error(failure, 'Credential could not be decrypted with any configured key');
   const { failed, ...counts } = report;
-  logger.info({ ...counts, failed: failed.length }, options.apply ? 'Credential rotation finished' : 'Dry run finished; pass --apply to re-encrypt');
+  logger.info(
+    { ...counts, failed: failed.length },
+    options.apply ? 'Credential rotation finished' : 'Dry run finished; pass --apply to re-encrypt',
+  );
   if (options.apply) logger.info({ usage: await database.credentialKeyUsage() }, 'Credential keys after rotation');
   if (failed.length > 0 || report.busy > 0) process.exitCode = 1;
 } finally {

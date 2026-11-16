@@ -1,6 +1,9 @@
 import type { CredentialRowKey, Database } from './index.js';
 
-export type CredentialRotationStore = Pick<Database, 'credentialsToReencrypt' | 'getCredential' | 'replaceCredentialIfUnchanged'>;
+export type CredentialRotationStore = Pick<
+  Database,
+  'credentialsToReencrypt' | 'getCredential' | 'replaceCredentialIfUnchanged'
+>;
 
 export type CredentialRotationRequest = {
   store: CredentialRotationStore;
@@ -50,8 +53,7 @@ export async function rotateCredentials(request: CredentialRotationRequest): Pro
 }
 
 type RowOutcome =
-  | { kind: 'readable' | 'reencrypted' | 'changedConcurrently' | 'busy' }
-  | { kind: 'failed'; reason: string };
+  { kind: 'readable' | 'reencrypted' | 'changedConcurrently' | 'busy' } | { kind: 'failed'; reason: string };
 
 async function rotateRow(request: CredentialRotationRequest, row: CredentialRowKey): Promise<RowOutcome> {
   try {
@@ -75,7 +77,10 @@ async function reencryptRow(request: CredentialRotationRequest, row: CredentialR
   if (!request.apply) return { kind: 'readable' };
   const { version, ...credential } = current;
   const replaced = await request.store.replaceCredentialIfUnchanged({
-    userId: row.userId, providerId: row.providerId, credential, expectedVersion: version,
+    userId: row.userId,
+    providerId: row.providerId,
+    credential,
+    expectedVersion: version,
   });
   return { kind: replaced ? 'reencrypted' : 'changedConcurrently' };
 }

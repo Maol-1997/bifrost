@@ -4,25 +4,25 @@ import { ENCRYPTION_KEY_BYTES, LEGACY_KEY_ID, type EncryptionKeyring } from './s
 
 export const DEVELOPMENT_DATABASE_URL = 'postgres://bifrost:bifrost@localhost:5432/bifrost';
 
-const optionalNonEmptyString = z.preprocess((value) => value === '' ? undefined : value, z.string().min(1).optional());
+const optionalNonEmptyString = z.preprocess(
+  (value) => (value === '' ? undefined : value),
+  z.string().min(1).optional(),
+);
 const optionalOpenAIBaseUrl = z.preprocess(
-  (value) => value === '' ? undefined : value,
+  (value) => (value === '' ? undefined : value),
   z.url().default('https://api.openai.com/v1'),
 );
-const openAIModel = z.preprocess(
-  (value) => value === '' ? undefined : value,
-  z.string().min(1).default('gpt-6-sol'),
-);
+const openAIModel = z.preprocess((value) => (value === '' ? undefined : value), z.string().min(1).default('gpt-6-sol'));
 const openRouterBaseUrl = z.preprocess(
-  (value) => value === '' ? undefined : value,
+  (value) => (value === '' ? undefined : value),
   z.url().default('https://openrouter.ai/api'),
 );
 const jevModel = z.preprocess(
-  (value) => value === '' ? undefined : value,
+  (value) => (value === '' ? undefined : value),
   z.string().min(1).default('typesafe/jev-1.13'),
 );
 const openAIReasoningEffort = z.preprocess(
-  (value) => value === '' ? undefined : value,
+  (value) => (value === '' ? undefined : value),
   z.enum(['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max']).default('medium'),
 );
 
@@ -64,13 +64,16 @@ const environmentSchema = z.object({
   // Client ID Metadata Documents replaced dynamic registration in the 2026-07-28
   // spec. Switchable because advertising support decides which path a client
   // takes, and a client with a broken CIMD implementation does not fall back.
-  OAUTH_ENABLE_CLIENT_ID_METADATA_DOCUMENTS: z.enum(['true', 'false']).default('true').transform((value) => value === 'true'),
+  OAUTH_ENABLE_CLIENT_ID_METADATA_DOCUMENTS: z
+    .enum(['true', 'false'])
+    .default('true')
+    .transform((value) => value === 'true'),
   // Comma-separated. Both empty means any verified Google account may sign in.
   ALLOWED_EMAIL_DOMAINS: z.string().default(''),
   ALLOWED_EMAILS: z.string().default(''),
   // Exact addresses only. Domain-wide administration is deliberately unsupported.
   ADMIN_EMAILS: z.string().default(''),
-  BIFROST_DEV_USER_ID: z.preprocess((value) => value === '' ? undefined : value, z.uuid().optional()),
+  BIFROST_DEV_USER_ID: z.preprocess((value) => (value === '' ? undefined : value), z.uuid().optional()),
   SLOW_REQUEST_MS: z.coerce.number().int().positive().default(1000),
   SLOW_TOOL_MS: z.coerce.number().int().positive().default(2000),
   // Connected upstream MCP clients kept per process, one per user and provider.
@@ -106,7 +109,9 @@ export function loadConfig(environment: NodeJS.ProcessEnv = process.env): Config
   // start rather than serving a flow that looks fine and is not. Loopback is the
   // recognized exception and stays allowed for local development.
   if (parsed.data.NODE_ENV === 'production' && !isSecurePublicUrl(parsed.data.PUBLIC_URL)) {
-    throw new Error('PUBLIC_URL must use https in production; it is the OAuth issuer and tokens are exchanged against it');
+    throw new Error(
+      'PUBLIC_URL must use https in production; it is the OAuth issuer and tokens are exchanged against it',
+    );
   }
 
   return {

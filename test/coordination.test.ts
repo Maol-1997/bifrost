@@ -5,15 +5,20 @@ import type { RedisCommandsClient } from '../src/server/redis.js';
 
 function deferred(): { promise: Promise<void>; resolve: () => void } {
   let resolve = (): void => undefined;
-  const promise = new Promise<void>((done) => { resolve = done; });
+  const promise = new Promise<void>((done) => {
+    resolve = done;
+  });
   return { promise, resolve };
 }
 
-function leaseRequest(operation: () => Promise<void>, overrides: {
-  provider?: string;
-  userId?: string;
-  maximumInFlight?: number;
-} = {}) {
+function leaseRequest(
+  operation: () => Promise<void>,
+  overrides: {
+    provider?: string;
+    userId?: string;
+    maximumInFlight?: number;
+  } = {},
+) {
   return {
     provider: overrides.provider ?? 'github',
     userId: overrides.userId ?? 'user-a',
@@ -22,11 +27,13 @@ function leaseRequest(operation: () => Promise<void>, overrides: {
   };
 }
 
-function rateRequest(overrides: {
-  provider?: string;
-  userId?: string;
-  maximumStarts?: number;
-} = {}) {
+function rateRequest(
+  overrides: {
+    provider?: string;
+    userId?: string;
+    maximumStarts?: number;
+  } = {},
+) {
   return {
     provider: overrides.provider ?? 'github',
     userId: overrides.userId ?? 'user-a',
@@ -49,14 +56,18 @@ describe('in-process rate limits', () => {
     vi.useFakeTimers();
     vi.setSystemTime(0);
   });
-  afterEach(() => { vi.useRealTimers(); });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
 
   it('allows exactly the configured number of starts', async () => {
     const coordinator = new Coordinator();
-    await expect(Promise.all([
-      coordinator.enforceRateLimit(rateRequest({ maximumStarts: 2 })),
-      coordinator.enforceRateLimit(rateRequest({ maximumStarts: 2 })),
-    ])).resolves.toEqual([undefined, undefined]);
+    await expect(
+      Promise.all([
+        coordinator.enforceRateLimit(rateRequest({ maximumStarts: 2 })),
+        coordinator.enforceRateLimit(rateRequest({ maximumStarts: 2 })),
+      ]),
+    ).resolves.toEqual([undefined, undefined]);
   });
 
   it('rejects a start over the configured limit', async () => {
@@ -93,8 +104,9 @@ describe('in-process concurrency leases', () => {
     const gates = [deferred(), deferred()] as const;
     const first = coordinator.withConcurrencyLease(leaseRequest(() => gates[0].promise, { maximumInFlight: 2 }));
     const second = coordinator.withConcurrencyLease(leaseRequest(() => gates[1].promise, { maximumInFlight: 2 }));
-    await expect(coordinator.withConcurrencyLease(leaseRequest(() => Promise.resolve(), { maximumInFlight: 2 })))
-      .rejects.toBeInstanceOf(AgentFacingError);
+    await expect(
+      coordinator.withConcurrencyLease(leaseRequest(() => Promise.resolve(), { maximumInFlight: 2 })),
+    ).rejects.toBeInstanceOf(AgentFacingError);
     gates[0].resolve();
     gates[1].resolve();
     await Promise.all([first, second]);
@@ -104,10 +116,12 @@ describe('in-process concurrency leases', () => {
     const coordinator = new Coordinator();
     const gate = deferred();
     const accepted = coordinator.withConcurrencyLease(leaseRequest(() => gate.promise));
-    await expect(coordinator.withConcurrencyLease(leaseRequest(() => Promise.resolve())))
-      .rejects.toBeInstanceOf(AgentFacingError);
-    await expect(coordinator.withConcurrencyLease(leaseRequest(() => Promise.resolve())))
-      .rejects.toBeInstanceOf(AgentFacingError);
+    await expect(coordinator.withConcurrencyLease(leaseRequest(() => Promise.resolve()))).rejects.toBeInstanceOf(
+      AgentFacingError,
+    );
+    await expect(coordinator.withConcurrencyLease(leaseRequest(() => Promise.resolve()))).rejects.toBeInstanceOf(
+      AgentFacingError,
+    );
     gate.resolve();
     await accepted;
     await expect(coordinator.withConcurrencyLease(leaseRequest(() => Promise.resolve()))).resolves.toBeUndefined();
@@ -117,10 +131,12 @@ describe('in-process concurrency leases', () => {
     const coordinator = new Coordinator();
     const gate = deferred();
     const active = coordinator.withConcurrencyLease(leaseRequest(() => gate.promise));
-    await expect(Promise.all([
-      coordinator.withConcurrencyLease(leaseRequest(() => Promise.resolve(), { userId: 'user-b' })),
-      coordinator.withConcurrencyLease(leaseRequest(() => Promise.resolve(), { provider: 'linear' })),
-    ])).resolves.toEqual([undefined, undefined]);
+    await expect(
+      Promise.all([
+        coordinator.withConcurrencyLease(leaseRequest(() => Promise.resolve(), { userId: 'user-b' })),
+        coordinator.withConcurrencyLease(leaseRequest(() => Promise.resolve(), { provider: 'linear' })),
+      ]),
+    ).resolves.toEqual([undefined, undefined]);
     gate.resolve();
     await active;
   });
@@ -136,8 +152,9 @@ describe('in-process concurrency leases', () => {
     gates[0].resolve();
     await first;
     const fourth = coordinator.withConcurrencyLease(leaseRequest(() => gates[3].promise, { maximumInFlight: 2 }));
-    await expect(coordinator.withConcurrencyLease(leaseRequest(() => Promise.resolve(), { maximumInFlight: 2 })))
-      .rejects.toBeInstanceOf(AgentFacingError);
+    await expect(
+      coordinator.withConcurrencyLease(leaseRequest(() => Promise.resolve(), { maximumInFlight: 2 })),
+    ).rejects.toBeInstanceOf(AgentFacingError);
     gates[2].resolve();
     gates[3].resolve();
     await Promise.all([third, fourth]);
@@ -145,18 +162,27 @@ describe('in-process concurrency leases', () => {
 
   it('releases the slot when the operation throws', async () => {
     const coordinator = new Coordinator();
-    await expect(coordinator.withConcurrencyLease(leaseRequest(() => Promise.reject(new Error('boom')))))
-      .rejects.toThrow('boom');
+    await expect(
+      coordinator.withConcurrencyLease(leaseRequest(() => Promise.reject(new Error('boom')))),
+    ).rejects.toThrow('boom');
     await expect(coordinator.withConcurrencyLease(leaseRequest(() => Promise.resolve()))).resolves.toBeUndefined();
   });
 });
 
 describe('Redis concurrency leases', () => {
   it('acquires the count and TTL in one atomic script', async () => {
-    const evalCommand = vi.fn<(script: string, options: {
-      keys: string[];
-      arguments?: string[];
-    }) => Promise<number>>().mockResolvedValueOnce(1).mockResolvedValueOnce(0);
+    const evalCommand = vi
+      .fn<
+        (
+          script: string,
+          options: {
+            keys: string[];
+            arguments?: string[];
+          },
+        ) => Promise<number>
+      >()
+      .mockResolvedValueOnce(1)
+      .mockResolvedValueOnce(0);
     const coordinator = new Coordinator(redisCommands(evalCommand));
 
     await coordinator.withConcurrencyLease(leaseRequest(() => Promise.resolve()));
@@ -168,10 +194,15 @@ describe('Redis concurrency leases', () => {
 
   it('releases only the rejected lease while another call remains active', async () => {
     const counts = new Map<string, number>();
-    const evalCommand = vi.fn<(script: string, options: {
-      keys: string[];
-      arguments?: string[];
-    }) => Promise<number>>(async (script, { keys }) => {
+    const evalCommand = vi.fn<
+      (
+        script: string,
+        options: {
+          keys: string[];
+          arguments?: string[];
+        },
+      ) => Promise<number>
+    >(async (script, { keys }) => {
       const key = keys[0]!;
       if (script.includes("redis.call('incr'")) {
         const count = (counts.get(key) ?? 0) + 1;
@@ -187,8 +218,9 @@ describe('Redis concurrency leases', () => {
     const gate = deferred();
     const active = coordinator.withConcurrencyLease(leaseRequest(() => gate.promise));
 
-    await expect(coordinator.withConcurrencyLease(leaseRequest(() => Promise.resolve())))
-      .rejects.toBeInstanceOf(AgentFacingError);
+    await expect(coordinator.withConcurrencyLease(leaseRequest(() => Promise.resolve()))).rejects.toBeInstanceOf(
+      AgentFacingError,
+    );
     expect(counts.get('concurrency:github:user-a')).toBe(1);
     gate.resolve();
     await active;
@@ -198,10 +230,17 @@ describe('Redis concurrency leases', () => {
 
 describe('Redis rate limits', () => {
   it('increments and sets the 60-second TTL in one atomic script', async () => {
-    const evalCommand = vi.fn<(script: string, options: {
-      keys: string[];
-      arguments?: string[];
-    }) => Promise<number>>().mockResolvedValue(1);
+    const evalCommand = vi
+      .fn<
+        (
+          script: string,
+          options: {
+            keys: string[];
+            arguments?: string[];
+          },
+        ) => Promise<number>
+      >()
+      .mockResolvedValue(1);
     const coordinator = new Coordinator(redisCommands(evalCommand));
 
     await coordinator.enforceRateLimit(rateRequest({ maximumStarts: 2 }));
@@ -219,8 +258,9 @@ describe('Redis rate limits', () => {
     const redis = redisCommands(vi.fn().mockResolvedValue(3));
     const coordinator = new Coordinator(redis);
 
-    await expect(coordinator.enforceRateLimit(rateRequest({ maximumStarts: 2 })))
-      .rejects.toBeInstanceOf(AgentFacingError);
+    await expect(coordinator.enforceRateLimit(rateRequest({ maximumStarts: 2 }))).rejects.toBeInstanceOf(
+      AgentFacingError,
+    );
   });
 });
 
@@ -247,8 +287,12 @@ describe('in-process locks', () => {
 });
 
 describe('in-process ephemeral values', () => {
-  beforeEach(() => { vi.useFakeTimers(); });
-  afterEach(() => { vi.useRealTimers(); });
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
 
   it('hands a value back exactly once', async () => {
     const coordinator = new Coordinator();
@@ -303,14 +347,18 @@ describe('Redis locks', () => {
     const lock = heldLock(1);
     const operation = vi.fn(async () => 'ran');
 
-    await expect(new Coordinator(lock.commands).withLock('refresh', operation)).rejects.toBeInstanceOf(AgentFacingError);
+    await expect(new Coordinator(lock.commands).withLock('refresh', operation)).rejects.toBeInstanceOf(
+      AgentFacingError,
+    );
     expect({ attempts: lock.attempts(), ran: operation.mock.calls.length }).toEqual({ attempts: 1, ran: 0 });
   });
 
   it('waits for a held lock to free up when asked to', async () => {
     const lock = heldLock(3);
 
-    await expect(new Coordinator(lock.commands).withLockWaiting('refresh', 5_000, async () => 'ran')).resolves.toBe('ran');
+    await expect(new Coordinator(lock.commands).withLockWaiting('refresh', 5_000, async () => 'ran')).resolves.toBe(
+      'ran',
+    );
     expect(lock.attempts()).toBe(4);
   });
 
@@ -318,7 +366,9 @@ describe('Redis locks', () => {
     const lock = heldLock(Number.POSITIVE_INFINITY);
     const operation = vi.fn(async () => 'ran');
 
-    await expect(new Coordinator(lock.commands).withLockWaiting('refresh', 120, operation)).rejects.toBeInstanceOf(AgentFacingError);
+    await expect(new Coordinator(lock.commands).withLockWaiting('refresh', 120, operation)).rejects.toBeInstanceOf(
+      AgentFacingError,
+    );
     expect(operation).not.toHaveBeenCalled();
   });
 });

@@ -49,11 +49,12 @@ async function main(): Promise<void> {
     mounts,
     upstreamClients,
     store: redis ? createRedisToolCacheStore(redis.commands) : createInMemoryToolCacheStore(),
-    onFreshTools: (providerId, tools) => reconcileAutoPoliciesInBackground({
-      providerId,
-      tools,
-      dependencies: { config, database, coordinator, events },
-    }),
+    onFreshTools: (providerId, tools) =>
+      reconcileAutoPoliciesInBackground({
+        providerId,
+        tools,
+        dependencies: { config, database, coordinator, events },
+      }),
   });
   const maintenance = new DatabaseMaintenance({
     deleteExpiredAuthState: () => database.deleteExpiredAuthState(),
@@ -82,11 +83,14 @@ async function main(): Promise<void> {
     ...(redis ? { redis } : {}),
   };
   const app = createApp(dependencies);
-  const server = serve({
-    fetch: app.fetch,
-    hostname: '0.0.0.0',
-    port: config.PORT,
-  }, ({ port }) => logger.info({ port }, 'Bifrost listening'));
+  const server = serve(
+    {
+      fetch: app.fetch,
+      hostname: '0.0.0.0',
+      port: config.PORT,
+    },
+    ({ port }) => logger.info({ port }, 'Bifrost listening'),
+  );
 
   let shutdownPromise: Promise<void> | undefined;
   const shutdown = (): Promise<void> => {
@@ -115,10 +119,16 @@ async function main(): Promise<void> {
 
 function logDeploymentWarnings(config: ReturnType<typeof loadConfig>): void {
   if (!isAccessRestricted(config.accessPolicy)) {
-    logger.warn({}, 'Sign-in is open to any verified Google account. Set ALLOWED_EMAIL_DOMAINS or ALLOWED_EMAILS to restrict it');
+    logger.warn(
+      {},
+      'Sign-in is open to any verified Google account. Set ALLOWED_EMAIL_DOMAINS or ALLOWED_EMAILS to restrict it',
+    );
   }
   if (config.adminEmails.size === 0) {
-    logger.warn({}, 'No administrators configured. Every discovered provider tool remains blocked until ADMIN_EMAILS is set');
+    logger.warn(
+      {},
+      'No administrators configured. Every discovered provider tool remains blocked until ADMIN_EMAILS is set',
+    );
   }
 }
 

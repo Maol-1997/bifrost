@@ -57,7 +57,10 @@ export function protectedResourceMetadata(publicUrl: string): Record<string, unk
  * clients with no secret, which is also what Claude Code checks before it will
  * use a Client ID Metadata Document instead of dynamic registration.
  */
-export function authorizationServerMetadata(publicUrl: string, isClientIdMetadataDocumentEnabled: boolean): Record<string, unknown> {
+export function authorizationServerMetadata(
+  publicUrl: string,
+  isClientIdMetadataDocumentEnabled: boolean,
+): Record<string, unknown> {
   const issuer = issuerUrl(publicUrl);
   return {
     issuer,
@@ -85,10 +88,7 @@ export function authorizationServerMetadata(publicUrl: string, isClientIdMetadat
  * plain challenge would send it back through discovery and consent.
  */
 export function bearerChallenge(publicUrl: string, error?: 'invalid_token'): string {
-  const parameters = [
-    `resource_metadata="${protectedResourceMetadataUrl(publicUrl)}"`,
-    `scope="${MCP_SCOPE}"`,
-  ];
+  const parameters = [`resource_metadata="${protectedResourceMetadataUrl(publicUrl)}"`, `scope="${MCP_SCOPE}"`];
   if (error) parameters.unshift(`error="${error}"`);
   return `Bearer ${parameters.join(', ')}`;
 }

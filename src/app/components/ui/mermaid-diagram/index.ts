@@ -1,2 +1,2 @@
-export * from "./mermaid-diagram"
-export { preloadMermaidDiagram } from "./mermaid-renderer"
+export * from './mermaid-diagram';
+export { preloadMermaidDiagram } from './mermaid-renderer';

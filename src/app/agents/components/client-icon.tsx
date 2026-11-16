@@ -33,7 +33,13 @@ const clientLogos: Record<ClientLogoId, { Mark: ComponentType<SVGProps<SVGSVGEle
  * The tile in front of a client's name. A client we have no mark for keeps its
  * monogram, so the row never renders an empty square.
  */
-export function ClientIcon({ logo, monogram }: { logo: ClientLogoId | undefined; monogram: string }): React.JSX.Element {
+export function ClientIcon({
+  logo,
+  monogram,
+}: {
+  logo: ClientLogoId | undefined;
+  monogram: string;
+}): React.JSX.Element {
   const entry = logo ? clientLogos[logo] : undefined;
   return (
     <div className="flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-lg linear-border-hairline border-plate-border bg-white/5 text-xs font-semibold text-app-text-tertiary">

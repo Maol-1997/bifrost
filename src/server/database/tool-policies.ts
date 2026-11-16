@@ -63,10 +63,7 @@ export function createToolPolicyStore(database: AppDatabase) {
           state: deploymentToolPolicies.state,
         })
         .from(deploymentToolPolicies);
-      return new Map(rows.map(({ contract, ...row }) => [
-        row.toolName,
-        { ...row, ...(contract ? { contract } : {}) },
-      ]));
+      return new Map(rows.map(({ contract, ...row }) => [row.toolName, { ...row, ...(contract ? { contract } : {}) }]));
     },
 
     /** Who decided each of a provider's current policies, and under which rule revision. */
@@ -182,7 +179,11 @@ export function createToolPolicyStore(database: AppDatabase) {
       return rule;
     },
 
-    async setToolRule(request: { providerId: ProviderId; instructions: string; updatedByUserId: string }): Promise<ToolRule> {
+    async setToolRule(request: {
+      providerId: ProviderId;
+      instructions: string;
+      updatedByUserId: string;
+    }): Promise<ToolRule> {
       const [rule] = await database
         .insert(deploymentToolRules)
         .values({ ...request, revision: 1 })
@@ -221,7 +222,12 @@ async function currentFingerprints(
       fingerprint: deploymentToolPolicies.fingerprint,
     })
     .from(deploymentToolPolicies)
-    .where(inArray(deploymentToolPolicies.toolName, requests.map((request) => request.toolName)));
+    .where(
+      inArray(
+        deploymentToolPolicies.toolName,
+        requests.map((request) => request.toolName),
+      ),
+    );
   return new Map(rows.map((row) => [row.toolName, row.fingerprint]));
 }
 
@@ -233,10 +239,12 @@ async function reconcilePreferences(
   const reconciliation = reconcileToolPreferences(policy, previousFingerprint);
   await transaction
     .delete(userToolPreferences)
-    .where(reconciliation.kind === 'clear-all'
-      ? eq(userToolPreferences.toolName, policy.toolName)
-      : and(
-        eq(userToolPreferences.toolName, policy.toolName),
-        eq(userToolPreferences.isEnabled, reconciliation.isEnabled),
-      ));
+    .where(
+      reconciliation.kind === 'clear-all'
+        ? eq(userToolPreferences.toolName, policy.toolName)
+        : and(
+            eq(userToolPreferences.toolName, policy.toolName),
+            eq(userToolPreferences.isEnabled, reconciliation.isEnabled),
+          ),
+    );
 }

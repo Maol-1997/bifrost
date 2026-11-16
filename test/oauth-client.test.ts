@@ -86,11 +86,13 @@ describe('OAuth authorization requests', () => {
   it('accepts the initiating nonce before attempting the token exchange', async () => {
     const authorization = await oauth.startGoogleAuthorization('/');
     const state = new URL(authorization.location).searchParams.get('state') ?? '';
-    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
-      Response.json({ error: 'invalid_grant' }, { status: 400 }),
-    );
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(Response.json({ error: 'invalid_grant' }, { status: 400 }));
 
-    await expect(oauth.finishGoogle('code', state, authorization.browserNonce)).rejects.toThrow('Google sign-in failed');
+    await expect(oauth.finishGoogle('code', state, authorization.browserNonce)).rejects.toThrow(
+      'Google sign-in failed',
+    );
     expect(fetchSpy).toHaveBeenCalledOnce();
   });
 
@@ -98,19 +100,20 @@ describe('OAuth authorization requests', () => {
     const url = new URL(await oauth.startProviderAuthorization('00000000-0000-4000-8000-000000000000', 'slack'));
     expect(url.origin + url.pathname).toBe('https://slack.com/oauth/v2_user/authorize');
     expect(url.searchParams.get('user_scope')).toBeNull();
-    expect(url.searchParams.get('scope')).toBe('canvases:read,canvases:write,channels:history,channels:read,channels:write,chat:write,emoji:read,files:read,groups:history,groups:read,groups:write,im:history,im:write,mpim:history,mpim:read,mpim:write,reactions:write,search:read.files,search:read.im,search:read.mpim,search:read.private,search:read.public,search:read.users,users:read,users:read.email');
+    expect(url.searchParams.get('scope')).toBe(
+      'canvases:read,canvases:write,channels:history,channels:read,channels:write,chat:write,emoji:read,files:read,groups:history,groups:read,groups:write,im:history,im:write,mpim:history,mpim:read,mpim:write,reactions:write,search:read.files,search:read.im,search:read.mpim,search:read.private,search:read.public,search:read.users,users:read,users:read.email',
+    );
   });
 });
 
 describe('Google sign-in return paths', () => {
-  it.each([
-    '/',
-    '/integrations',
-    '/oauth/authorize?client_id=client#consent',
-  ])('accepts same-origin absolute path %s', async (returnTo) => {
-    const authorization = await oauth.startGoogleAuthorization(returnTo);
-    expect(authorization.location).toContain('https://accounts.google.com/');
-  });
+  it.each(['/', '/integrations', '/oauth/authorize?client_id=client#consent'])(
+    'accepts same-origin absolute path %s',
+    async (returnTo) => {
+      const authorization = await oauth.startGoogleAuthorization(returnTo);
+      expect(authorization.location).toContain('https://accounts.google.com/');
+    },
+  );
 
   it.each([
     '',

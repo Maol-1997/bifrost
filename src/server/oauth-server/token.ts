@@ -50,9 +50,12 @@ async function exchangeAuthorizationCode(context: OAuthServerContext, body: URLS
   // Each of these is its own attack being closed, so none of them collapse into
   // the others: a code redeemed by a different client, sent to a different
   // address, or redeemed without the original verifier.
-  if (authorization.clientId !== clientId) throw new OAuthError('invalid_grant', 'This authorization code was not issued to this client');
-  if (authorization.redirectUri !== redirectUri) throw new OAuthError('invalid_grant', 'The redirect_uri does not match the one used to authorize');
-  if (!verifyCodeChallenge(codeVerifier, authorization.codeChallenge)) throw new OAuthError('invalid_grant', 'The PKCE code verifier does not match the challenge');
+  if (authorization.clientId !== clientId)
+    throw new OAuthError('invalid_grant', 'This authorization code was not issued to this client');
+  if (authorization.redirectUri !== redirectUri)
+    throw new OAuthError('invalid_grant', 'The redirect_uri does not match the one used to authorize');
+  if (!verifyCodeChallenge(codeVerifier, authorization.codeChallenge))
+    throw new OAuthError('invalid_grant', 'The PKCE code verifier does not match the challenge');
 
   // Optional here: the audience was already fixed when the code was issued, so
   // this only catches a client contradicting itself between the two requests.
@@ -85,10 +88,17 @@ async function refreshTokens(context: OAuthServerContext, body: URLSearchParams)
     // A refresh token is spent on first use, so a second presentation means the
     // value is in someone else's hands. There is no way to tell the thief from
     // the owner, so the grant is destroyed and the user reconnects deliberately.
-    logger.error({ clientId: outcome.clientId, userId: outcome.userId }, 'Refresh token replay detected; grant revoked');
-    throw new OAuthError('invalid_grant', 'This refresh token was already used. The client has been disconnected and must be authorized again');
+    logger.error(
+      { clientId: outcome.clientId, userId: outcome.userId },
+      'Refresh token replay detected; grant revoked',
+    );
+    throw new OAuthError(
+      'invalid_grant',
+      'This refresh token was already used. The client has been disconnected and must be authorized again',
+    );
   }
-  if (outcome.kind === 'unknown') throw new OAuthError('invalid_grant', 'This refresh token is expired, revoked, or not valid for this client');
+  if (outcome.kind === 'unknown')
+    throw new OAuthError('invalid_grant', 'This refresh token is expired, revoked, or not valid for this client');
 
   logger.info({ clientId }, 'Rotated OAuth refresh token');
   return tokenResponse(outcome.tokens, [MCP_SCOPE]);
@@ -108,7 +118,8 @@ export async function handleRegister(context: OAuthServerContext, payload: unkno
     logger.info({ clientId: client.clientId, clientName }, 'Registered OAuth client dynamically');
     return { kind: 'json', status: 201, body: registrationResponse(client) };
   } catch (error) {
-    if (error instanceof OAuthError) return { kind: 'json', status: 400, body: { error: error.code, error_description: error.description } };
+    if (error instanceof OAuthError)
+      return { kind: 'json', status: 400, body: { error: error.code, error_description: error.description } };
     throw error;
   }
 }
@@ -139,7 +150,11 @@ function tokenResponse(tokens: OAuthTokenPair, scopes: readonly string[]): OAuth
 }
 
 function tokenError(code: OAuthErrorCode, description: string): OAuthHttpResult {
-  return { kind: 'json', status: code === 'invalid_client' ? 401 : 400, body: { error: code, error_description: description } };
+  return {
+    kind: 'json',
+    status: code === 'invalid_client' ? 401 : 400,
+    body: { error: code, error_description: description },
+  };
 }
 
 function required(body: URLSearchParams, name: string): string {

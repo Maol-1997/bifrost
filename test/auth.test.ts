@@ -83,16 +83,22 @@ describe('browser and agent authentication', () => {
     expect(resolveSessionAndTouch).not.toHaveBeenCalled();
   });
 
-  it.each(['production', 'test'] as const)('rejects development headers in %s even when configured', async (environment) => {
-    const config = { ...testConfig(environment), BIFROST_DEV_USER_ID: USER_ID };
-    const context = authenticationContext(
-      new Request(PUBLIC_URL, { headers: { 'x-bifrost-dev-user': USER_ID } }),
-      databaseWithResolvers(vi.fn(), vi.fn()),
-      config,
-    );
+  it.each(['production', 'test'] as const)(
+    'rejects development headers in %s even when configured',
+    async (environment) => {
+      const config = { ...testConfig(environment), BIFROST_DEV_USER_ID: USER_ID };
+      const context = authenticationContext(
+        new Request(PUBLIC_URL, { headers: { 'x-bifrost-dev-user': USER_ID } }),
+        databaseWithResolvers(vi.fn(), vi.fn()),
+        config,
+      );
 
-    expect(await Promise.all([authenticateBrowser(context), authenticateAgent(context)])).toEqual([undefined, undefined]);
-  });
+      expect(await Promise.all([authenticateBrowser(context), authenticateAgent(context)])).toEqual([
+        undefined,
+        undefined,
+      ]);
+    },
+  );
 
   it('rejects a development header naming a different user', async () => {
     const context = authenticationContext(
@@ -101,7 +107,10 @@ describe('browser and agent authentication', () => {
       testConfig('development'),
     );
 
-    expect(await Promise.all([authenticateBrowser(context), authenticateAgent(context)])).toEqual([undefined, undefined]);
+    expect(await Promise.all([authenticateBrowser(context), authenticateAgent(context)])).toEqual([
+      undefined,
+      undefined,
+    ]);
   });
 
   it('rejects a resolved agent token bound to another resource', async () => {

@@ -13,7 +13,6 @@ export const APP_ROUTES = {
 
 const DYNAMIC_ROUTE_SEGMENT = /\/:[^/]+/g;
 
-export const SPA_FALLBACK_ROUTES: readonly string[] = [...new Set([
-  '/',
-  ...Object.values(APP_ROUTES).map((route) => route.replace(DYNAMIC_ROUTE_SEGMENT, '/*')),
-])];
+export const SPA_FALLBACK_ROUTES: readonly string[] = [
+  ...new Set(['/', ...Object.values(APP_ROUTES).map((route) => route.replace(DYNAMIC_ROUTE_SEGMENT, '/*'))]),
+];

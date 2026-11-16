@@ -94,26 +94,16 @@ function toolContractSnapshot(providerId: ProviderId, upstreamTool: Tool): ToolC
 }
 
 function fingerprintToolContract(contract: ToolContractSnapshot): string {
-  return createHash('sha256')
-    .update(JSON.stringify(contract))
-    .digest('hex');
+  return createHash('sha256').update(JSON.stringify(contract)).digest('hex');
 }
 
-function contractChanges(
-  before: unknown,
-  after: unknown,
-): ToolContractChange[] {
+function contractChanges(before: unknown, after: unknown): ToolContractChange[] {
   const changes: ToolContractChange[] = [];
   collectContractChanges(before, after, '', changes);
   return changes;
 }
 
-function collectContractChanges(
-  before: unknown,
-  after: unknown,
-  path: string,
-  changes: ToolContractChange[],
-): void {
+function collectContractChanges(before: unknown, after: unknown, path: string, changes: ToolContractChange[]): void {
   if (changes.length > MAX_CONTRACT_CHANGES || JSON.stringify(before) === JSON.stringify(after)) return;
   if (!isContractObject(before) || !isContractObject(after)) {
     changes.push({ kind: 'changed', path: path || '/', before, after });
@@ -132,19 +122,11 @@ function collectContractChanges(
       changes.push({ kind: 'removed', path: nextPath, before: contractValueAt(before, key) });
       continue;
     }
-    collectContractChanges(
-      contractValueAt(before, key),
-      contractValueAt(after, key),
-      nextPath,
-      changes,
-    );
+    collectContractChanges(contractValueAt(before, key), contractValueAt(after, key), nextPath, changes);
   }
 }
 
-function contractValueAt(
-  object: Readonly<Record<string, unknown>>,
-  key: string,
-): unknown {
+function contractValueAt(object: Readonly<Record<string, unknown>>, key: string): unknown {
   const value = object[key];
   if (value === undefined) throw new Error(`MCP tool contract value is missing: ${key}`);
   return value;
@@ -184,9 +166,7 @@ export function isToolEnabled(
  * left over is the override that now only restates the deployment default, and
  * keeping those would silently pin a user to a default that later moved.
  */
-export type ToolPreferenceReconciliation =
-  | { kind: 'clear-all' }
-  | { kind: 'clear-redundant'; isEnabled: boolean };
+export type ToolPreferenceReconciliation = { kind: 'clear-all' } | { kind: 'clear-redundant'; isEnabled: boolean };
 
 export function reconcileToolPreferences(
   policy: Pick<StoredToolPolicy, 'fingerprint' | 'state'>,
@@ -214,9 +194,7 @@ export function contractForToolPolicyReview(
   tools: readonly DiscoveredTool[],
   review: ToolPolicyReview,
 ): ToolContractSnapshot {
-  const tool = tools.find((entry) => (
-    entry.name === review.toolName && entry.fingerprint === review.fingerprint
-  ));
+  const tool = tools.find((entry) => entry.name === review.toolName && entry.fingerprint === review.fingerprint);
   if (!tool) throw new Error(`Verified MCP tool contract is missing: ${review.toolName}`);
   return tool.contract;
 }

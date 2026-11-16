@@ -1,5 +1,5 @@
-import * as React from "react"
-import { Copy, Plus, Star, Trash2 } from "lucide-react"
+import * as React from 'react';
+import { Copy, Plus, Star, Trash2 } from 'lucide-react';
 
 import {
   DropdownMenu,
@@ -8,67 +8,57 @@ import {
   DropdownMenuSeparator,
   DropdownMenuShortcut,
   DropdownMenuTrigger,
-} from "@app/components/ui/dropdown-menu"
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@app/components/ui/tooltip"
-import { cn } from "@app/lib/cn"
-import { AgentChatToolbarButton } from "./agent-chat-actions"
-import {
-  AgentToolbarIcon,
-  ChatHistoryIcon,
-  ChevronDownIcon,
-  MoreIcon,
-} from "./agent-chat-icons"
-import { AgentChatLogo } from "./agent-chat-logo"
+} from '@app/components/ui/dropdown-menu';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@app/components/ui/tooltip';
+import { cn } from '@app/lib/cn';
+import { AgentChatToolbarButton } from './agent-chat-actions';
+import { AgentToolbarIcon, ChatHistoryIcon, ChevronDownIcon, MoreIcon } from './agent-chat-icons';
+import { AgentChatLogo } from './agent-chat-logo';
 
 type AgentHistoryItem = {
-  age: string
-  current?: boolean
-  favorite?: boolean
-  group?: string
-  id: string
-  title: string
-}
+  age: string;
+  current?: boolean;
+  favorite?: boolean;
+  group?: string;
+  id: string;
+  title: string;
+};
 
 type AgentChatConversation = {
-  favorite: boolean
-  onCopyAsMarkdown: () => void
-  onDelete: () => void
-  onFavoriteChange: (favorite: boolean) => void
-  onMoveToToolbar: () => void
-}
+  favorite: boolean;
+  onCopyAsMarkdown: () => void;
+  onDelete: () => void;
+  onFavoriteChange: (favorite: boolean) => void;
+  onMoveToToolbar: () => void;
+};
 
 type AgentChatHistory = {
-  items: AgentHistoryItem[]
-  onNewChat: () => void
-  onSelect: (item: AgentHistoryItem) => void
-}
+  items: AgentHistoryItem[];
+  onNewChat: () => void;
+  onSelect: (item: AgentHistoryItem) => void;
+};
 
 type AgentChatProps = {
-  children: React.ReactNode
-  className?: string
-  conversation?: AgentChatConversation
-  history?: AgentChatHistory
-  title?: string
-}
+  children: React.ReactNode;
+  className?: string;
+  conversation?: AgentChatConversation;
+  history?: AgentChatHistory;
+  title?: string;
+};
 
 type AgentChatToolbarTab = {
-  onOpen: () => void
-  title: string
-}
+  onOpen: () => void;
+  title: string;
+};
 
 type AgentChatGlobalToolbarProps = {
-  history: AgentChatHistory
-  tab?: AgentChatToolbarTab
-}
+  history: AgentChatHistory;
+  tab?: AgentChatToolbarTab;
+};
 
-type HeaderIconButtonProps = React.ComponentPropsWithoutRef<"button"> & {
-  label: string
-}
+type HeaderIconButtonProps = React.ComponentPropsWithoutRef<'button'> & {
+  label: string;
+};
 
 const HeaderIconButton = React.forwardRef<HTMLButtonElement, HeaderIconButtonProps>(
   ({ children, className, label, ...props }, ref) => (
@@ -78,7 +68,7 @@ const HeaderIconButton = React.forwardRef<HTMLButtonElement, HeaderIconButtonPro
           ref={ref}
           aria-label={label}
           className={cn(
-            "relative flex size-7 items-center justify-center rounded-full border-[0.5px] border-transparent text-linear-control-foreground transition-[background-color,color] duration-150 hover:bg-linear-ghost-hover focus-visible:bg-linear-ghost-hover focus-visible:outline-none max-[1024px]:size-8",
+            'relative flex size-7 items-center justify-center rounded-full border-[0.5px] border-transparent text-linear-control-foreground transition-[background-color,color] duration-150 hover:bg-linear-ghost-hover focus-visible:bg-linear-ghost-hover focus-visible:outline-none max-[1024px]:size-8',
             className,
           )}
           type="button"
@@ -90,14 +80,14 @@ const HeaderIconButton = React.forwardRef<HTMLButtonElement, HeaderIconButtonPro
       <TooltipContent>{label}</TooltipContent>
     </Tooltip>
   ),
-)
-HeaderIconButton.displayName = "HeaderIconButton"
+);
+HeaderIconButton.displayName = 'HeaderIconButton';
 
 type HistoryMenuProps = {
-  align?: "end" | "start"
-  children: React.ReactNode
-  history?: AgentChatHistory
-}
+  align?: 'end' | 'start';
+  children: React.ReactNode;
+  history?: AgentChatHistory;
+};
 
 function ChatOptionsMenu({ conversation }: { conversation: AgentChatConversation }) {
   return (
@@ -108,32 +98,24 @@ function ChatOptionsMenu({ conversation }: { conversation: AgentChatConversation
         </HeaderIconButton>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-44 min-w-44" sideOffset={4}>
-        <DropdownMenuItem
-          onSelect={conversation.onCopyAsMarkdown}
-        >
+        <DropdownMenuItem onSelect={conversation.onCopyAsMarkdown}>
           <Copy className="size-4" aria-hidden="true" />
           Copy as markdown
         </DropdownMenuItem>
         <DropdownMenuSeparator />
-        <DropdownMenuItem
-          onSelect={conversation.onDelete}
-        >
+        <DropdownMenuItem onSelect={conversation.onDelete}>
           <Trash2 className="size-4" aria-hidden="true" />
           Delete
           <DropdownMenuShortcut>⌘⌫</DropdownMenuShortcut>
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
-  )
+  );
 }
 
-function HistoryMenu({
-  align = "start",
-  children,
-  history,
-}: HistoryMenuProps) {
-  const items = history?.items ?? []
-  const group = items[0]?.group ?? "Today"
+function HistoryMenu({ align = 'start', children, history }: HistoryMenuProps) {
+  const items = history?.items ?? [];
+  const group = items[0]?.group ?? 'Today';
 
   return (
     <DropdownMenu>
@@ -148,11 +130,7 @@ function HistoryMenu({
           disabled={!history}
           {...(history ? { onSelect: history.onNewChat } : {})}
         >
-          <Plus
-            aria-hidden="true"
-            className="text-linear-menu-icon"
-            strokeWidth={1.75}
-          />
+          <Plus aria-hidden="true" className="text-linear-menu-icon" strokeWidth={1.75} />
           New chat
         </DropdownMenuItem>
         <DropdownMenuSeparator className="h-2 after:top-1" />
@@ -164,16 +142,14 @@ function HistoryMenu({
           {group}
         </div>
         {items.length === 0 ? (
-          <div className="px-3.5 py-2 text-[13px] font-[450] text-linear-agent-action">
-            No history
-          </div>
+          <div className="px-3.5 py-2 text-[13px] font-[450] text-linear-agent-action">No history</div>
         ) : (
           items.map((item) => (
             <DropdownMenuItem
               key={item.id}
               className="h-[30px] pl-3 pr-3 text-[12.5px] before:inset-x-1 before:rounded-md data-[current=true]:before:bg-linear-menu-item-hover"
               data-current={item.current}
-              aria-current={item.current ? "page" : undefined}
+              aria-current={item.current ? 'page' : undefined}
               onSelect={() => history?.onSelect(item)}
             >
               <span aria-hidden="true" className="flex w-6 shrink-0 items-center">
@@ -182,24 +158,18 @@ function HistoryMenu({
               <span className="min-w-0 flex-1 truncate" title={item.title}>
                 {item.title}
               </span>
-              <span className="ml-2 shrink-0 tabular-nums text-linear-agent-action">
-                {item.age}
-              </span>
+              <span className="ml-2 shrink-0 tabular-nums text-linear-agent-action">{item.age}</span>
             </DropdownMenuItem>
           ))
         )}
       </DropdownMenuContent>
     </DropdownMenu>
-  )
+  );
 }
 
-type AgentChatHeaderProps = Omit<AgentChatProps, "children" | "className">
+type AgentChatHeaderProps = Omit<AgentChatProps, 'children' | 'className'>;
 
-function AgentChatHeader({
-  conversation,
-  history,
-  title = "New chat",
-}: AgentChatHeaderProps) {
+function AgentChatHeader({ conversation, history, title = 'New chat' }: AgentChatHeaderProps) {
   return (
     <header className="flex h-11 shrink-0 items-center justify-between border-b-[0.5px] border-linear-border px-2">
       <div className="flex min-w-0 items-center">
@@ -219,10 +189,13 @@ function AgentChatHeader({
           <>
             <HeaderIconButton
               aria-pressed={conversation.favorite}
-              label={conversation.favorite ? "Remove from favorites" : "Add to favorites"}
+              label={conversation.favorite ? 'Remove from favorites' : 'Add to favorites'}
               onClick={() => conversation.onFavoriteChange(!conversation.favorite)}
             >
-              <Star className={cn("size-4", conversation.favorite && "fill-current text-linear-bright")} aria-hidden="true" />
+              <Star
+                className={cn('size-4', conversation.favorite && 'fill-current text-linear-bright')}
+                aria-hidden="true"
+              />
             </HeaderIconButton>
             <ChatOptionsMenu conversation={conversation} />
           </>
@@ -230,16 +203,12 @@ function AgentChatHeader({
       </div>
       {conversation ? <AgentChatToolbarButton onClick={conversation.onMoveToToolbar} /> : null}
     </header>
-  )
+  );
 }
 
 function AgentChatGlobalToolbar({ history, tab }: AgentChatGlobalToolbarProps) {
   return (
-    <div
-      aria-label="Agent toolbar"
-      className="flex h-7 items-center justify-end gap-0.5 pr-2.5"
-      role="toolbar"
-    >
+    <div aria-label="Agent toolbar" className="flex h-7 items-center justify-end gap-0.5 pr-2.5" role="toolbar">
       {tab ? (
         <button
           aria-label={`Open ${tab.title}`}
@@ -269,43 +238,32 @@ function AgentChatGlobalToolbar({ history, tab }: AgentChatGlobalToolbarProps) {
         </button>
       </HistoryMenu>
     </div>
-  )
+  );
 }
 
-function AgentChat({
-  children,
-  className,
-  conversation,
-  history,
-  title = "New chat",
-}: AgentChatProps) {
-  const onDelete = conversation?.onDelete
+function AgentChat({ children, className, conversation, history, title = 'New chat' }: AgentChatProps) {
+  const onDelete = conversation?.onDelete;
 
   React.useEffect(() => {
-    if (!onDelete) return
-    const deleteConversation = onDelete
+    if (!onDelete) return;
+    const deleteConversation = onDelete;
 
     function handleDeleteShortcut(event: KeyboardEvent): void {
-      if (!event.metaKey || event.key !== "Backspace" || isEditableTarget(event.target)) return
-      event.preventDefault()
-      deleteConversation()
+      if (!event.metaKey || event.key !== 'Backspace' || isEditableTarget(event.target)) return;
+      event.preventDefault();
+      deleteConversation();
     }
 
-    window.addEventListener("keydown", handleDeleteShortcut)
-    return () => window.removeEventListener("keydown", handleDeleteShortcut)
-  }, [onDelete])
+    window.addEventListener('keydown', handleDeleteShortcut);
+    return () => window.removeEventListener('keydown', handleDeleteShortcut);
+  }, [onDelete]);
 
   return (
     <TooltipProvider>
-      <div
-        className={cn(
-          "relative h-[720px] min-h-[600px] w-full overflow-hidden bg-linear-canvas",
-          className,
-        )}
-      >
+      <div className={cn('relative h-[720px] min-h-[600px] w-full overflow-hidden bg-linear-canvas', className)}>
         <section
           className="agent-chat-surface absolute inset-0 flex flex-col overflow-hidden bg-linear-gallery-main"
-          data-conversation={conversation ? "true" : "false"}
+          data-conversation={conversation ? 'true' : 'false'}
         >
           <AgentChatHeader
             {...(conversation ? { conversation } : {})}
@@ -316,25 +274,27 @@ function AgentChat({
         </section>
       </div>
     </TooltipProvider>
-  )
+  );
 }
 
 function isEditableTarget(target: EventTarget | null): boolean {
-  return target instanceof HTMLElement
-    && (target.isContentEditable || target.tagName === "INPUT" || target.tagName === "TEXTAREA")
+  return (
+    target instanceof HTMLElement &&
+    (target.isContentEditable || target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')
+  );
 }
 
 type AgentChatEmptyStateProps = {
-  children: React.ReactNode
-  className?: string
-}
+  children: React.ReactNode;
+  className?: string;
+};
 
 function AgentChatEmptyState({ children, className }: AgentChatEmptyStateProps) {
   return (
     <div className="relative min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
       <div
         className={cn(
-          "relative z-1 mx-auto flex min-h-full w-full -translate-y-2.75 flex-col justify-center",
+          'relative z-1 mx-auto flex min-h-full w-full -translate-y-2.75 flex-col justify-center',
           className,
         )}
       >
@@ -344,7 +304,7 @@ function AgentChatEmptyState({ children, className }: AgentChatEmptyStateProps) 
         </div>
       </div>
     </div>
-  )
+  );
 }
 
 export {
@@ -354,4 +314,4 @@ export {
   type AgentChatConversation,
   type AgentChatHistory,
   type AgentHistoryItem,
-}
+};

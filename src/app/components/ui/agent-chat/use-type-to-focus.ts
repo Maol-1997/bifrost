@@ -1,8 +1,8 @@
-import * as React from "react"
+import * as React from 'react';
 
-const EDITABLE_SELECTOR = "input, textarea, select, [contenteditable]:not([contenteditable='false'])"
+const EDITABLE_SELECTOR = "input, textarea, select, [contenteditable]:not([contenteditable='false'])";
 // Radix unmounts closed overlays, so any of these in the document means one is open.
-const OPEN_OVERLAY_SELECTOR = "[role='dialog'], [role='alertdialog'], [role='menu'], [role='listbox']"
+const OPEN_OVERLAY_SELECTOR = "[role='dialog'], [role='alertdialog'], [role='menu'], [role='listbox']";
 
 /**
  * Sends typing that starts anywhere on the page into `ref`, the way chat apps
@@ -16,24 +16,26 @@ const OPEN_OVERLAY_SELECTOR = "[role='dialog'], [role='alertdialog'], [role='men
  */
 function useTypeToFocus(ref: React.RefObject<HTMLTextAreaElement | null>, enabled: boolean) {
   React.useEffect(() => {
-    if (!enabled) return
+    if (!enabled) return;
 
     function handleKeyDown(event: KeyboardEvent) {
-      const field = ref.current
-      if (!field || field.disabled || document.activeElement === field) return
-      if (event.defaultPrevented || event.isComposing || event.ctrlKey || event.metaKey || event.altKey) return
-      if (event.key.length !== 1 && event.key !== "Dead") return
-      if (event.target instanceof Element && event.target.closest(EDITABLE_SELECTOR)) return
-      if (document.querySelector(OPEN_OVERLAY_SELECTOR)) return
+      const field = ref.current;
+      if (!field || field.disabled || document.activeElement === field) return;
+      if (event.defaultPrevented || event.isComposing || event.ctrlKey || event.metaKey || event.altKey) return;
+      if (event.key.length !== 1 && event.key !== 'Dead') return;
+      if (event.target instanceof Element && event.target.closest(EDITABLE_SELECTOR)) return;
+      if (document.querySelector(OPEN_OVERLAY_SELECTOR)) return;
 
-      field.focus()
+      field.focus();
       // Typing continues after whatever is already there, not wherever the caret was left.
-      field.setSelectionRange(field.value.length, field.value.length)
+      field.setSelectionRange(field.value.length, field.value.length);
     }
 
-    document.addEventListener("keydown", handleKeyDown)
-    return () => { document.removeEventListener("keydown", handleKeyDown) }
-  }, [enabled, ref])
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [enabled, ref]);
 }
 
-export { useTypeToFocus }
+export { useTypeToFocus };

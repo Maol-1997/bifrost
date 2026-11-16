@@ -65,13 +65,14 @@ export function needsReencryption(encrypted: EncryptedSecret, keyring: Encryptio
 }
 
 function open(encrypted: EncryptedSecret, key: Buffer, context?: string): string {
-  const decipher = createDecipheriv(SECRET_ENCRYPTION_ALGORITHM, key, Buffer.from(encrypted.iv, 'base64'), { authTagLength: AUTH_TAG_BYTES });
+  const decipher = createDecipheriv(SECRET_ENCRYPTION_ALGORITHM, key, Buffer.from(encrypted.iv, 'base64'), {
+    authTagLength: AUTH_TAG_BYTES,
+  });
   if (context !== undefined) decipher.setAAD(Buffer.from(context, 'utf8'));
   decipher.setAuthTag(Buffer.from(encrypted.authTag, 'base64'));
-  return Buffer.concat([
-    decipher.update(Buffer.from(encrypted.ciphertext, 'base64')),
-    decipher.final(),
-  ]).toString('utf8');
+  return Buffer.concat([decipher.update(Buffer.from(encrypted.ciphertext, 'base64')), decipher.final()]).toString(
+    'utf8',
+  );
 }
 
 function keyFor(keyring: EncryptionKeyring, keyId: string): Buffer {

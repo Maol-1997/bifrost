@@ -31,10 +31,10 @@ describe('provider agent notes', () => {
       ['github', { note: 'Focus on PRs.\nIgnore stars.', updatedAt }],
     ]);
 
-    expect(providerAgentNoteInstructions(notes)).toContain([
-      'Stored provider notes:',
-      '- github: "Focus on PRs.\\nIgnore stars."',
-      '- linear: "Focus on projects."',
-    ].join('\n'));
+    expect(providerAgentNoteInstructions(notes)).toContain(
+      ['Stored provider notes:', '- github: "Focus on PRs.\\nIgnore stars."', '- linear: "Focus on projects."'].join(
+        '\n',
+      ),
+    );
   });
 });

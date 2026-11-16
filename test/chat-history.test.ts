@@ -35,10 +35,13 @@ describe('stored chat history normalization', () => {
   });
 
   it('keeps only conversations owned by the current user', () => {
-    const conversations = normalizeStoredConversations([
-      conversationFixture({ id: 'current-owner' }),
-      conversationFixture({ id: 'different-owner', owner: 'other@example.com' }),
-    ], OWNER);
+    const conversations = normalizeStoredConversations(
+      [
+        conversationFixture({ id: 'current-owner' }),
+        conversationFixture({ id: 'different-owner', owner: 'other@example.com' }),
+      ],
+      OWNER,
+    );
 
     expect(conversations.map((conversation) => conversation.id)).toEqual(['current-owner']);
   });
@@ -57,17 +60,16 @@ describe('stored chat history normalization', () => {
   });
 
   it('orders conversations by most recent update', () => {
-    const conversations = normalizeStoredConversations([
-      conversationFixture({ id: 'oldest', updatedAt: 10 }),
-      conversationFixture({ id: 'newest', updatedAt: 30 }),
-      conversationFixture({ id: 'middle', updatedAt: 20 }),
-    ], OWNER);
+    const conversations = normalizeStoredConversations(
+      [
+        conversationFixture({ id: 'oldest', updatedAt: 10 }),
+        conversationFixture({ id: 'newest', updatedAt: 30 }),
+        conversationFixture({ id: 'middle', updatedAt: 20 }),
+      ],
+      OWNER,
+    );
 
-    expect(conversations.map((conversation) => conversation.id)).toEqual([
-      'newest',
-      'middle',
-      'oldest',
-    ]);
+    expect(conversations.map((conversation) => conversation.id)).toEqual(['newest', 'middle', 'oldest']);
   });
 
   it.each([
@@ -76,9 +78,26 @@ describe('stored chat history normalization', () => {
     ['a message without an id', conversationFixture({ messages: [{ role: 'user', parts: [] }] })],
     ['an unknown message role', conversationFixture({ messages: [{ id: 'message', role: 'tool', parts: [] }] })],
     ['an empty user message', conversationFixture({ messages: [{ id: 'message', role: 'user', parts: [] }] })],
-    ['an unknown part type', conversationFixture({ messages: [{ id: 'message', role: 'assistant', parts: [{ type: 'mystery' }] }] })],
-    ['a malformed text part', conversationFixture({ messages: [{ id: 'message', role: 'assistant', parts: [{ type: 'text', text: 42 }] }] })],
-    ['an incomplete tool result', conversationFixture({ messages: [{ id: 'message', role: 'assistant', parts: [{ type: 'tool-search', toolCallId: 'call', state: 'output-available', input: {} }] }] })],
+    [
+      'an unknown part type',
+      conversationFixture({ messages: [{ id: 'message', role: 'assistant', parts: [{ type: 'mystery' }] }] }),
+    ],
+    [
+      'a malformed text part',
+      conversationFixture({ messages: [{ id: 'message', role: 'assistant', parts: [{ type: 'text', text: 42 }] }] }),
+    ],
+    [
+      'an incomplete tool result',
+      conversationFixture({
+        messages: [
+          {
+            id: 'message',
+            role: 'assistant',
+            parts: [{ type: 'tool-search', toolCallId: 'call', state: 'output-available', input: {} }],
+          },
+        ],
+      }),
+    ],
   ])('discards %s', (_description, malformedRecord) => {
     expect(normalizeStoredConversations([malformedRecord], OWNER)).toEqual([]);
   });

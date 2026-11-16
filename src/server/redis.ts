@@ -44,15 +44,15 @@ export class RedisRuntime {
     const commandReconnect = failFastBeforeFirstReady();
     const subscriberReconnect = failFastBeforeFirstReady();
     this.commandConnection = createClient(redisClientOptions(url, commandReconnect));
-    this.subscriberConnection = this.commandConnection.duplicate(
-      redisClientOptions(url, subscriberReconnect),
-    );
+    this.subscriberConnection = this.commandConnection.duplicate(redisClientOptions(url, subscriberReconnect));
     this.commands = this.commandConnection;
     this.subscriber = this.subscriberConnection;
     this.commandConnection.on('ready', commandReconnect.markReady);
     this.subscriberConnection.on('ready', subscriberReconnect.markReady);
     this.commandConnection.on('error', (error) => logger.error(errorSummary(error), 'Redis command client error'));
-    this.subscriberConnection.on('error', (error) => logger.error(errorSummary(error), 'Redis subscriber client error'));
+    this.subscriberConnection.on('error', (error) =>
+      logger.error(errorSummary(error), 'Redis subscriber client error'),
+    );
   }
 
   static async connect(options: RedisConnectionOptions): Promise<RedisRuntime | undefined> {
@@ -76,10 +76,7 @@ export class RedisRuntime {
   }
 
   async close(): Promise<void> {
-    await Promise.all([
-      closeClient(this.subscriberConnection),
-      closeClient(this.commandConnection),
-    ]);
+    await Promise.all([closeClient(this.subscriberConnection), closeClient(this.commandConnection)]);
   }
 
   private async closeAfterFailedConnect(): Promise<void> {
@@ -88,7 +85,8 @@ export class RedisRuntime {
       closeClient(this.commandConnection),
     ]);
     for (const result of results) {
-      if (result.status === 'rejected') logger.warn(errorSummary(result.reason), 'Failed to close Redis client after connection failure');
+      if (result.status === 'rejected')
+        logger.warn(errorSummary(result.reason), 'Failed to close Redis client after connection failure');
     }
   }
 }
@@ -103,17 +101,14 @@ export function failFastBeforeFirstReady(): {
 } {
   let connectedOnce = false;
   return {
-    markReady: () => { connectedOnce = true; },
-    strategy: (retries, cause) => (
-      connectedOnce ? Math.min(50 * 2 ** retries, 3_000) : cause
-    ),
+    markReady: () => {
+      connectedOnce = true;
+    },
+    strategy: (retries, cause) => (connectedOnce ? Math.min(50 * 2 ** retries, 3_000) : cause),
   };
 }
 
-export function redisClientOptions(
-  url: string,
-  reconnect: ReturnType<typeof failFastBeforeFirstReady>,
-) {
+export function redisClientOptions(url: string, reconnect: ReturnType<typeof failFastBeforeFirstReady>) {
   return {
     url,
     // Shared coordination cannot wait in a process-local queue. Failing while

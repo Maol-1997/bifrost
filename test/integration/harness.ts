@@ -42,7 +42,9 @@ function routeProviderTraffic(upstreamUrl: string): () => void {
     const rerouted = `${upstreamUrl}/mcp`;
     return input instanceof Request ? originalFetch(new Request(rerouted, input), init) : originalFetch(rerouted, init);
   };
-  return () => { globalThis.fetch = originalFetch; };
+  return () => {
+    globalThis.fetch = originalFetch;
+  };
 }
 
 export type McpResponse = { status: number; body: McpResponseBody };
@@ -56,7 +58,11 @@ export type IntegrationHarness = {
   createUser(): Promise<string>;
   issueBearer(userId: string): Promise<string>;
   connectProvider(userId: string, credential?: Partial<StoredCredential>, providerId?: ProviderId): Promise<void>;
-  decideTools(adminUserId: string, decisions: Readonly<Record<string, ToolPolicyState>>, providerId?: ProviderId): Promise<void>;
+  decideTools(
+    adminUserId: string,
+    decisions: Readonly<Record<string, ToolPolicyState>>,
+    providerId?: ProviderId,
+  ): Promise<void>;
   /** Disconnects through the browser route, with a real session cookie. */
   disconnectProvider(userId: string, providerId?: ProviderId): Promise<number>;
   listTools(bearer: string): Promise<McpResponse>;
@@ -85,7 +91,10 @@ export async function createIntegrationHarness(options: {
   const coordinator = new Coordinator(redis.commands);
   const database = createDatabase(config);
   const mounts = mountProviders();
-  const oauth = new OAuthService(config, database, coordinator, { ...unexpectedProviderOAuth(), ...options.providerOAuth });
+  const oauth = new OAuthService(config, database, coordinator, {
+    ...unexpectedProviderOAuth(),
+    ...options.providerOAuth,
+  });
   const events = new BrowserEventBus(redis);
   await events.start();
   const upstreamClients = new UpstreamClientPool({
@@ -98,15 +107,33 @@ export async function createIntegrationHarness(options: {
     mounts,
     upstreamClients,
     store: createRedisToolCacheStore(redis.commands),
-    onFreshTools: (providerId, tools) => reconcileAutoPoliciesInBackground({
-      providerId,
-      tools,
-      dependencies: { config, database, coordinator, events },
-    }),
+    onFreshTools: (providerId, tools) =>
+      reconcileAutoPoliciesInBackground({
+        providerId,
+        tools,
+        dependencies: { config, database, coordinator, events },
+      }),
   });
-  const mcpHandler = createHumanMcpHandler({ config, database, coordinator, oauth, mounts, toolDiscovery, upstreamClients });
+  const mcpHandler = createHumanMcpHandler({
+    config,
+    database,
+    coordinator,
+    oauth,
+    mounts,
+    toolDiscovery,
+    upstreamClients,
+  });
   const dependencies: AppDependencies = {
-    config, database, coordinator, oauth, mounts, mcpHandler, events, toolDiscovery, upstreamClients, redis,
+    config,
+    database,
+    coordinator,
+    oauth,
+    mounts,
+    mcpHandler,
+    events,
+    toolDiscovery,
+    upstreamClients,
+    redis,
   };
   const app = createApp(dependencies);
   await database.upsertOAuthClient({
@@ -133,30 +160,37 @@ export async function createIntegrationHarness(options: {
     /** A bearer token issued through the same grant store the consent screen uses. */
     async issueBearer(userId): Promise<string> {
       const tokens = await database.authorizeOAuthGrant({
-        userId, clientId: OAUTH_CLIENT_ID, scopes: [MCP_SCOPE], resource: canonicalResource(PUBLIC_URL),
+        userId,
+        clientId: OAUTH_CLIENT_ID,
+        scopes: [MCP_SCOPE],
+        resource: canonicalResource(PUBLIC_URL),
       });
       return tokens.accessToken;
     },
 
     async connectProvider(userId, credential = {}, providerId = 'github'): Promise<void> {
       await database.saveCredential(userId, providerId, {
-        accessToken: `access-${randomUUID()}`, scopes: [], ...credential,
+        accessToken: `access-${randomUUID()}`,
+        scopes: [],
+        ...credential,
       });
     },
 
     /** Reviews the live upstream catalog the way an administrator would and decides every listed tool. */
     async decideTools(adminUserId, decisions, providerId = 'github'): Promise<void> {
       const { tools } = await toolDiscovery.discoverProviderFresh({ userId: adminUserId, providerId });
-      await database.setToolPolicies(tools
-        .filter((tool) => decisions[tool.name] !== undefined)
-        .map((tool) => ({
-          providerId,
-          toolName: tool.name,
-          fingerprint: tool.fingerprint,
-          contract: tool.contract,
-          state: decisions[tool.name]!,
-          updatedByUserId: adminUserId,
-        })));
+      await database.setToolPolicies(
+        tools
+          .filter((tool) => decisions[tool.name] !== undefined)
+          .map((tool) => ({
+            providerId,
+            toolName: tool.name,
+            fingerprint: tool.fingerprint,
+            contract: tool.contract,
+            state: decisions[tool.name]!,
+            updatedByUserId: adminUserId,
+          })),
+      );
     },
 
     async disconnectProvider(userId, providerId = 'github'): Promise<number> {
@@ -204,11 +238,13 @@ async function mcpRequest(
     body: JSON.stringify(body),
   });
   const text = await response.text();
-  return { status: response.status, body: text ? JSON.parse(text) as McpResponseBody : {} };
+  return { status: response.status, body: text ? (JSON.parse(text) as McpResponseBody) : {} };
 }
 
 /** Provider token endpoints are never reached from tests; a test that needs one injects it. */
 function unexpectedProviderOAuth(): ProviderOAuthDependencies {
-  const unexpected = async (): Promise<never> => { throw new Error('Unexpected provider OAuth call in an integration test'); };
+  const unexpected = async (): Promise<never> => {
+    throw new Error('Unexpected provider OAuth call in an integration test');
+  };
   return { authorizationCodeGrant: unexpected, refreshTokenGrant: unexpected, readAccountLabel: unexpected };
 }

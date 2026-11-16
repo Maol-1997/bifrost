@@ -15,10 +15,17 @@ const identity: GoogleIdentity = { googleSubject: 'google-sub-1', email: 'ada@ex
 
 describe('Google identity resolution', () => {
   it('follows the subject when the account renames its email', async () => {
-    const users = inMemoryUsers([{ id: 'user-1', googleSubject: 'google-sub-1', email: 'old@example.test', name: 'Old' }]);
+    const users = inMemoryUsers([
+      { id: 'user-1', googleSubject: 'google-sub-1', email: 'old@example.test', name: 'Old' },
+    ]);
 
     await expect(resolveGoogleUser(users.writes, identity)).resolves.toBe('user-1');
-    expect(users.rows[0]).toEqual({ id: 'user-1', googleSubject: 'google-sub-1', email: 'ada@example.test', name: 'Ada' });
+    expect(users.rows[0]).toEqual({
+      id: 'user-1',
+      googleSubject: 'google-sub-1',
+      email: 'ada@example.test',
+      name: 'Ada',
+    });
   });
 
   it('links an account created before subjects were recorded', async () => {
@@ -32,8 +39,9 @@ describe('Google identity resolution', () => {
     const users = inMemoryUsers([{ id: 'user-1', googleSubject: null, email: 'ada@example.test', name: 'Old' }]);
     await resolveGoogleUser(users.writes, identity);
 
-    await expect(resolveGoogleUser(users.writes, { ...identity, googleSubject: 'google-sub-2' }))
-      .rejects.toBeInstanceOf(GoogleAccountConflictError);
+    await expect(
+      resolveGoogleUser(users.writes, { ...identity, googleSubject: 'google-sub-2' }),
+    ).rejects.toBeInstanceOf(GoogleAccountConflictError);
   });
 
   it('leaves the account it refused untouched', async () => {
@@ -48,7 +56,9 @@ describe('Google identity resolution', () => {
     const users = inMemoryUsers([]);
 
     await expect(resolveGoogleUser(users.writes, identity)).resolves.toBe('created-1');
-    expect(users.rows).toEqual([{ id: 'created-1', googleSubject: 'google-sub-1', email: 'ada@example.test', name: 'Ada' }]);
+    expect(users.rows).toEqual([
+      { id: 'created-1', googleSubject: 'google-sub-1', email: 'ada@example.test', name: 'Ada' },
+    ]);
   });
 });
 
@@ -58,16 +68,17 @@ describe('unique violation detection', () => {
   });
 
   it('does not treat other failures as a race', () => {
-    expect([new Error('connection terminated'), { code: '23503' }, undefined].map(isUniqueViolation))
-      .toEqual([false, false, false]);
+    expect([new Error('connection terminated'), { code: '23503' }, undefined].map(isUniqueViolation)).toEqual([
+      false,
+      false,
+      false,
+    ]);
   });
 });
 
 describe('concurrent Google identity resolution', () => {
   it('retries a legacy-link conflict that resolves by subject on the next transaction', async () => {
-    const resolve = vi.fn()
-      .mockRejectedValueOnce(new GoogleAccountConflictError())
-      .mockResolvedValueOnce('user-1');
+    const resolve = vi.fn().mockRejectedValueOnce(new GoogleAccountConflictError()).mockResolvedValueOnce('user-1');
 
     await expect(resolveGoogleUserWithRetry(resolve)).resolves.toBe('user-1');
     expect(resolve).toHaveBeenCalledTimes(2);
@@ -105,9 +116,7 @@ describe('Google identity claims', () => {
   };
 
   it.each(['sub', 'email', 'name', 'email_verified'] as const)('requires %s', (claim) => {
-    const incomplete = Object.fromEntries(
-      Object.entries(claims).filter(([key]) => key !== claim),
-    );
+    const incomplete = Object.fromEntries(Object.entries(claims).filter(([key]) => key !== claim));
 
     expect(googleIdentityClaimsSchema.safeParse(incomplete).success).toBe(false);
   });

@@ -42,7 +42,8 @@ const TOKEN_PAIR: OAuthTokenPair = {
   accessTokenExpiresAt: new Date(Date.now() + 3_600_000),
 };
 
-type DatabaseFake = Pick<Database,
+type DatabaseFake = Pick<
+  Database,
   | 'authorizeOAuthGrant'
   | 'getOAuthClient'
   | 'getUser'
@@ -169,7 +170,10 @@ function htmlSummary(result: OAuthHttpResult): { kind: string; status: number; b
   return { kind: result.kind, status: result.status, body: result.body };
 }
 
-function htmlErrorSummary(result: OAuthHttpResult, expectedText: string): { kind: string; status: number; includesExpectedText: boolean } {
+function htmlErrorSummary(
+  result: OAuthHttpResult,
+  expectedText: string,
+): { kind: string; status: number; includesExpectedText: boolean } {
   const summary = htmlSummary(result);
   return { kind: summary.kind, status: summary.status, includesExpectedText: summary.body.includes(expectedText) };
 }
@@ -224,9 +228,19 @@ describe('authorization requests', () => {
     const result = await handleAuthorize(harness.context, authorizationUrl(), USER_ID);
     const stored = vi.mocked(harness.coordinator.setEphemeral).mock.calls[0];
 
-    expect({ status: htmlSummary(result).status, payload: JSON.parse(stored?.[1] ?? 'null') as unknown, ttl: stored?.[2] }).toMatchObject({
+    expect({
+      status: htmlSummary(result).status,
+      payload: JSON.parse(stored?.[1] ?? 'null') as unknown,
+      ttl: stored?.[2],
+    }).toMatchObject({
       status: 200,
-      payload: { userId: USER_ID, clientId: CLIENT_ID, codeChallenge: CODE_CHALLENGE, resource: RESOURCE, scopes: ['mcp'] },
+      payload: {
+        userId: USER_ID,
+        clientId: CLIENT_ID,
+        codeChallenge: CODE_CHALLENGE,
+        resource: RESOURCE,
+        scopes: ['mcp'],
+      },
       ttl: 600,
     });
   });
@@ -237,8 +251,10 @@ describe('authorization requests', () => {
 
     const result = await handleAuthorize(harness.context, authorizationUrl(), USER_ID);
 
-    expect({ result: htmlErrorSummary(result, 'Account not found'), stored: harness.ephemeralValues.size })
-      .toEqual({ result: { kind: 'html', status: 400, includesExpectedText: true }, stored: 0 });
+    expect({ result: htmlErrorSummary(result, 'Account not found'), stored: harness.ephemeralValues.size }).toEqual({
+      result: { kind: 'html', status: 400, includesExpectedText: true },
+      stored: 0,
+    });
   });
 
   it('reuses an existing grant without issuing another consent token', async () => {
@@ -256,9 +272,16 @@ describe('authorization requests', () => {
   it('rejects metadata-document clients when that feature is disabled', async () => {
     const harness = createHarness();
 
-    const result = await handleAuthorize(harness.context, authorizationUrl({ client_id: 'https://client.example/metadata.json' }), USER_ID);
+    const result = await handleAuthorize(
+      harness.context,
+      authorizationUrl({ client_id: 'https://client.example/metadata.json' }),
+      USER_ID,
+    );
 
-    expect(htmlErrorSummary(result, 'not accepting client metadata documents')).toMatchObject({ status: 400, includesExpectedText: true });
+    expect(htmlErrorSummary(result, 'not accepting client metadata documents')).toMatchObject({
+      status: 400,
+      includesExpectedText: true,
+    });
   });
 
   it('keeps unknown clients on a local error page', async () => {
@@ -267,15 +290,24 @@ describe('authorization requests', () => {
 
     const result = await handleAuthorize(harness.context, authorizationUrl(), USER_ID);
 
-    expect(htmlErrorSummary(result, 'not registered with Bifrost')).toMatchObject({ status: 400, includesExpectedText: true });
+    expect(htmlErrorSummary(result, 'not registered with Bifrost')).toMatchObject({
+      status: 400,
+      includesExpectedText: true,
+    });
   });
 
   it('keeps a malformed request on an error page without resolving a redirect target', async () => {
     const harness = createHarness();
-    const result = await handleAuthorize(harness.context, new URL(`${PUBLIC_URL}/oauth/authorize?client_id=${CLIENT_ID}`), USER_ID);
+    const result = await handleAuthorize(
+      harness.context,
+      new URL(`${PUBLIC_URL}/oauth/authorize?client_id=${CLIENT_ID}`),
+      USER_ID,
+    );
 
-    expect({ result: htmlSummary(result), clientLookups: vi.mocked(harness.database.getOAuthClient).mock.calls.length })
-      .toMatchObject({ result: { kind: 'html', status: 400 }, clientLookups: 0 });
+    expect({
+      result: htmlSummary(result),
+      clientLookups: vi.mocked(harness.database.getOAuthClient).mock.calls.length,
+    }).toMatchObject({ result: { kind: 'html', status: 400 }, clientLookups: 0 });
   });
 
   it('keeps an unregistered redirect URI on an error page', async () => {
@@ -286,11 +318,19 @@ describe('authorization requests', () => {
       USER_ID,
     );
 
-    expect(htmlErrorSummary(result, 'Unregistered address')).toEqual({ kind: 'html', status: 400, includesExpectedText: true });
+    expect(htmlErrorSummary(result, 'Unregistered address')).toEqual({
+      kind: 'html',
+      status: 400,
+      includesExpectedText: true,
+    });
   });
 
   it.each([
-    { reason: 'an unsupported response type', overrides: { response_type: 'token' }, error: 'unsupported_response_type' },
+    {
+      reason: 'an unsupported response type',
+      overrides: { response_type: 'token' },
+      error: 'unsupported_response_type',
+    },
     { reason: 'a downgraded PKCE method', overrides: { code_challenge_method: 'plain' }, error: 'invalid_request' },
     { reason: 'a different resource', overrides: { resource: 'https://other.example/mcp' }, error: 'invalid_target' },
     { reason: 'an unsupported scope', overrides: { scope: 'admin' }, error: 'invalid_scope' },
@@ -314,21 +354,32 @@ describe('consent submissions', () => {
 
     const result = await handleConsent(harness.context, consentBody(), undefined);
 
-    expect({ status: htmlSummary(result).status, stored: harness.ephemeralValues.size }).toEqual({ status: 401, stored: 1 });
+    expect({ status: htmlSummary(result).status, stored: harness.ephemeralValues.size }).toEqual({
+      status: 401,
+      stored: 1,
+    });
   });
 
   it('rejects a form with no consent token', async () => {
     const harness = createHarness();
     const result = await handleConsent(harness.context, new URLSearchParams({ decision: 'approve' }), USER_ID);
 
-    expect(htmlErrorSummary(result, 'without an approval token')).toEqual({ kind: 'html', status: 400, includesExpectedText: true });
+    expect(htmlErrorSummary(result, 'without an approval token')).toEqual({
+      kind: 'html',
+      status: 400,
+      includesExpectedText: true,
+    });
   });
 
   it('rejects a missing or expired consent token', async () => {
     const harness = createHarness();
     const result = await handleConsent(harness.context, consentBody(), USER_ID);
 
-    expect(htmlErrorSummary(result, 'approval expired')).toEqual({ kind: 'html', status: 400, includesExpectedText: true });
+    expect(htmlErrorSummary(result, 'approval expired')).toEqual({
+      kind: 'html',
+      status: 400,
+      includesExpectedText: true,
+    });
   });
 
   it('rejects consent submitted by a different account', async () => {
@@ -337,7 +388,11 @@ describe('consent submissions', () => {
     });
     const result = await handleConsent(harness.context, consentBody(), USER_ID);
 
-    expect(htmlErrorSummary(result, 'approval was not yours')).toEqual({ kind: 'html', status: 403, includesExpectedText: true });
+    expect(htmlErrorSummary(result, 'approval was not yours')).toEqual({
+      kind: 'html',
+      status: 403,
+      includesExpectedText: true,
+    });
   });
 
   it('redirects a declined request with state and issuer intact', async () => {
@@ -380,8 +435,10 @@ describe('consent submissions', () => {
     await handleConsent(harness.context, consentBody(), USER_ID);
     const replay = await handleConsent(harness.context, consentBody(), USER_ID);
 
-    expect({ result: htmlErrorSummary(replay, 'approval expired'), codesIssued: vi.mocked(harness.coordinator.setEphemeral).mock.calls.length })
-      .toEqual({ result: { kind: 'html', status: 400, includesExpectedText: true }, codesIssued: 1 });
+    expect({
+      result: htmlErrorSummary(replay, 'approval expired'),
+      codesIssued: vi.mocked(harness.coordinator.setEphemeral).mock.calls.length,
+    }).toEqual({ result: { kind: 'html', status: 400, includesExpectedText: true }, codesIssued: 1 });
   });
 });
 
@@ -390,39 +447,56 @@ describe('authorization code exchange', () => {
     const harness = authorizationCodeHarness();
     const result = await handleToken(harness.context, authorizationCodeBody({ client_id: 'different-client' }));
 
-    expect({ response: jsonSummary(result), grants: vi.mocked(harness.database.authorizeOAuthGrant).mock.calls.length })
-      .toMatchObject({ response: { status: 400, body: { error: 'invalid_grant' } }, grants: 0 });
+    expect({
+      response: jsonSummary(result),
+      grants: vi.mocked(harness.database.authorizeOAuthGrant).mock.calls.length,
+    }).toMatchObject({ response: { status: 400, body: { error: 'invalid_grant' } }, grants: 0 });
   });
 
   it('rejects a redirect URI different from the authorization request', async () => {
     const harness = authorizationCodeHarness();
-    const result = await handleToken(harness.context, authorizationCodeBody({ redirect_uri: 'https://client.example/other' }));
+    const result = await handleToken(
+      harness.context,
+      authorizationCodeBody({ redirect_uri: 'https://client.example/other' }),
+    );
 
-    expect({ response: jsonSummary(result), grants: vi.mocked(harness.database.authorizeOAuthGrant).mock.calls.length })
-      .toMatchObject({ response: { status: 400, body: { error: 'invalid_grant' } }, grants: 0 });
+    expect({
+      response: jsonSummary(result),
+      grants: vi.mocked(harness.database.authorizeOAuthGrant).mock.calls.length,
+    }).toMatchObject({ response: { status: 400, body: { error: 'invalid_grant' } }, grants: 0 });
   });
 
   it('rejects a PKCE verifier that does not match the challenge', async () => {
     const harness = authorizationCodeHarness();
-    const result = await handleToken(harness.context, authorizationCodeBody({ code_verifier: 'wrong-verifier-that-is-at-least-forty-three-characters' }));
+    const result = await handleToken(
+      harness.context,
+      authorizationCodeBody({ code_verifier: 'wrong-verifier-that-is-at-least-forty-three-characters' }),
+    );
 
-    expect({ response: jsonSummary(result), grants: vi.mocked(harness.database.authorizeOAuthGrant).mock.calls.length })
-      .toMatchObject({ response: { status: 400, body: { error: 'invalid_grant' } }, grants: 0 });
+    expect({
+      response: jsonSummary(result),
+      grants: vi.mocked(harness.database.authorizeOAuthGrant).mock.calls.length,
+    }).toMatchObject({ response: { status: 400, body: { error: 'invalid_grant' } }, grants: 0 });
   });
 
   it('rejects a resource different from the authorization request', async () => {
     const harness = authorizationCodeHarness();
     const result = await handleToken(harness.context, authorizationCodeBody({ resource: 'https://other.example/mcp' }));
 
-    expect({ response: jsonSummary(result), grants: vi.mocked(harness.database.authorizeOAuthGrant).mock.calls.length })
-      .toMatchObject({ response: { status: 400, body: { error: 'invalid_target' } }, grants: 0 });
+    expect({
+      response: jsonSummary(result),
+      grants: vi.mocked(harness.database.authorizeOAuthGrant).mock.calls.length,
+    }).toMatchObject({ response: { status: 400, body: { error: 'invalid_target' } }, grants: 0 });
   });
 
   it('issues a token pair for a valid authorization code', async () => {
     const harness = authorizationCodeHarness();
     const result = await handleToken(harness.context, authorizationCodeBody());
 
-    expect({ response: tokenResponseSummary(result), grant: vi.mocked(harness.database.authorizeOAuthGrant).mock.calls[0]?.[0] }).toEqual({
+    expect({
+      response: tokenResponseSummary(result),
+      grant: vi.mocked(harness.database.authorizeOAuthGrant).mock.calls[0]?.[0],
+    }).toEqual({
       response: {
         kind: 'json',
         status: 200,
@@ -444,16 +518,20 @@ describe('authorization code exchange', () => {
     const harness = authorizationCodeHarness([[REVOCATION_KEY, String(CODE_ISSUED_AT + 1)]]);
     const result = await handleToken(harness.context, authorizationCodeBody());
 
-    expect({ response: jsonSummary(result), grants: vi.mocked(harness.database.authorizeOAuthGrant).mock.calls.length })
-      .toMatchObject({ response: { status: 400, body: { error: 'invalid_grant' } }, grants: 0 });
+    expect({
+      response: jsonSummary(result),
+      grants: vi.mocked(harness.database.authorizeOAuthGrant).mock.calls.length,
+    }).toMatchObject({ response: { status: 400, body: { error: 'invalid_grant' } }, grants: 0 });
   });
 
   it('honours a code issued after the user disconnected and re-authorized the client', async () => {
     const harness = authorizationCodeHarness([[REVOCATION_KEY, String(CODE_ISSUED_AT - 1)]]);
     const result = await handleToken(harness.context, authorizationCodeBody());
 
-    expect({ status: tokenResponseSummary(result).status, grants: vi.mocked(harness.database.authorizeOAuthGrant).mock.calls.length })
-      .toEqual({ status: 200, grants: 1 });
+    expect({
+      status: tokenResponseSummary(result).status,
+      grants: vi.mocked(harness.database.authorizeOAuthGrant).mock.calls.length,
+    }).toEqual({ status: 200, grants: 1 });
   });
 
   it('rejects replay of a successfully exchanged authorization code', async () => {
@@ -461,21 +539,30 @@ describe('authorization code exchange', () => {
     await handleToken(harness.context, authorizationCodeBody());
     const replay = await handleToken(harness.context, authorizationCodeBody());
 
-    expect({ response: jsonSummary(replay), grants: vi.mocked(harness.database.authorizeOAuthGrant).mock.calls.length })
-      .toMatchObject({ response: { status: 400, body: { error: 'invalid_grant' } }, grants: 1 });
+    expect({
+      response: jsonSummary(replay),
+      grants: vi.mocked(harness.database.authorizeOAuthGrant).mock.calls.length,
+    }).toMatchObject({ response: { status: 400, body: { error: 'invalid_grant' } }, grants: 1 });
   });
 });
 
 describe('refresh token exchange', () => {
   function refreshBody(): URLSearchParams {
-    return new URLSearchParams({ grant_type: 'refresh_token', refresh_token: 'presented-refresh-token', client_id: CLIENT_ID });
+    return new URLSearchParams({
+      grant_type: 'refresh_token',
+      refresh_token: 'presented-refresh-token',
+      client_id: CLIENT_ID,
+    });
   }
 
   it('returns the rotated token pair', async () => {
     const harness = createHarness({ refreshOutcome: { kind: 'rotated', tokens: TOKEN_PAIR } });
     const result = await handleToken(harness.context, refreshBody());
 
-    expect({ response: tokenResponseSummary(result), rotations: vi.mocked(harness.database.rotateOAuthRefreshToken).mock.calls.length }).toEqual({
+    expect({
+      response: tokenResponseSummary(result),
+      rotations: vi.mocked(harness.database.rotateOAuthRefreshToken).mock.calls.length,
+    }).toEqual({
       response: {
         kind: 'json',
         status: 200,
@@ -508,16 +595,20 @@ describe('token revocation', () => {
     const harness = createHarness();
     const result = await handleRevoke(harness.context, new URLSearchParams({ token: 'unknown-token' }));
 
-    expect({ response: jsonSummary(result), revocations: vi.mocked(harness.database.revokeOAuthToken).mock.calls.length })
-      .toEqual({ response: { kind: 'json', status: 200, body: {} }, revocations: 1 });
+    expect({
+      response: jsonSummary(result),
+      revocations: vi.mocked(harness.database.revokeOAuthToken).mock.calls.length,
+    }).toEqual({ response: { kind: 'json', status: 200, body: {} }, revocations: 1 });
   });
 
   it('returns an empty 200 response for a known token without disclosing it', async () => {
     const harness = createHarness();
     const result = await handleRevoke(harness.context, new URLSearchParams({ token: 'known-token' }));
 
-    expect({ response: jsonSummary(result), revocations: vi.mocked(harness.database.revokeOAuthToken).mock.calls.length })
-      .toEqual({ response: { kind: 'json', status: 200, body: {} }, revocations: 1 });
+    expect({
+      response: jsonSummary(result),
+      revocations: vi.mocked(harness.database.revokeOAuthToken).mock.calls.length,
+    }).toEqual({ response: { kind: 'json', status: 200, body: {} }, revocations: 1 });
   });
 });
 
@@ -525,11 +616,22 @@ describe('dynamic client registration handlers', () => {
   it('persists a public client before returning its registration', async () => {
     const harness = createHarness();
 
-    const result = await handleRegister(harness.context, { client_name: 'Local client', redirect_uris: [REDIRECT_URI] });
+    const result = await handleRegister(harness.context, {
+      client_name: 'Local client',
+      redirect_uris: [REDIRECT_URI],
+    });
 
-    expect({ response: jsonSummary(result), stored: vi.mocked(harness.database.upsertOAuthClient).mock.calls[0]?.[0] }).toMatchObject({
+    expect({
+      response: jsonSummary(result),
+      stored: vi.mocked(harness.database.upsertOAuthClient).mock.calls[0]?.[0],
+    }).toMatchObject({
       response: { status: 201, body: { token_endpoint_auth_method: 'none', redirect_uris: [REDIRECT_URI] } },
-      stored: { clientName: 'Local client', registrationKind: 'dynamic', redirectUris: [REDIRECT_URI], metadataExpiresAt: undefined },
+      stored: {
+        clientName: 'Local client',
+        registrationKind: 'dynamic',
+        redirectUris: [REDIRECT_URI],
+        metadataExpiresAt: undefined,
+      },
     });
   });
 
@@ -538,8 +640,10 @@ describe('dynamic client registration handlers', () => {
 
     const result = await handleRegister(harness.context, { redirect_uris: ['http://attacker.example/callback'] });
 
-    expect({ response: jsonSummary(result), writes: vi.mocked(harness.database.upsertOAuthClient).mock.calls.length })
-      .toMatchObject({ response: { status: 400 }, writes: 0 });
+    expect({
+      response: jsonSummary(result),
+      writes: vi.mocked(harness.database.upsertOAuthClient).mock.calls.length,
+    }).toMatchObject({ response: { status: 400 }, writes: 0 });
   });
 
   it('propagates a storage failure instead of reporting a successful registration', async () => {
@@ -560,14 +664,19 @@ describe('token request validation', () => {
     expect(jsonSummary(result)).toMatchObject({ status: 400, body: { error: 'unsupported_grant_type' } });
   });
 
-  it.each(['code', 'client_id', 'redirect_uri', 'code_verifier'])('requires %s before consuming a code', async (parameter) => {
-    const harness = authorizationCodeHarness();
-    const body = authorizationCodeBody();
-    body.delete(parameter);
+  it.each(['code', 'client_id', 'redirect_uri', 'code_verifier'])(
+    'requires %s before consuming a code',
+    async (parameter) => {
+      const harness = authorizationCodeHarness();
+      const body = authorizationCodeBody();
+      body.delete(parameter);
 
-    const result = await handleToken(harness.context, body);
+      const result = await handleToken(harness.context, body);
 
-    expect({ response: jsonSummary(result), stored: harness.ephemeralValues.size })
-      .toMatchObject({ response: { status: 400, body: { error: 'invalid_request' } }, stored: 1 });
-  });
+      expect({ response: jsonSummary(result), stored: harness.ephemeralValues.size }).toMatchObject({
+        response: { status: 400, body: { error: 'invalid_request' } },
+        stored: 1,
+      });
+    },
+  );
 });

@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { isSupportedChallengeMethod, isWellFormedVerifier, verifyCodeChallenge } from '../src/server/oauth-server/pkce.js';
+import {
+  isSupportedChallengeMethod,
+  isWellFormedVerifier,
+  verifyCodeChallenge,
+} from '../src/server/oauth-server/pkce.js';
 
 // The RFC 7636 Appendix B vector, so a hashing regression fails against the
 // spec's own numbers rather than against whatever we happened to generate.

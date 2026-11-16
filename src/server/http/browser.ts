@@ -11,7 +11,12 @@ import { PROVIDER_REGISTRY, SUPPORTED_APPS } from '../providers/registry.js';
 import type { ProviderId } from '../providers/types.js';
 import { effectivePolicyState, isToolEnabled, toolContractReview, TOOL_POLICY_STATES } from '../tools/catalog.js';
 import { mcpToolNameSchema, type ProviderDiscoveryRequest } from '../tools/discovery.js';
-import { aggregateToolCacheHints, failedToolCacheHint, toolCacheHintFromError, type CachedToolDiscovery } from '../tools/discovery-cache.js';
+import {
+  aggregateToolCacheHints,
+  failedToolCacheHint,
+  toolCacheHintFromError,
+  type CachedToolDiscovery,
+} from '../tools/discovery-cache.js';
 import { clearToolRule, saveToolRule, toolRuleInstructionsSchema } from '../tools/auto-policy.js';
 import { applyToolPolicies } from '../tools/policy.js';
 import { isUncertainProbability } from '../tools/rule-classifier.js';
@@ -52,9 +57,18 @@ const chatTitleRequestSchema = z.object({ firstMessage: z.string().trim().min(1)
 const validateProviderPath = validateRequest('param', providerPathSchema, { status: 404, message: 'Not found' });
 const validateClientAction = validateRequest('param', clientActionSchema, { status: 404, message: 'Not found' });
 const validateToolPath = validateRequest('param', toolPathSchema, { status: 404, message: 'That tool does not exist' });
-const validateProviderPreference = validateRequest('json', providerPreferenceSchema, { status: 400, message: 'Invalid request body' });
-const validateToolPreference = validateRequest('json', toolPreferenceSchema, { status: 400, message: 'Invalid request body' });
-const validateToolPolicyBatch = validateRequest('json', toolPolicyBatchSchema, { status: 400, message: 'Invalid request body' });
+const validateProviderPreference = validateRequest('json', providerPreferenceSchema, {
+  status: 400,
+  message: 'Invalid request body',
+});
+const validateToolPreference = validateRequest('json', toolPreferenceSchema, {
+  status: 400,
+  message: 'Invalid request body',
+});
+const validateToolPolicyBatch = validateRequest('json', toolPolicyBatchSchema, {
+  status: 400,
+  message: 'Invalid request body',
+});
 const validateToolRule = validateRequest('json', toolRuleSchema, { status: 400, message: 'Invalid request body' });
 
 export function createBrowserRoutes() {
@@ -70,11 +84,16 @@ export function createBrowserRoutes() {
     .get('/api/me.json', async (context) => {
       const user = await context.get('dependencies').database.getUser(context.get('browserIdentity').userId);
       if (!user) return context.json({ error: 'Your account could not be found' }, 404);
-      return context.json({ ...user, isAdmin: isAdministrator(user.email, context.get('dependencies').config.adminEmails) });
+      return context.json({
+        ...user,
+        isAdmin: isAdministrator(user.email, context.get('dependencies').config.adminEmails),
+      });
     })
-    .get('/api/chat/config.json', (context) => context.json({
-      configured: Boolean(context.get('dependencies').config.OPENAI_API_KEY),
-    }))
+    .get('/api/chat/config.json', (context) =>
+      context.json({
+        configured: Boolean(context.get('dependencies').config.OPENAI_API_KEY),
+      }),
+    )
     .post('/api/chat/title', async (context) => {
       const parsed = chatTitleRequestSchema.safeParse(await readJsonBody(context));
       if (!parsed.success) return context.json({ error: 'Invalid request body' }, 400);
@@ -95,79 +114,39 @@ export function createBrowserRoutes() {
         signal: context.req.raw.signal,
       });
     })
-    .post('/api/clients/:kind/:id/:action', validateClientAction, (context) => (
-      handleClientAction(context, context.req.valid('param'))
-    ))
+    .post('/api/clients/:kind/:id/:action', validateClientAction, (context) =>
+      handleClientAction(context, context.req.valid('param')),
+    )
     .post('/auth/logout', logout)
-    .get('/oauth/:providerId/start', validateProviderPath, (context) => (
-      startProviderAuthorization(context, context.req.valid('param').providerId)
-    ))
-    .get('/oauth/:providerId/callback', validateProviderPath, (context) => (
-      finishProviderAuthorization(context, context.req.valid('param').providerId)
-    ))
-    .post('/api/connections/:providerId/disconnect', validateProviderPath, (context) => (
-      disconnectProvider(context, context.req.valid('param').providerId)
-    ))
-    .post(
-      '/api/connections/:providerId/preference',
-      validateProviderPath,
-      validateProviderPreference,
-      (context) => setProviderPreference(
-        context,
-        context.req.valid('param').providerId,
-        context.req.valid('json'),
-      ),
+    .get('/oauth/:providerId/start', validateProviderPath, (context) =>
+      startProviderAuthorization(context, context.req.valid('param').providerId),
     )
-    .post(
-      '/api/tools/:toolName/preference',
-      validateToolPath,
-      validateToolPreference,
-      (context) => setToolPreference(
-        context,
-        context.req.valid('param').toolName,
-        context.req.valid('json'),
-      ),
+    .get('/oauth/:providerId/callback', validateProviderPath, (context) =>
+      finishProviderAuthorization(context, context.req.valid('param').providerId),
     )
-    .get(
-      '/api/admin/providers/:providerId/tools.json',
-      validateProviderPath,
-      (context) => adminProviderToolList(
-        context,
-        context.req.valid('param').providerId,
-      ),
+    .post('/api/connections/:providerId/disconnect', validateProviderPath, (context) =>
+      disconnectProvider(context, context.req.valid('param').providerId),
     )
-    .post(
-      '/api/admin/providers/:providerId/tools/refresh',
-      validateProviderPath,
-      (context) => refreshAdminProviderToolList(
-        context,
-        context.req.valid('param').providerId,
-      ),
+    .post('/api/connections/:providerId/preference', validateProviderPath, validateProviderPreference, (context) =>
+      setProviderPreference(context, context.req.valid('param').providerId, context.req.valid('json')),
     )
-    .post(
-      '/api/admin/tools/:providerId/policies',
-      validateProviderPath,
-      validateToolPolicyBatch,
-      (context) => setDeploymentToolPolicies(
-        context,
-        context.req.valid('param').providerId,
-        context.req.valid('json').tools,
-      ),
+    .post('/api/tools/:toolName/preference', validateToolPath, validateToolPreference, (context) =>
+      setToolPreference(context, context.req.valid('param').toolName, context.req.valid('json')),
     )
-    .put(
-      '/api/admin/tools/:providerId/rule',
-      validateProviderPath,
-      validateToolRule,
-      (context) => setAutomaticToolRule(
-        context,
-        context.req.valid('param').providerId,
-        context.req.valid('json').instructions,
-      ),
+    .get('/api/admin/providers/:providerId/tools.json', validateProviderPath, (context) =>
+      adminProviderToolList(context, context.req.valid('param').providerId),
     )
-    .delete(
-      '/api/admin/tools/:providerId/rule',
-      validateProviderPath,
-      (context) => clearAutomaticToolRule(context, context.req.valid('param').providerId),
+    .post('/api/admin/providers/:providerId/tools/refresh', validateProviderPath, (context) =>
+      refreshAdminProviderToolList(context, context.req.valid('param').providerId),
+    )
+    .post('/api/admin/tools/:providerId/policies', validateProviderPath, validateToolPolicyBatch, (context) =>
+      setDeploymentToolPolicies(context, context.req.valid('param').providerId, context.req.valid('json').tools),
+    )
+    .put('/api/admin/tools/:providerId/rule', validateProviderPath, validateToolRule, (context) =>
+      setAutomaticToolRule(context, context.req.valid('param').providerId, context.req.valid('json').instructions),
+    )
+    .delete('/api/admin/tools/:providerId/rule', validateProviderPath, (context) =>
+      clearAutomaticToolRule(context, context.req.valid('param').providerId),
     );
 }
 
@@ -210,7 +189,9 @@ function browserEventStream(context: AppContext): Response {
       void stream.write(': heartbeat\n\n');
     }, EVENT_STREAM_HEARTBEAT_MS);
     // Returning closes the stream, so hold it open until the browser goes away.
-    await new Promise<void>((resolve) => { stream.onAbort(resolve); });
+    await new Promise<void>((resolve) => {
+      stream.onAbort(resolve);
+    });
     clearInterval(heartbeat);
     unsubscribe();
   });
@@ -236,11 +217,9 @@ async function finishProviderAuthorization(context: AppContext, expectedProvider
   }
   try {
     const parameters = callbackParameters(url);
-    const result = await context.get('dependencies').oauth.finishProvider(
-      parameters.code,
-      parameters.state,
-      context.get('browserIdentity').userId,
-    );
+    const result = await context
+      .get('dependencies')
+      .oauth.finishProvider(parameters.code, parameters.state, context.get('browserIdentity').userId);
     if (result.providerId !== expectedProvider) throw new Error('OAuth provider callback mismatch');
     await context.get('dependencies').toolDiscovery.invalidateProvider(result.userId, result.providerId);
     await context.get('dependencies').upstreamClients.invalidate(result.userId, result.providerId);
@@ -310,21 +289,14 @@ async function setToolPreference(
 type ProviderToolDiscoverer = (request: ProviderDiscoveryRequest) => Promise<CachedToolDiscovery>;
 
 async function refreshAdminProviderToolList(context: AppContext, providerId: ProviderId) {
-  return renderAdminProviderToolList(
-    context,
-    providerId,
-    (request) => context.get('dependencies').toolDiscovery.discoverProviderFresh(request),
+  return renderAdminProviderToolList(context, providerId, (request) =>
+    context.get('dependencies').toolDiscovery.discoverProviderFresh(request),
   );
 }
 
-async function adminProviderToolList(
-  context: AppContext,
-  providerId: ProviderId,
-) {
-  return renderAdminProviderToolList(
-    context,
-    providerId,
-    (request) => context.get('dependencies').toolDiscovery.discoverProvider(request),
+async function adminProviderToolList(context: AppContext, providerId: ProviderId) {
+  return renderAdminProviderToolList(context, providerId, (request) =>
+    context.get('dependencies').toolDiscovery.discoverProvider(request),
   );
 }
 
@@ -343,7 +315,13 @@ async function renderAdminProviderToolList(
   ]);
   const rule = {
     isAvailable: Boolean(config.OPENROUTER_API_KEY),
-    ...(storedRule ? { instructions: storedRule.instructions, revision: storedRule.revision, updatedAt: storedRule.updatedAt.toISOString() } : {}),
+    ...(storedRule
+      ? {
+          instructions: storedRule.instructions,
+          revision: storedRule.revision,
+          updatedAt: storedRule.updatedAt.toISOString(),
+        }
+      : {}),
   };
   if (!connectedProviders.has(providerId)) {
     return context.json({
@@ -365,9 +343,8 @@ async function renderAdminProviderToolList(
         tools: discovery.tools.map((tool) => {
           const review = toolContractReview(tool, policies);
           const origin = origins.get(tool.name);
-          const autoProbability = origin?.source === 'auto' && origin.fingerprint === tool.fingerprint
-            ? origin.autoProbability
-            : null;
+          const autoProbability =
+            origin?.source === 'auto' && origin.fingerprint === tool.fingerprint ? origin.autoProbability : null;
           return {
             name: tool.name,
             upstreamName: tool.upstreamName,
@@ -435,10 +412,7 @@ async function clearAutomaticToolRule(context: AppContext, providerId: ProviderI
   return context.json({ cleared: true });
 }
 
-async function handleClientAction(
-  context: AppContext,
-  request: z.infer<typeof clientActionSchema>,
-) {
+async function handleClientAction(context: AppContext, request: z.infer<typeof clientActionSchema>) {
   const { database, events } = context.get('dependencies');
   const identity = context.get('browserIdentity');
 
@@ -458,12 +432,12 @@ async function handleClientAction(
     return context.json({ expiresAt: renewedUntil.toISOString() });
   }
 
-  const isRevoked = request.kind === 'agent'
-    ? await revokeAgentGrant(context, request.id)
-    : await database.revokeSession(identity.userId, request.id);
+  const isRevoked =
+    request.kind === 'agent'
+      ? await revokeAgentGrant(context, request.id)
+      : await database.revokeSession(identity.userId, request.id);
   if (!isRevoked) return context.json({ error: 'That client is no longer connected' }, 404);
-  const wasCurrentClient = request.kind === 'browser'
-    && request.id === identity.sessionId;
+  const wasCurrentClient = request.kind === 'browser' && request.id === identity.sessionId;
   if (wasCurrentClient) clearSessionCookie(context);
   await events.emit(identity.userId, 'clients-changed');
   return context.json({ revoked: true, wasCurrentClient });
@@ -494,9 +468,10 @@ async function clientList(context: AppContext) {
       firstConnectedAt: session.createdAt.toISOString(),
       lastUsedAt: session.lastUsedAt.toISOString(),
       expiresAt: session.expiresAt.toISOString(),
-      health: session.expiresAt.getTime() - Date.now() <= RENEWAL_WINDOW_MS
-        ? 'needs-renewal' as const
-        : 'healthy' as const,
+      health:
+        session.expiresAt.getTime() - Date.now() <= RENEWAL_WINDOW_MS
+          ? ('needs-renewal' as const)
+          : ('healthy' as const),
     })),
     ...grants.map((grant) => ({
       id: grant.id,
@@ -514,11 +489,19 @@ async function clientList(context: AppContext) {
 async function appConnections(context: AppContext) {
   const identity = context.get('browserIdentity');
   const { database, oauth, toolDiscovery } = context.get('dependencies');
-  const { connectedProviders, hiddenProviders: hidden, toolPreferences: preferences } = await database.userVisibilityState(identity.userId);
-  const connectionHealth = new Map(await Promise.all([...connectedProviders].map(async (providerId) => [
-    providerId,
-    await oauth.refreshProviderConnectionIfNeeded(identity.userId, providerId),
-  ] as const)));
+  const {
+    connectedProviders,
+    hiddenProviders: hidden,
+    toolPreferences: preferences,
+  } = await database.userVisibilityState(identity.userId);
+  const connectionHealth = new Map(
+    await Promise.all(
+      [...connectedProviders].map(
+        async (providerId) =>
+          [providerId, await oauth.refreshProviderConnectionIfNeeded(identity.userId, providerId)] as const,
+      ),
+    ),
+  );
   const [connections, policies, discovery] = await Promise.all([
     database.listConnections(identity.userId),
     database.toolPolicies(),
@@ -532,20 +515,16 @@ async function appConnections(context: AppContext) {
   const byProvider = new Map(connections.map((connection) => [connection.providerId, connection]));
   const hasUnknownConnectionHealth = [...connectionHealth.values()].some((health) => health === 'unknown');
   return {
-    cache: aggregateToolCacheHints([
-      discovery.cache,
-      ...(hasUnknownConnectionHealth ? [failedToolCacheHint()] : []),
-    ]),
+    cache: aggregateToolCacheHints([discovery.cache, ...(hasUnknownConnectionHealth ? [failedToolCacheHint()] : [])]),
     apps: SUPPORTED_APPS.map((providerId) => {
       const connection = byProvider.get(providerId);
       return {
         providerId,
         isConnected: connection !== undefined,
         isHidden: hidden.has(providerId),
-        needsReconnect: connection !== undefined && (
-          connectionHealth.get(providerId) === 'needs-reconnect'
-          || !hasRequiredScopes(providerId, connection.scopes)
-        ),
+        needsReconnect:
+          connection !== undefined &&
+          (connectionHealth.get(providerId) === 'needs-reconnect' || !hasRequiredScopes(providerId, connection.scopes)),
         tools: discovery.tools
           .filter((tool) => tool.providerId === providerId && effectivePolicyState(tool, policies) !== 'blocked')
           .map((tool) => ({

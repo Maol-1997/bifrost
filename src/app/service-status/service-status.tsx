@@ -35,17 +35,35 @@ export default function ServiceStatus(): React.JSX.Element {
 
   return (
     <section>
-      <PageHead title="Service status" subtitle={<>Whether each integration is working <em>for everyone</em>. If it's fine here but failing for you, check <Link to={APP_ROUTES.integrations}>Integrations</Link> and <Link to={APP_ROUTES.agents}>Sessions</Link>.</>} />
+      <PageHead
+        title="Service status"
+        subtitle={
+          <>
+            Whether each integration is working <em>for everyone</em>. If it's fine here but failing for you, check{' '}
+            <Link to={APP_ROUTES.integrations}>Integrations</Link> and <Link to={APP_ROUTES.agents}>Sessions</Link>.
+          </>
+        }
+      />
       {outages.map((app) => {
         const name = providerMap.get(app.appId)?.name ?? app.appId;
         return (
-          <div key={app.appId} className="mt-5 rounded-notice border border-danger/30 bg-danger/6 px-3.5 py-2.5 text-xs leading-5 text-danger">
-            {name} is down for everyone{app.since ? ` since ${clockTime(app.since)}` : ''}. If your agent’s {name} tools fail right now, it’s not you.
+          <div
+            key={app.appId}
+            className="mt-5 rounded-notice border border-danger/30 bg-danger/6 px-3.5 py-2.5 text-xs leading-5 text-danger"
+          >
+            {name} is down for everyone{app.since ? ` since ${clockTime(app.since)}` : ''}. If your agent’s {name} tools
+            fail right now, it’s not you.
           </div>
         );
       })}
       {!snapshot && !hasFailed ? <LoadingState label="Checking each service…" /> : null}
-      {hasFailed && !snapshot ? <ErrorState title="Couldn't check the services" body="Bifrost could not reach the status pages. Your connections are unaffected." onRetry={reload} /> : null}
+      {hasFailed && !snapshot ? (
+        <ErrorState
+          title="Couldn't check the services"
+          body="Bifrost could not reach the status pages. Your connections are unaffected."
+          onRetry={reload}
+        />
+      ) : null}
       {snapshot ? (
         <>
           <SectionCard className="mt-5">
@@ -64,7 +82,9 @@ export default function ServiceStatus(): React.JSX.Element {
               );
             })}
           </SectionCard>
-          <p className="mt-3.5 text-xs text-app-text-quaternary">Last checked {relativeTime(snapshot.checkedAt)} · updates automatically · times are your local time.</p>
+          <p className="mt-3.5 text-xs text-app-text-quaternary">
+            Last checked {relativeTime(snapshot.checkedAt)} · updates automatically · times are your local time.
+          </p>
         </>
       ) : null}
     </section>

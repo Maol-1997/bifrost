@@ -21,7 +21,9 @@ export default function SignIn(): React.JSX.Element {
   const hasAccountConflict = searchParams.get('conflict') === 'true';
   const failureKind: SignInFailureKind | undefined = hasAccountConflict
     ? 'account-conflict'
-    : isDenied ? 'access-denied' : undefined;
+    : isDenied
+      ? 'access-denied'
+      : undefined;
   const { data: policy } = useQuery({ queryKey: ['sign-in-policy'], queryFn: getSignInPolicy });
   const audience = describeAudience(policy);
   const domains = policy?.allowedDomains ?? [];
@@ -32,16 +34,17 @@ export default function SignIn(): React.JSX.Element {
         <BifrostMark className="size-10" />
         <h1 className="mt-[18px] text-xl font-semibold tracking-heading">Bifrost</h1>
         {failureKind ? (
-          <SignInFailure
-            domains={domains}
-            kind={failureKind}
-            onRetry={() => setSearchParams({})}
-          />
+          <SignInFailure domains={domains} kind={failureKind} onRetry={() => setSearchParams({})} />
         ) : (
           <>
-            <p className="mt-2.5 text-sm leading-copy text-app-text-tertiary text-pretty">One sign-in for every tool your AI agents use. Your keys stay on the server — never on your laptop.</p>
+            <p className="mt-2.5 text-sm leading-copy text-app-text-tertiary text-pretty">
+              One sign-in for every tool your AI agents use. Your keys stay on the server — never on your laptop.
+            </p>
             <Button asChild size="large" className="mt-[22px] w-full">
-              <a href="/auth/google/start"><Google aria-hidden className="size-[15px]" />Continue with Google</a>
+              <a href="/auth/google/start">
+                <Google aria-hidden className="size-[15px]" />
+                Continue with Google
+              </a>
             </Button>
             {audience ? <div className="mt-3 text-xs text-app-text-quaternary">{audience}</div> : null}
           </>
@@ -74,13 +77,21 @@ function SignInFailure({
         className="mt-4 w-full rounded-notice border border-warning/30 bg-warning/7 px-3.5 py-3 text-left text-xs leading-5 text-app-text-secondary"
         role="alert"
       >
-        {hasConflict
-          ? 'Nothing was merged or transferred. Ask your Bifrost administrator to resolve the account conflict before trying again.'
-          : domains.length > 0
-            ? <>Signed in with a personal account by mistake? Try again with your <span className="font-mono">@{domains[0]}</span> one. If you think you should have access, ask your Bifrost administrator.</>
-            : <>If you think you should have access, ask your Bifrost administrator to add your address.</>}
+        {hasConflict ? (
+          'Nothing was merged or transferred. Ask your Bifrost administrator to resolve the account conflict before trying again.'
+        ) : domains.length > 0 ? (
+          <>
+            Signed in with a personal account by mistake? Try again with your{' '}
+            <span className="font-mono">@{domains[0]}</span> one. If you think you should have access, ask your Bifrost
+            administrator.
+          </>
+        ) : (
+          <>If you think you should have access, ask your Bifrost administrator to add your address.</>
+        )}
       </div>
-      <Button variant="outline" className="mt-3.5 w-full" onClick={onRetry}>Try another account</Button>
+      <Button variant="outline" className="mt-3.5 w-full" onClick={onRetry}>
+        Try another account
+      </Button>
     </>
   );
 }

@@ -1,8 +1,4 @@
-import {
-  Client,
-  StreamableHTTPClientTransport,
-  type Tool,
-} from '@modelcontextprotocol/client';
+import { Client, StreamableHTTPClientTransport, type Tool } from '@modelcontextprotocol/client';
 import type { CallToolResult } from '@modelcontextprotocol/server';
 import type { DiscoveredTool } from '../tools/catalog.js';
 import type { ProviderDefinition } from './types.js';
@@ -17,7 +13,10 @@ const UPSTREAM_CALL_TIMEOUT_MS = 60_000;
  * for that user and provider, so it deliberately takes no request's abort
  * signal: one caller giving up must not tear down the others' connection.
  */
-export async function connectUpstreamClient(provider: ProviderDefinition, accessToken: string): Promise<PooledUpstreamClient> {
+export async function connectUpstreamClient(
+  provider: ProviderDefinition,
+  accessToken: string,
+): Promise<PooledUpstreamClient> {
   const client = new Client({ name: 'bifrost-upstream', version: '0.1.0' });
   const transport = new StreamableHTTPClientTransport(new URL(provider.mcpUrl), {
     authProvider: { token: async () => accessToken },
@@ -32,9 +31,14 @@ export async function connectUpstreamClient(provider: ProviderDefinition, access
   }
 }
 
-export async function listClientTools(client: Pick<Client, 'listTools'>, signal?: AbortSignal): Promise<readonly Tool[]> {
+export async function listClientTools(
+  client: Pick<Client, 'listTools'>,
+  signal?: AbortSignal,
+): Promise<readonly Tool[]> {
   const result = await client.listTools(undefined, {
-    ...(signal ? { signal } : {}), timeout: UPSTREAM_LIST_TIMEOUT_MS, cacheMode: 'refresh',
+    ...(signal ? { signal } : {}),
+    timeout: UPSTREAM_LIST_TIMEOUT_MS,
+    cacheMode: 'refresh',
   });
   return result.tools;
 }

@@ -1,7 +1,21 @@
 import pino, { type Logger } from 'pino';
 
 const REDACTED = '[REDACTED]';
-const SECRET_KEYS = new Set(['token', 'accesstoken', 'refreshtoken', 'secret', 'clientsecret', 'authorization', 'cookie', 'code', 'authcode', 'jwt', 'apikey', 'password', 'privatekey']);
+const SECRET_KEYS = new Set([
+  'token',
+  'accesstoken',
+  'refreshtoken',
+  'secret',
+  'clientsecret',
+  'authorization',
+  'cookie',
+  'code',
+  'authcode',
+  'jwt',
+  'apikey',
+  'password',
+  'privatekey',
+]);
 const JWT_PATTERN = /\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b/g;
 const BEARER_PATTERN = /Bearer\s+[^\s,]+/gi;
 
@@ -13,10 +27,9 @@ export function sanitizeForLogs(value: unknown): unknown {
   if (typeof value === 'string') return sanitizeString(value);
   if (Array.isArray(value)) return value.map(sanitizeForLogs);
   if (value !== null && typeof value === 'object') {
-    return Object.fromEntries(Object.entries(value).map(([key, entry]) => [
-      key,
-      isSecretKey(key) ? REDACTED : sanitizeForLogs(entry),
-    ]));
+    return Object.fromEntries(
+      Object.entries(value).map(([key, entry]) => [key, isSecretKey(key) ? REDACTED : sanitizeForLogs(entry)]),
+    );
   }
   return value;
 }
@@ -29,7 +42,16 @@ function isSecretKey(key: string): boolean {
 const baseLogger = pino({
   level: process.env.LOG_LEVEL ?? 'info',
   redact: {
-    paths: ['*.token', '*.accessToken', '*.refreshToken', '*.authorization', '*.cookie', '*.code', '*.jwt', '*.clientSecret'],
+    paths: [
+      '*.token',
+      '*.accessToken',
+      '*.refreshToken',
+      '*.authorization',
+      '*.cookie',
+      '*.code',
+      '*.jwt',
+      '*.clientSecret',
+    ],
     censor: REDACTED,
   },
   hooks: {

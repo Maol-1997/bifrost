@@ -47,10 +47,7 @@ function protectedResourceDocument(context: AppContext): Response {
 
 function authorizationServerDocument(context: AppContext): Response {
   const { config } = context.get('dependencies');
-  return context.json(authorizationServerMetadata(
-    config.PUBLIC_URL,
-    config.OAUTH_ENABLE_CLIENT_ID_METADATA_DOCUMENTS,
-  ));
+  return context.json(authorizationServerMetadata(config.PUBLIC_URL, config.OAUTH_ENABLE_CLIENT_ID_METADATA_DOCUMENTS));
 }
 
 async function registerClient(context: AppContext): Promise<Response> {
@@ -70,21 +67,13 @@ async function revokeToken(context: AppContext): Promise<Response> {
 
 async function authorizeClient(context: AppContext): Promise<Response> {
   const identity = await authenticateBrowser(context);
-  const result = await handleAuthorize(
-    oauthServerContext(context),
-    new URL(context.req.url),
-    identity?.userId,
-  );
+  const result = await handleAuthorize(oauthServerContext(context), new URL(context.req.url), identity?.userId);
   return sendOAuthResult(context, result);
 }
 
 async function submitConsent(context: AppContext): Promise<Response> {
   const identity = await authenticateBrowser(context);
-  const result = await handleConsent(
-    oauthServerContext(context),
-    await readFormBody(context),
-    identity?.userId,
-  );
+  const result = await handleConsent(oauthServerContext(context), await readFormBody(context), identity?.userId);
   return sendOAuthResult(context, result);
 }
 

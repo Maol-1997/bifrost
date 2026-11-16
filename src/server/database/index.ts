@@ -34,7 +34,7 @@ export function createDatabase(config: Config) {
      */
     async deleteExpiredAuthState(): Promise<ExpiredAuthStateCounts> {
       const deletedSessions = await sessions.deleteExpiredSessions();
-      return { sessions: deletedSessions, ...await grants.deleteExpiredOAuthTokens() };
+      return { sessions: deletedSessions, ...(await grants.deleteExpiredOAuthTokens()) };
     },
 
     async close(): Promise<void> {
@@ -59,10 +59,6 @@ export type {
   StoredCredential,
   StoredCredentialRecord,
 } from './connections.js';
-export type {
-  OAuthTokenPair,
-  RefreshOutcome,
-  StoredOAuthClient,
-} from './oauth-grants.js';
+export type { OAuthTokenPair, RefreshOutcome, StoredOAuthClient } from './oauth-grants.js';
 export type { ProviderAgentNote } from './preferences.js';
 export type { UserVisibilityState } from './visibility.js';

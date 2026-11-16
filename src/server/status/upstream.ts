@@ -64,9 +64,7 @@ const slackCurrentSchema = z.object({
   // Slack does not publish the full set of incident types, so we read it as a
   // string and treat anything we do not recognize as degraded. `status: active`
   // already proves something is wrong, so this can never under-report an outage.
-  active_incidents: z
-    .array(z.object({ title: z.string(), type: z.string(), date_created: z.string() }))
-    .default([]),
+  active_incidents: z.array(z.object({ title: z.string(), type: z.string(), date_created: z.string() })).default([]),
 });
 
 const slackHistorySchema = z.array(z.object({ status: z.string(), date_updated: z.string() }));
@@ -87,7 +85,9 @@ let inFlight: Promise<HealthSnapshot> | undefined;
  */
 export async function readAppHealth(): Promise<HealthSnapshot> {
   if (cachedSnapshot && cachedSnapshot.expiresAt > Date.now()) return cachedSnapshot.snapshot;
-  inFlight ??= refresh().finally(() => { inFlight = undefined; });
+  inFlight ??= refresh().finally(() => {
+    inFlight = undefined;
+  });
   return inFlight;
 }
 
@@ -118,7 +118,9 @@ async function readStatuspage(appId: StatusAppId, host: string): Promise<AppHeal
   const health = statuspageHealth(status.status.indicator);
   const base = { appId, health, statusUrl: host };
   if (health === 'operational') return { ...base, ...quietSince(latestResolvedAt(history.incidents)) };
-  const open = history.incidents.find((incident) => incident.resolved_at === null || incident.resolved_at === undefined);
+  const open = history.incidents.find(
+    (incident) => incident.resolved_at === null || incident.resolved_at === undefined,
+  );
   return open ? { ...base, incidentTitle: open.name, since: open.created_at } : base;
 }
 

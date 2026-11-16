@@ -2,15 +2,8 @@ import type { Tool } from '@modelcontextprotocol/client';
 import { describe, expect, it, vi } from 'vitest';
 import { PROVIDER_REGISTRY } from '../src/server/providers/registry.js';
 import type { ProviderDefinition } from '../src/server/providers/types.js';
-import {
-  fingerprintToolDefinition,
-  normalizeUpstreamTool,
-  type DiscoveredTool,
-} from '../src/server/tools/catalog.js';
-import {
-  createInMemoryToolCacheStore,
-  type ToolCacheStore,
-} from '../src/server/tools/cache-store.js';
+import { fingerprintToolDefinition, normalizeUpstreamTool, type DiscoveredTool } from '../src/server/tools/catalog.js';
+import { createInMemoryToolCacheStore, type ToolCacheStore } from '../src/server/tools/cache-store.js';
 import {
   aggregateToolCacheHints,
   toolCacheKey,
@@ -41,24 +34,29 @@ type CacheHarness = {
   delay: ReturnType<typeof vi.fn>;
 };
 
-function harness(overrides: {
-  store?: ToolCacheStore;
-  clock?: { now: number };
-  options?: Partial<ToolDiscoveryCacheOptions>;
-  delay?: () => Promise<void>;
-} = {}): CacheHarness {
+function harness(
+  overrides: {
+    store?: ToolCacheStore;
+    clock?: { now: number };
+    options?: Partial<ToolDiscoveryCacheOptions>;
+    delay?: () => Promise<void>;
+  } = {},
+): CacheHarness {
   const clock = overrides.clock ?? { now: 1_000 };
   const store = overrides.store ?? createInMemoryToolCacheStore({ now: () => clock.now });
   const backgroundErrors = vi.fn();
   const unreadableEntries = vi.fn();
   const delay = vi.fn(overrides.delay ?? (async () => undefined));
-  const cache = new ToolDiscoveryCache({
-    store,
-    now: () => clock.now,
-    delay,
-    onBackgroundError: backgroundErrors,
-    onUnreadableEntry: unreadableEntries,
-  }, { ...TOOL_DISCOVERY_CACHE_OPTIONS, ...overrides.options });
+  const cache = new ToolDiscoveryCache(
+    {
+      store,
+      now: () => clock.now,
+      delay,
+      onBackgroundError: backgroundErrors,
+      onUnreadableEntry: unreadableEntries,
+    },
+    { ...TOOL_DISCOVERY_CACHE_OPTIONS, ...overrides.options },
+  );
   return { clock, store, cache, backgroundErrors, unreadableEntries, delay };
 }
 
@@ -104,10 +102,14 @@ describe('shared tool discovery cache', () => {
     await cache.read(key, load);
     const record = await storedRecord(store);
     const changed = { ...definition, description: 'Changed by another worker.' };
-    await store.write(toolCacheKey(key, 'entry', 0), JSON.stringify({
-      ...record,
-      contracts: [{ providerId: 'github', tool: changed }],
-    }), 86_400_000);
+    await store.write(
+      toolCacheKey(key, 'entry', 0),
+      JSON.stringify({
+        ...record,
+        contracts: [{ providerId: 'github', tool: changed }],
+      }),
+      86_400_000,
+    );
 
     const result = await cache.read(key, load);
 
@@ -116,11 +118,20 @@ describe('shared tool discovery cache', () => {
 
   it('does not let a warmed entry hide corrupt replacement bytes', async () => {
     const { cache, store } = harness();
-    await cache.read(key, loaders(async () => [tool]));
-    await cache.read(key, loaders(async () => [tool]));
+    await cache.read(
+      key,
+      loaders(async () => [tool]),
+    );
+    await cache.read(
+      key,
+      loaders(async () => [tool]),
+    );
     await store.write(toolCacheKey(key, 'entry', 0), 'not json', 86_400_000);
 
-    const result = await cache.read(key, loaders(async () => [otherTool]));
+    const result = await cache.read(
+      key,
+      loaders(async () => [otherTool]),
+    );
 
     expect(result.tools).toEqual([otherTool]);
   });
@@ -134,19 +145,31 @@ describe('shared tool discovery cache', () => {
     await store.write(toolCacheKey(key, 'entry', 0), raw!, 100_000_000);
     clock.now += 3_600_000 + 86_400_000;
 
-    const result = await cache.read(key, loaders(async () => [otherTool]));
+    const result = await cache.read(
+      key,
+      loaders(async () => [otherTool]),
+    );
 
     expect(result.tools).toEqual([otherTool]);
   });
 
   it('does not reuse a warmed entry after another worker advances the generation', async () => {
     const { cache, store } = harness();
-    await cache.read(key, loaders(async () => [tool]));
-    await cache.read(key, loaders(async () => [tool]));
+    await cache.read(
+      key,
+      loaders(async () => [tool]),
+    );
+    await cache.read(
+      key,
+      loaders(async () => [tool]),
+    );
     const otherWorker = harness({ store }).cache;
     await otherWorker.invalidate(key);
 
-    const result = await cache.read(key, loaders(async () => [otherTool]));
+    const result = await cache.read(
+      key,
+      loaders(async () => [otherTool]),
+    );
 
     expect(result.tools).toEqual([otherTool]);
   });
@@ -163,7 +186,9 @@ describe('shared tool discovery cache', () => {
 
     expect(first.cache).toEqual({ state: 'revalidating', freshForMs: 0, nextCheckInMs: 3_000 });
     expect(second.cache).toEqual(first.cache);
-    await vi.waitFor(() => { expect(background).toHaveBeenCalledOnce(); });
+    await vi.waitFor(() => {
+      expect(background).toHaveBeenCalledOnce();
+    });
   });
 
   it('keeps stale data and backs off after a failed revalidation', async () => {
@@ -174,7 +199,9 @@ describe('shared tool discovery cache', () => {
     await cache.read(key, { blocking, background });
     clock.now += 3_600_000;
     await cache.read(key, { blocking, background });
-    await vi.waitFor(() => { expect(backgroundErrors).toHaveBeenCalledWith(failure); });
+    await vi.waitFor(() => {
+      expect(backgroundErrors).toHaveBeenCalledWith(failure);
+    });
 
     const result = await cache.read(key, { blocking, background });
 
@@ -192,13 +219,18 @@ describe('shared tool discovery cache', () => {
         maxRetryMs: 100,
       },
     });
-    await cache.read(key, loaders(async () => [tool]));
+    await cache.read(
+      key,
+      loaders(async () => [tool]),
+    );
     const background = vi.fn(async () => Promise.reject(new Error('provider down')));
 
     for (let attempt = 0; attempt < 3; attempt += 1) {
       clock.now += 100;
       await cache.read(key, { blocking: async () => [tool], background });
-      await vi.waitFor(() => { expect(backgroundErrors).toHaveBeenCalledTimes(attempt + 1); });
+      await vi.waitFor(() => {
+        expect(backgroundErrors).toHaveBeenCalledTimes(attempt + 1);
+      });
     }
     clock.now = 2_100;
     const replacement = vi.fn(async () => [otherTool]);
@@ -254,9 +286,16 @@ describe('shared tool discovery cache', () => {
   it('invalidating during a refresh keeps the superseded result out of the cache', async () => {
     const { cache } = harness();
     let finishLoad: ((tools: readonly DiscoveredTool[]) => void) | undefined;
-    const slowLoad = vi.fn(() => new Promise<readonly DiscoveredTool[]>((resolve) => { finishLoad = resolve; }));
+    const slowLoad = vi.fn(
+      () =>
+        new Promise<readonly DiscoveredTool[]>((resolve) => {
+          finishLoad = resolve;
+        }),
+    );
     const firstRead = cache.read(key, loaders(slowLoad));
-    await vi.waitFor(() => { expect(finishLoad).toBeDefined(); });
+    await vi.waitFor(() => {
+      expect(finishLoad).toBeDefined();
+    });
     await cache.invalidate(key);
     finishLoad?.([tool]);
     await firstRead;
@@ -270,7 +309,10 @@ describe('shared tool discovery cache', () => {
 
   it('invalidating activates a new empty generation', async () => {
     const { cache, store } = harness();
-    await cache.read(key, loaders(async () => [tool]));
+    await cache.read(
+      key,
+      loaders(async () => [tool]),
+    );
 
     await cache.invalidate(key);
 
@@ -281,8 +323,11 @@ describe('shared tool discovery cache', () => {
 
   it('reloads rather than trusting an entry left behind by an older generation', async () => {
     const { cache, store } = harness();
-    await cache.read(key, loaders(async () => [tool]));
-    const stale = await store.read(toolCacheKey(key, 'entry', 0)) ?? '';
+    await cache.read(
+      key,
+      loaders(async () => [tool]),
+    );
+    const stale = (await store.read(toolCacheKey(key, 'entry', 0))) ?? '';
     await cache.invalidate(key);
     await store.write(toolCacheKey(key, 'entry', 1), stale, 86_400_000);
 
@@ -307,15 +352,22 @@ describe('shared tool discovery cache', () => {
 
   it('discards an entry whose shape no longer validates', async () => {
     const { cache, store, unreadableEntries } = harness();
-    await store.write(toolCacheKey(key, 'entry', 0), JSON.stringify({
-      generation: 0,
-      contracts: [{ providerId: 'github', tool: { name: '' } }],
-      freshUntil: 1,
-      failureCount: 0,
-      nextRetryAt: 0,
-    }), 86_400_000);
+    await store.write(
+      toolCacheKey(key, 'entry', 0),
+      JSON.stringify({
+        generation: 0,
+        contracts: [{ providerId: 'github', tool: { name: '' } }],
+        freshUntil: 1,
+        failureCount: 0,
+        nextRetryAt: 0,
+      }),
+      86_400_000,
+    );
 
-    const result = await cache.read(key, loaders(async () => [tool]));
+    const result = await cache.read(
+      key,
+      loaders(async () => [tool]),
+    );
 
     expect(result.tools).toEqual([tool]);
     expect(unreadableEntries).toHaveBeenCalledOnce();
@@ -324,15 +376,22 @@ describe('shared tool discovery cache', () => {
 
   it('refuses a cached contract that belongs to another provider', async () => {
     const { cache, store, unreadableEntries } = harness();
-    await store.write(toolCacheKey(key, 'entry', 0), JSON.stringify({
-      generation: 0,
-      contracts: [{ providerId: 'linear', tool: { name: 'get_issue' } }],
-      freshUntil: 4_000_000,
-      failureCount: 0,
-      nextRetryAt: 0,
-    }), 86_400_000);
+    await store.write(
+      toolCacheKey(key, 'entry', 0),
+      JSON.stringify({
+        generation: 0,
+        contracts: [{ providerId: 'linear', tool: { name: 'get_issue' } }],
+        freshUntil: 4_000_000,
+        failureCount: 0,
+        nextRetryAt: 0,
+      }),
+      86_400_000,
+    );
 
-    await cache.read(key, loaders(async () => [tool]));
+    await cache.read(
+      key,
+      loaders(async () => [tool]),
+    );
 
     expect(unreadableEntries).toHaveBeenCalledOnce();
   });
@@ -340,15 +399,22 @@ describe('shared tool discovery cache', () => {
   it('derives the fingerprint from the cached contract, so tampering cannot forge an approval', async () => {
     const { cache, store } = harness();
     const tampered = { ...definition, description: 'Injected after approval.' };
-    await store.write(toolCacheKey(key, 'entry', 0), JSON.stringify({
-      generation: 0,
-      contracts: [{ providerId: 'github', tool: tampered }],
-      freshUntil: 4_000_000,
-      failureCount: 0,
-      nextRetryAt: 0,
-    }), 86_400_000);
+    await store.write(
+      toolCacheKey(key, 'entry', 0),
+      JSON.stringify({
+        generation: 0,
+        contracts: [{ providerId: 'github', tool: tampered }],
+        freshUntil: 4_000_000,
+        failureCount: 0,
+        nextRetryAt: 0,
+      }),
+      86_400_000,
+    );
 
-    const result = await cache.read(key, loaders(async () => [tool]));
+    const result = await cache.read(
+      key,
+      loaders(async () => [tool]),
+    );
 
     expect(result.tools[0]?.fingerprint).toBe(fingerprintToolDefinition('github', tampered));
     expect(result.tools[0]?.fingerprint).not.toBe(tool.fingerprint);
@@ -356,11 +422,20 @@ describe('shared tool discovery cache', () => {
 
   it('stores only the upstream contract, never a credential or a derived field', async () => {
     const { cache, store } = harness();
-    await cache.read(key, loaders(async () => [tool]));
+    await cache.read(
+      key,
+      loaders(async () => [tool]),
+    );
 
     const record = await storedRecord(store);
 
-    expect(Object.keys(record).sort()).toEqual(['contracts', 'failureCount', 'freshUntil', 'generation', 'nextRetryAt']);
+    expect(Object.keys(record).sort()).toEqual([
+      'contracts',
+      'failureCount',
+      'freshUntil',
+      'generation',
+      'nextRetryAt',
+    ]);
     expect(record.contracts).toEqual([{ providerId: 'github', tool: tool.contract.tool }]);
     expect(JSON.stringify(record)).not.toContain('fingerprint');
   });
@@ -379,11 +454,17 @@ describe('shared tool discovery cache', () => {
 
   it('reads fresh past a still-fresh entry and republishes the result', async () => {
     const { cache } = harness();
-    await cache.read(key, loaders(async () => [tool]));
+    await cache.read(
+      key,
+      loaders(async () => [tool]),
+    );
     const load = vi.fn(async () => [otherTool]);
 
     const refreshed = await cache.readFresh(key, load);
-    const next = await cache.read(key, loaders(async () => [tool]));
+    const next = await cache.read(
+      key,
+      loaders(async () => [tool]),
+    );
 
     expect(refreshed.cache).toEqual({ state: 'fresh', freshForMs: 3_600_000, nextCheckInMs: 3_600_000 });
     expect(next.tools).toEqual([otherTool]);
@@ -396,7 +477,12 @@ describe('shared tool discovery cache', () => {
 
     await expect(cache.readFresh(key, async () => Promise.reject(failure))).rejects.toBe(failure);
 
-    await expect(cache.read(key, loaders(async () => [tool]))).rejects.toMatchObject({
+    await expect(
+      cache.read(
+        key,
+        loaders(async () => [tool]),
+      ),
+    ).rejects.toMatchObject({
       cache: { state: 'refresh_failed', nextCheckInMs: 5_000 },
     });
   });
@@ -404,11 +490,18 @@ describe('shared tool discovery cache', () => {
   it('deduplicates concurrent cold misses inside one worker', async () => {
     const { cache } = harness();
     let finishLoad: ((tools: readonly DiscoveredTool[]) => void) | undefined;
-    const load = vi.fn(() => new Promise<readonly DiscoveredTool[]>((resolve) => { finishLoad = resolve; }));
+    const load = vi.fn(
+      () =>
+        new Promise<readonly DiscoveredTool[]>((resolve) => {
+          finishLoad = resolve;
+        }),
+    );
 
     const first = cache.read(key, loaders(load));
     const second = cache.read(key, loaders(load));
-    await vi.waitFor(() => { expect(finishLoad).toBeDefined(); });
+    await vi.waitFor(() => {
+      expect(finishLoad).toBeDefined();
+    });
     finishLoad?.([tool]);
 
     expect((await first).tools).toEqual([tool]);
@@ -421,7 +514,10 @@ describe('shared tool discovery cache', () => {
     const store = createInMemoryToolCacheStore({ now: () => clock.now });
     const first = harness({ store, clock });
     const second = harness({ store, clock });
-    await first.cache.read(key, loaders(async () => [tool]));
+    await first.cache.read(
+      key,
+      loaders(async () => [tool]),
+    );
     clock.now += 3_600_000;
     const firstBackground = vi.fn(async () => [tool]);
     const secondBackground = vi.fn(async () => [tool]);
@@ -442,7 +538,9 @@ describe('shared tool discovery cache', () => {
     const { cache } = harness({
       store,
       clock,
-      delay: async () => { await peer.cache.readFresh(key, async () => [otherTool]); },
+      delay: async () => {
+        await peer.cache.readFresh(key, async () => [otherTool]);
+      },
     });
     const load = vi.fn(async () => [tool]);
 
@@ -497,11 +595,13 @@ describe('shared tool discovery cache', () => {
   });
 
   it('aggregates using the earliest lifetime and most urgent state', () => {
-    expect(aggregateToolCacheHints([
-      { state: 'fresh', freshForMs: 30_000, nextCheckInMs: 30_000 },
-      { state: 'refresh_failed', freshForMs: 0, nextCheckInMs: 8_000 },
-      { state: 'revalidating', freshForMs: 0, nextCheckInMs: 3_000 },
-    ])).toEqual({ state: 'revalidating', freshForMs: 0, nextCheckInMs: 3_000 });
+    expect(
+      aggregateToolCacheHints([
+        { state: 'fresh', freshForMs: 30_000, nextCheckInMs: 30_000 },
+        { state: 'refresh_failed', freshForMs: 0, nextCheckInMs: 8_000 },
+        { state: 'revalidating', freshForMs: 0, nextCheckInMs: 3_000 },
+      ]),
+    ).toEqual({ state: 'revalidating', freshForMs: 0, nextCheckInMs: 3_000 });
   });
 });
 

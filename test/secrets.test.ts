@@ -32,7 +32,12 @@ function legacyEncrypt(plaintext: string, key: Buffer): LegacyEncryptedSecret {
   const iv = randomBytes(12);
   const cipher = createCipheriv('aes-256-gcm', key, iv, { authTagLength: 16 });
   const ciphertext = Buffer.concat([cipher.update(plaintext, 'utf8'), cipher.final()]);
-  return { version: 1, iv: iv.toString('base64'), ciphertext: ciphertext.toString('base64'), authTag: cipher.getAuthTag().toString('base64') };
+  return {
+    version: 1,
+    iv: iv.toString('base64'),
+    ciphertext: ciphertext.toString('base64'),
+    authTag: cipher.getAuthTag().toString('base64'),
+  };
 }
 
 describe('AES-256-GCM secret handling', () => {
@@ -41,8 +46,11 @@ describe('AES-256-GCM secret handling', () => {
     const plaintext = randomBytes(32).toString('base64url');
     const encrypted = encryptSecret(plaintext, keys, CONTEXT);
 
-    expect({ version: encrypted.version, keyId: encrypted.keyId, leaks: JSON.stringify(encrypted).includes(plaintext) })
-      .toEqual({ version: 2, keyId: 'primary', leaks: false });
+    expect({
+      version: encrypted.version,
+      keyId: encrypted.keyId,
+      leaks: JSON.stringify(encrypted).includes(plaintext),
+    }).toEqual({ version: 2, keyId: 'primary', leaks: false });
     expect(decryptSecret(encrypted, keys, CONTEXT)).toBe(plaintext);
   });
 
@@ -62,15 +70,18 @@ describe('AES-256-GCM secret handling', () => {
   });
 
   it('refuses a version 1 record when no legacy key is configured', () => {
-    expect(() => decryptSecret(legacyEncrypt('orphaned', randomBytes(32)), singleKeyring(), CONTEXT))
-      .toThrow(`Unknown encryption key id: ${LEGACY_KEY_ID}`);
+    expect(() => decryptSecret(legacyEncrypt('orphaned', randomBytes(32)), singleKeyring(), CONTEXT)).toThrow(
+      `Unknown encryption key id: ${LEGACY_KEY_ID}`,
+    );
   });
 
   it('reads a record sealed by a key that is no longer active', () => {
     const retiring = randomBytes(32);
     const encrypted = encryptSecret('sealed earlier', keyring('old', { old: retiring }), CONTEXT);
 
-    expect(decryptSecret(encrypted, keyring('new', { old: retiring, new: randomBytes(32) }), CONTEXT)).toBe('sealed earlier');
+    expect(decryptSecret(encrypted, keyring('new', { old: retiring, new: randomBytes(32) }), CONTEXT)).toBe(
+      'sealed earlier',
+    );
   });
 
   it('refuses a record whose key id is not in the keyring', () => {

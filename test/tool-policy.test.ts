@@ -28,7 +28,11 @@ const readTool: Tool = {
   annotations: { readOnlyHint: true },
 };
 
-function policy(toolName: string, fingerprint: string, state: StoredToolPolicy['state']): ReadonlyMap<string, StoredToolPolicy> {
+function policy(
+  toolName: string,
+  fingerprint: string,
+  state: StoredToolPolicy['state'],
+): ReadonlyMap<string, StoredToolPolicy> {
   return new Map([[toolName, { toolName, fingerprint, state }]]);
 }
 
@@ -36,7 +40,10 @@ describe('official MCP tool normalization', () => {
   it('prefixes upstream names and trusts only an explicit read-only hint', () => {
     const read = normalizeUpstreamTool(provider, readTool);
     const unknown = normalizeUpstreamTool(provider, {
-      name: 'unknown', title: readTool.title, description: readTool.description, inputSchema: readTool.inputSchema,
+      name: 'unknown',
+      title: readTool.title,
+      description: readTool.description,
+      inputSchema: readTool.inputSchema,
     });
 
     expect(read.name).toBe('github_get_issue');
@@ -47,13 +54,19 @@ describe('official MCP tool normalization', () => {
   it('produces the same fingerprint regardless of object key order', () => {
     const reordered: Tool = {
       inputSchema: { properties: { id: { type: 'string' } }, type: 'object' },
-      description: readTool.description, title: readTool.title, annotations: { readOnlyHint: true }, name: readTool.name,
+      description: readTool.description,
+      title: readTool.title,
+      annotations: { readOnlyHint: true },
+      name: readTool.name,
     };
     expect(fingerprintToolDefinition('github', reordered)).toBe(fingerprintToolDefinition('github', readTool));
   });
 
   it('changes the fingerprint when the provider changes the contract', () => {
-    const changed = { ...readTool, inputSchema: { type: 'object' as const, properties: { number: { type: 'number' } } } };
+    const changed = {
+      ...readTool,
+      inputSchema: { type: 'object' as const, properties: { number: { type: 'number' } } },
+    };
     expect(fingerprintToolDefinition('github', changed)).not.toBe(fingerprintToolDefinition('github', readTool));
   });
 });
@@ -83,18 +96,27 @@ describe('deployment policy resolution', () => {
   });
 
   it('accepts a batch only when every reviewed fingerprint is current', () => {
-    expect(toolPolicyReviewsMatchCurrentDefinitions([tool], [{ toolName: tool.name, fingerprint: tool.fingerprint }])).toBe(true);
+    expect(
+      toolPolicyReviewsMatchCurrentDefinitions([tool], [{ toolName: tool.name, fingerprint: tool.fingerprint }]),
+    ).toBe(true);
   });
 
   it('rejects a batch containing a stale fingerprint', () => {
-    expect(toolPolicyReviewsMatchCurrentDefinitions([tool], [{ toolName: tool.name, fingerprint: '0'.repeat(64) }])).toBe(false);
+    expect(
+      toolPolicyReviewsMatchCurrentDefinitions([tool], [{ toolName: tool.name, fingerprint: '0'.repeat(64) }]),
+    ).toBe(false);
   });
 
   it('rejects a batch containing an unknown tool', () => {
-    expect(toolPolicyReviewsMatchCurrentDefinitions([tool], [
-      { toolName: tool.name, fingerprint: tool.fingerprint },
-      { toolName: 'github_unknown', fingerprint: tool.fingerprint },
-    ])).toBe(false);
+    expect(
+      toolPolicyReviewsMatchCurrentDefinitions(
+        [tool],
+        [
+          { toolName: tool.name, fingerprint: tool.fingerprint },
+          { toolName: 'github_unknown', fingerprint: tool.fingerprint },
+        ],
+      ),
+    ).toBe(false);
   });
 
   it('rejects duplicate tools', () => {
@@ -115,17 +137,16 @@ describe('tool contract review', () => {
   });
 
   it('classifies a matching fingerprint as approved', () => {
-    expect(toolContractReview(
-      approvedTool,
-      policy(approvedTool.name, approvedTool.fingerprint, 'allowed_default_on'),
-    )).toEqual({ kind: 'approved' });
+    expect(
+      toolContractReview(approvedTool, policy(approvedTool.name, approvedTool.fingerprint, 'allowed_default_on')),
+    ).toEqual({ kind: 'approved' });
   });
 
   it('reports that an older changed policy has no comparable snapshot', () => {
-    expect(toolContractReview(
-      approvedTool,
-      policy(approvedTool.name, '0'.repeat(64), 'allowed_default_on'),
-    )).toEqual({ kind: 'changed', changes: null });
+    expect(toolContractReview(approvedTool, policy(approvedTool.name, '0'.repeat(64), 'allowed_default_on'))).toEqual({
+      kind: 'changed',
+      changes: null,
+    });
   });
 
   it('describes exact contract changes against the approved snapshot', () => {
@@ -140,12 +161,17 @@ describe('tool contract review', () => {
         },
       },
     });
-    const policies = new Map<string, StoredToolPolicy>([[approvedTool.name, {
-      toolName: approvedTool.name,
-      fingerprint: approvedTool.fingerprint,
-      contract: approvedTool.contract,
-      state: 'allowed_default_on',
-    }]]);
+    const policies = new Map<string, StoredToolPolicy>([
+      [
+        approvedTool.name,
+        {
+          toolName: approvedTool.name,
+          fingerprint: approvedTool.fingerprint,
+          contract: approvedTool.contract,
+          state: 'allowed_default_on',
+        },
+      ],
+    ]);
 
     expect(toolContractReview(currentTool, policies)).toEqual({
       kind: 'changed',
@@ -167,10 +193,9 @@ describe('tool contract review', () => {
   });
 
   it('caps oversized contract diffs and reports truncation', () => {
-    const properties = Object.fromEntries(Array.from(
-      { length: 101 },
-      (_, index) => [`field${index.toString().padStart(3, '0')}`, { type: 'string' }],
-    ));
+    const properties = Object.fromEntries(
+      Array.from({ length: 101 }, (_, index) => [`field${index.toString().padStart(3, '0')}`, { type: 'string' }]),
+    );
     const previousTool = normalizeUpstreamTool(provider, {
       ...readTool,
       inputSchema: { type: 'object', properties: {} },
@@ -179,12 +204,17 @@ describe('tool contract review', () => {
       ...readTool,
       inputSchema: { type: 'object', properties },
     });
-    const policies = new Map<string, StoredToolPolicy>([[previousTool.name, {
-      toolName: previousTool.name,
-      fingerprint: previousTool.fingerprint,
-      contract: previousTool.contract,
-      state: 'allowed_default_on',
-    }]]);
+    const policies = new Map<string, StoredToolPolicy>([
+      [
+        previousTool.name,
+        {
+          toolName: previousTool.name,
+          fingerprint: previousTool.fingerprint,
+          contract: previousTool.contract,
+          state: 'allowed_default_on',
+        },
+      ],
+    ]);
     const review = toolContractReview(currentTool, policies);
 
     expect(review.kind).toBe('changed');

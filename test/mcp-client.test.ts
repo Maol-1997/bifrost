@@ -14,10 +14,10 @@ const sdkClient = vi.hoisted(() => ({
   connect: vi.fn<(transport: unknown, options: unknown) => Promise<void>>(),
   close: vi.fn<() => Promise<void>>(),
   listTools: vi.fn<(parameters: undefined, options: unknown) => Promise<{ tools: Tool[] }>>(),
-  callTool: vi.fn<(
-    request: { name: string; arguments: Record<string, unknown> },
-    options: unknown,
-  ) => Promise<CallToolResult>>(),
+  callTool:
+    vi.fn<
+      (request: { name: string; arguments: Record<string, unknown> }, options: unknown) => Promise<CallToolResult>
+    >(),
 }));
 
 vi.mock('@modelcontextprotocol/client', () => ({
@@ -34,10 +34,7 @@ vi.mock('@modelcontextprotocol/client', () => ({
       return sdkClient.listTools(parameters, options);
     }
 
-    callTool(
-      request: { name: string; arguments: Record<string, unknown> },
-      options: unknown,
-    ): Promise<CallToolResult> {
+    callTool(request: { name: string; arguments: Record<string, unknown> }, options: unknown): Promise<CallToolResult> {
       return sdkClient.callTool(request, options);
     }
   },
@@ -107,7 +104,6 @@ describe('calling an approved upstream tool', () => {
     expect(approvedCall.tool.name).toBe('github_get_issue');
     expect(callTool.mock.calls[0]?.[0]).toMatchObject({ name: 'get_issue' });
   });
-
 });
 
 describe('upstream connections', () => {
@@ -134,6 +130,10 @@ describe('upstream connections', () => {
     sdkClient.listTools.mockResolvedValue({ tools: [approvedDefinition] });
 
     await expect(listClientTools({ listTools: sdkClient.listTools }, signal)).resolves.toEqual([approvedDefinition]);
-    expect(sdkClient.listTools).toHaveBeenCalledExactlyOnceWith(undefined, { signal, timeout: 15_000, cacheMode: 'refresh' });
+    expect(sdkClient.listTools).toHaveBeenCalledExactlyOnceWith(undefined, {
+      signal,
+      timeout: 15_000,
+      cacheMode: 'refresh',
+    });
   });
 });

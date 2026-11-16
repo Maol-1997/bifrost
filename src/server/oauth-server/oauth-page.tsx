@@ -40,7 +40,9 @@ export function renderOAuthPage(title: string, content: Child): string {
         <title>{title} · Bifrost</title>
         <style>{STYLES}</style>
       </head>
-      <body><main>{content}</main></body>
+      <body>
+        <main>{content}</main>
+      </body>
     </html>
   );
   return `<!doctype html>${renderToString(document)}`;

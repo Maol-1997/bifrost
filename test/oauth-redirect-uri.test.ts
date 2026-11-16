@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { isLoopbackOnly, isRedirectUriAllowed, isRedirectUriRegistrable, redirectUriHost } from '../src/server/oauth-server/redirect-uri.js';
+import {
+  isLoopbackOnly,
+  isRedirectUriAllowed,
+  isRedirectUriRegistrable,
+  redirectUriHost,
+} from '../src/server/oauth-server/redirect-uri.js';
 
 describe('redirect URI registration rules', () => {
   it('accepts https anywhere and http only on loopback', () => {

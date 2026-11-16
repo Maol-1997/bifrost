@@ -61,11 +61,13 @@ export function createConnectionStore(database: AppDatabase, config: Config) {
       const rows = await database
         .update(providerCredentials)
         .set({ ...credentialColumns(replacement, replacement.credential, config), updatedAt: sql`now()` })
-        .where(and(
-          eq(providerCredentials.userId, replacement.userId),
-          eq(providerCredentials.providerId, replacement.providerId),
-          eq(sql`${providerCredentials.encryptedPayload}->>'iv'`, replacement.expectedVersion),
-        ))
+        .where(
+          and(
+            eq(providerCredentials.userId, replacement.userId),
+            eq(providerCredentials.providerId, replacement.providerId),
+            eq(sql`${providerCredentials.encryptedPayload}->>'iv'`, replacement.expectedVersion),
+          ),
+        )
         .returning({ userId: providerCredentials.userId });
       return rows.length > 0;
     },
@@ -83,7 +85,11 @@ export function createConnectionStore(database: AppDatabase, config: Config) {
       if (!row) return undefined;
       // Parsed, not asserted: a row that decrypts to something else must fail
       // here rather than hand a non-string token to an outbound request.
-      const plaintext = decryptSecret(row.encryptedPayload, config.encryptionKeyring, credentialContext({ userId, providerId }));
+      const plaintext = decryptSecret(
+        row.encryptedPayload,
+        config.encryptionKeyring,
+        credentialContext({ userId, providerId }),
+      );
       const payload = credentialPayloadSchema.parse(JSON.parse(plaintext));
       return {
         accessToken: payload.accessToken,
@@ -110,7 +116,16 @@ export function createConnectionStore(database: AppDatabase, config: Config) {
     },
 
     /** Everything Integrations needs after OAuth has verified the credential. */
-    async listConnections(userId: string): Promise<readonly { providerId: ProviderId; connectedAt: Date; accountLabel: string | undefined; scopes: readonly string[] }[]> {
+    async listConnections(
+      userId: string,
+    ): Promise<
+      readonly {
+        providerId: ProviderId;
+        connectedAt: Date;
+        accountLabel: string | undefined;
+        scopes: readonly string[];
+      }[]
+    > {
       const rows = await database
         .select({
           providerId: providerCredentials.providerId,
@@ -128,20 +143,25 @@ export function createConnectionStore(database: AppDatabase, config: Config) {
      * key. Keyset pagination keeps a long rotation from rescanning or skipping
      * rows while other writes land.
      */
-    async credentialsToReencrypt(after: CredentialRowKey | undefined, limit: number): Promise<readonly CredentialRowKey[]> {
+    async credentialsToReencrypt(
+      after: CredentialRowKey | undefined,
+      limit: number,
+    ): Promise<readonly CredentialRowKey[]> {
       const payload = providerCredentials.encryptedPayload;
       return database
         .select({ userId: providerCredentials.userId, providerId: providerCredentials.providerId })
         .from(providerCredentials)
-        .where(and(
-          or(
-            sql`${payload}->>'version' is distinct from ${String(KEYED_SECRET_VERSION)}`,
-            sql`${payload}->>'keyId' is distinct from ${config.encryptionKeyring.activeKeyId}`,
+        .where(
+          and(
+            or(
+              sql`${payload}->>'version' is distinct from ${String(KEYED_SECRET_VERSION)}`,
+              sql`${payload}->>'keyId' is distinct from ${config.encryptionKeyring.activeKeyId}`,
+            ),
+            after === undefined
+              ? undefined
+              : sql`(${providerCredentials.userId}, ${providerCredentials.providerId}) > (${after.userId}, ${after.providerId})`,
           ),
-          after === undefined
-            ? undefined
-            : sql`(${providerCredentials.userId}, ${providerCredentials.providerId}) > (${after.userId}, ${after.providerId})`,
-        ))
+        )
         .orderBy(asc(providerCredentials.userId), asc(providerCredentials.providerId))
         .limit(limit);
     },

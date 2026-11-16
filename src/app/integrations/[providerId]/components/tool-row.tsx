@@ -4,7 +4,17 @@ import { SettingsRow } from '@app/components/ui/settings-group';
 import { cn } from '@app/lib/cn';
 import type { ProviderTool } from '@app/api/bifrost';
 
-export function ToolRow({ disabled, tool, isAvailable, onToggle }: { disabled: boolean; tool: ProviderTool; isAvailable: boolean; onToggle: (isEnabled: boolean) => void }): React.JSX.Element {
+export function ToolRow({
+  disabled,
+  tool,
+  isAvailable,
+  onToggle,
+}: {
+  disabled: boolean;
+  tool: ProviderTool;
+  isAvailable: boolean;
+  onToggle: (isEnabled: boolean) => void;
+}): React.JSX.Element {
   return (
     <SettingsRow className={cn('h-auto min-h-[65px] items-start', !isAvailable && 'opacity-50')}>
       <div className="min-w-0 flex-1">

@@ -24,18 +24,33 @@ const tools = [
 
 describe('per-request MCP server assembly', () => {
   it('serves the remaining tools when one cannot be registered', async () => {
-    const policies = new Map(tools.map((tool) => [tool.name, { toolName: tool.name, fingerprint: tool.fingerprint, state: 'allowed_default_on' as const }]));
+    const policies = new Map(
+      tools.map((tool) => [
+        tool.name,
+        { toolName: tool.name, fingerprint: tool.fingerprint, state: 'allowed_default_on' as const },
+      ]),
+    );
     const handler = createHumanMcpHandler({
       config: {} as Config,
       coordinator: {} as Coordinator,
       oauth: {} as OAuthService,
       mounts: [{ providerId: 'github', isMounted: true }],
       database: {
-        userVisibilityState: async () => ({ connectedProviders: new Set(['github']), hiddenProviders: new Set(), toolPreferences: new Map() }),
+        userVisibilityState: async () => ({
+          connectedProviders: new Set(['github']),
+          hiddenProviders: new Set(),
+          toolPreferences: new Map(),
+        }),
         toolPolicyDecisions: async () => policies,
       } as unknown as Database,
-      toolDiscovery: { discoverConnected: async () => ({ tools, failures: [], cache: { state: 'fresh' } }) } as unknown as ToolDiscoveryService,
-      upstreamClients: { withClient: async () => { throw new Error('unexpected upstream call'); } },
+      toolDiscovery: {
+        discoverConnected: async () => ({ tools, failures: [], cache: { state: 'fresh' } }),
+      } as unknown as ToolDiscoveryService,
+      upstreamClients: {
+        withClient: async () => {
+          throw new Error('unexpected upstream call');
+        },
+      },
     });
     const parsedBody = modernRequestBody(1, 'tools/list');
     const request = new Request('https://bifrost.example/mcp', {
@@ -48,10 +63,12 @@ describe('per-request MCP server assembly', () => {
       authInfo: { token: 't', clientId: 'c', scopes: ['mcp'], extra: { userId: USER_ID } },
       parsedBody,
     });
-    const body = await response.json() as { result?: { tools: { name: string }[] } };
+    const body = (await response.json()) as { result?: { tools: { name: string }[] } };
     await handler.close();
 
-    expect({ status: response.status, tools: body.result?.tools.map((tool) => tool.name), body })
-      .toMatchObject({ status: 200, tools: ['github_get_issue', 'github_list_issues'] });
+    expect({ status: response.status, tools: body.result?.tools.map((tool) => tool.name), body }).toMatchObject({
+      status: 200,
+      tools: ['github_get_issue', 'github_list_issues'],
+    });
   });
 });

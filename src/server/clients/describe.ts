@@ -41,11 +41,12 @@ export function describeClient(clientId: string, userAgent: string | undefined):
   if (clientId === WEB_CLIENT_ID) return { name: 'Bifrost web', monogram: 'BW' };
   const haystack = `${clientId} ${userAgent ?? ''}`;
   const known = KNOWN_CLIENTS.find((candidate) => candidate.pattern.test(haystack));
-  if (known) return {
-    name: known.name,
-    monogram: known.monogram,
-    ...(known.logo ? { logo: known.logo } : {}),
-  };
+  if (known)
+    return {
+      name: known.name,
+      monogram: known.monogram,
+      ...(known.logo ? { logo: known.logo } : {}),
+    };
   const fallback = productToken(userAgent) ?? clientId;
   return { name: fallback, monogram: monogramFor(fallback) };
 }

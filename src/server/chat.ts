@@ -1,8 +1,4 @@
-import {
-  createOpenAI,
-  type OpenAIResponsesProviderOptions,
-  type OpenAIToolOptions,
-} from '@ai-sdk/openai';
+import { createOpenAI, type OpenAIResponsesProviderOptions, type OpenAIToolOptions } from '@ai-sdk/openai';
 import {
   createAgentUIStreamResponse,
   dynamicTool,
@@ -23,11 +19,17 @@ import { executeUserTool, loadVisibleUserTools } from './tools/user-toolset.js';
 const MAX_AGENT_STEPS = 20;
 const MAX_CHAT_TITLE_LENGTH = 64;
 const TOOL_NAMESPACES = {
-  granola: { name: 'granola', description: 'Granola tools for meeting notes, transcripts, attendees, decisions, and action items.' },
+  granola: {
+    name: 'granola',
+    description: 'Granola tools for meeting notes, transcripts, attendees, decisions, and action items.',
+  },
   github: { name: 'github', description: 'GitHub tools for repositories, code, issues, pull requests, and users.' },
   linear: { name: 'linear', description: 'Linear tools for projects, issues, teams, initiatives, and documents.' },
   notion: { name: 'notion', description: 'Notion tools for pages, databases, comments, users, and workspace search.' },
-  sentry: { name: 'sentry', description: 'Sentry tools for errors, issues, events, releases, projects, and organizations.' },
+  sentry: {
+    name: 'sentry',
+    description: 'Sentry tools for errors, issues, events, releases, projects, and organizations.',
+  },
   slack: { name: 'slack', description: 'Slack tools for messages, channels, canvases, files, users, and search.' },
 } as const satisfies Record<ProviderId, NonNullable<OpenAIToolOptions['namespace']>>;
 const AGENT_INSTRUCTIONS = 'You are an agent connected to Bifrost. Help the user with their requests.';
@@ -126,9 +128,7 @@ function createChatProvider(apiKey: string, baseURL: string) {
   });
 }
 
-function responseProviderOptions(
-  config: AppDependencies['config'],
-): OpenAIResponsesProviderOptions {
+function responseProviderOptions(config: AppDependencies['config']): OpenAIResponsesProviderOptions {
   return {
     reasoningEffort: config.OPENAI_REASONING_EFFORT,
     store: false,
@@ -155,28 +155,31 @@ function createAgentTools(request: {
   identity: BrowserIdentity;
   tools: readonly DiscoveredTool[];
 }): ToolSet {
-  return Object.fromEntries(request.tools.map((tool) => [
-    tool.name,
-    dynamicTool({
-      title: tool.title,
-      description: tool.description,
-      inputSchema: jsonSchema(tool.inputSchema as Parameters<typeof jsonSchema>[0]),
-      providerOptions: {
-        openai: {
-          deferLoading: true,
-          namespace: TOOL_NAMESPACES[tool.providerId],
-        } satisfies OpenAIToolOptions,
-      },
-      metadata: { providerId: tool.providerId, source: 'bifrost' },
-      execute: (input, options) => executeUserTool({
-        userId: request.identity.userId,
-        clientId: request.identity.clientId,
-        tool,
-        input: input as Record<string, unknown>,
-        ...(options.abortSignal ? { signal: options.abortSignal } : {}),
-        requestId: options.toolCallId,
-        dependencies: request.dependencies,
+  return Object.fromEntries(
+    request.tools.map((tool) => [
+      tool.name,
+      dynamicTool({
+        title: tool.title,
+        description: tool.description,
+        inputSchema: jsonSchema(tool.inputSchema as Parameters<typeof jsonSchema>[0]),
+        providerOptions: {
+          openai: {
+            deferLoading: true,
+            namespace: TOOL_NAMESPACES[tool.providerId],
+          } satisfies OpenAIToolOptions,
+        },
+        metadata: { providerId: tool.providerId, source: 'bifrost' },
+        execute: (input, options) =>
+          executeUserTool({
+            userId: request.identity.userId,
+            clientId: request.identity.clientId,
+            tool,
+            input: input as Record<string, unknown>,
+            ...(options.abortSignal ? { signal: options.abortSignal } : {}),
+            requestId: options.toolCallId,
+            dependencies: request.dependencies,
+          }),
       }),
-    }),
-  ]));
+    ]),
+  );
 }

@@ -1,15 +1,15 @@
-import type { UIMessage } from "ai"
+import type { UIMessage } from 'ai';
 
 function messageText(message: UIMessage): string {
   return message.parts
-    .filter((part) => part.type === "text")
+    .filter((part) => part.type === 'text')
     .map((part) => part.text)
-    .join("")
+    .join('');
 }
 
 function firstUserMessageText(messages: readonly UIMessage[]): string {
-  const firstUserMessage = messages.find((message) => message.role === "user")
-  return firstUserMessage ? messageText(firstUserMessage).trim() : ""
+  const firstUserMessage = messages.find((message) => message.role === 'user');
+  return firstUserMessage ? messageText(firstUserMessage).trim() : '';
 }
 
-export { firstUserMessageText, messageText }
+export { firstUserMessageText, messageText };

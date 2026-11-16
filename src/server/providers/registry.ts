@@ -15,7 +15,14 @@ const PROVIDER_NAMESPACES = {
   slack: 'slack_',
 } as const satisfies Record<ProviderId, `${ProviderId}_`>;
 
-export const SUPPORTED_APPS = ['github', 'linear', 'sentry', 'slack', 'notion', 'granola'] as const satisfies readonly ProviderId[];
+export const SUPPORTED_APPS = [
+  'github',
+  'linear',
+  'sentry',
+  'slack',
+  'notion',
+  'granola',
+] as const satisfies readonly ProviderId[];
 
 const CREDENTIAL_PROVIDER_BY_PREFIX = {
   granola_: 'granola',
@@ -26,7 +33,14 @@ const CREDENTIAL_PROVIDER_BY_PREFIX = {
   slack_: 'slack',
 } as const satisfies Record<(typeof PROVIDER_NAMESPACES)[ProviderId], ProviderId>;
 
-export const PROVIDER_REGISTRY: readonly ProviderDefinition[] = [githubProvider, linearProvider, sentryProvider, slackProvider, notionProvider, granolaProvider];
+export const PROVIDER_REGISTRY: readonly ProviderDefinition[] = [
+  githubProvider,
+  linearProvider,
+  sentryProvider,
+  slackProvider,
+  notionProvider,
+  granolaProvider,
+];
 
 export type PrefixInvariantInputs = {
   registry?: readonly ProviderDefinition[];
@@ -44,9 +58,11 @@ export function assertPrefixInvariant({
   const problems: string[] = [];
   const registryById = new Map<string, ProviderDefinition>(registry.map((provider) => [provider.id, provider]));
   for (const provider of registry) {
-    if (namespaces[provider.id] !== provider.prefix) problems.push(`${provider.id}: namespace differs from registry prefix`);
+    if (namespaces[provider.id] !== provider.prefix)
+      problems.push(`${provider.id}: namespace differs from registry prefix`);
     if (!apps.includes(provider.id)) problems.push(`${provider.id}: missing from supported apps`);
-    if (credentialMapping[provider.prefix] !== provider.id) problems.push(`${provider.id}: credential mapping differs from prefix`);
+    if (credentialMapping[provider.prefix] !== provider.id)
+      problems.push(`${provider.id}: credential mapping differs from prefix`);
   }
   for (const providerId of Object.keys(namespaces)) {
     if (!registryById.has(providerId)) problems.push(`${providerId}: namespace has no registry entry`);
@@ -63,7 +79,8 @@ export function assertPrefixInvariant({
     }
   }
   if (registryById.size !== registry.length) problems.push('provider ids are not unique');
-  if (new Set(registry.map((provider) => provider.prefix)).size !== registry.length) problems.push('provider prefixes are not unique');
+  if (new Set(registry.map((provider) => provider.prefix)).size !== registry.length)
+    problems.push('provider prefixes are not unique');
   // A tool name is routed to its provider by prefix, so `google_drive_x` must
   // not also read as a `google_` tool.
   for (const provider of registry) {

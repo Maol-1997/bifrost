@@ -67,8 +67,10 @@ describe('MCP end to end against a real database, Redis and upstream', () => {
   it('rejects a bearer token Bifrost never issued before touching any upstream', async () => {
     const response = await harness.listTools('not-a-real-token');
 
-    expect({ status: response.status, upstreamRequests: harness.upstream.requests.length })
-      .toEqual({ status: 401, upstreamRequests: 0 });
+    expect({ status: response.status, upstreamRequests: harness.upstream.requests.length }).toEqual({
+      status: 401,
+      upstreamRequests: 0,
+    });
   });
 
   it('lists upstream once on a cold cache and serves the warm cache afterwards', async () => {
@@ -80,8 +82,10 @@ describe('MCP end to end against a real database, Redis and upstream', () => {
     await harness.callTool(agent.bearer, 'github_echo', { message: 'warm' });
     await harness.listTools(agent.bearer);
 
-    expect({ listsAfterCold, listsAfterWarm: harness.upstream.count('tools/list') })
-      .toEqual({ listsAfterCold: 1, listsAfterWarm: 1 });
+    expect({ listsAfterCold, listsAfterWarm: harness.upstream.count('tools/list') }).toEqual({
+      listsAfterCold: 1,
+      listsAfterWarm: 1,
+    });
   });
 
   it('goes back upstream once the cached listing is invalidated', async () => {
@@ -91,8 +95,10 @@ describe('MCP end to end against a real database, Redis and upstream', () => {
     await harness.toolDiscovery.invalidateProvider(agent.userId, 'github');
     const listed = await harness.listTools(agent.bearer);
 
-    expect({ lists: harness.upstream.count('tools/list'), tools: listed.body.result?.tools?.length })
-      .toEqual({ lists: 2, tools: 2 });
+    expect({ lists: harness.upstream.count('tools/list'), tools: listed.body.result?.tools?.length }).toEqual({
+      lists: 2,
+      tools: 2,
+    });
   });
 
   it('applies an administrator block to the very next call, with the listing still cached', async () => {
@@ -127,8 +133,10 @@ describe('MCP end to end against a real database, Redis and upstream', () => {
     harness.upstream.requests.length = 0;
     const after = await harness.callTool(agent.bearer, 'github_echo', { message: 'after' });
 
-    expect({ after: notFound(after), upstreamCalls: harness.upstream.count('tools/call') })
-      .toEqual({ after: 'Tool github_echo not found', upstreamCalls: 0 });
+    expect({ after: notFound(after), upstreamCalls: harness.upstream.count('tools/call') }).toEqual({
+      after: 'Tool github_echo not found',
+      upstreamCalls: 0,
+    });
   });
 
   it('refuses tools that are not visible to the caller and never forwards them', async () => {

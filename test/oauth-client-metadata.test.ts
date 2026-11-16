@@ -1,6 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
-  fetchClientMetadataDocument, isClientIdMetadataDocumentUrl, parseClientMetadataDocument, parseRegistrationRequest,
+  fetchClientMetadataDocument,
+  isClientIdMetadataDocumentUrl,
+  parseClientMetadataDocument,
+  parseRegistrationRequest,
   registrationResponse,
 } from '../src/server/oauth-server/clients.js';
 import { OAuthError } from '../src/server/oauth-server/errors.js';
@@ -36,19 +39,25 @@ describe('validating a fetched client metadata document', () => {
   it('refuses a document claiming a different client_id', () => {
     // Without this check anyone who can host JSON could impersonate another
     // client, and the consent screen would show that client's name.
-    expect(() => parseClientMetadataDocument(documentUrl, { ...validDocument, client_id: 'https://evil.example.com/c.json' }))
-      .toThrow(OAuthError);
+    expect(() =>
+      parseClientMetadataDocument(documentUrl, { ...validDocument, client_id: 'https://evil.example.com/c.json' }),
+    ).toThrow(OAuthError);
   });
 
   it('refuses a document missing the fields the consent screen depends on', () => {
-    expect(() => parseClientMetadataDocument(documentUrl, { client_id: documentUrl, redirect_uris: ['https://a.example/cb'] })).toThrow(OAuthError);
-    expect(() => parseClientMetadataDocument(documentUrl, { client_id: documentUrl, client_name: 'X' })).toThrow(OAuthError);
+    expect(() =>
+      parseClientMetadataDocument(documentUrl, { client_id: documentUrl, redirect_uris: ['https://a.example/cb'] }),
+    ).toThrow(OAuthError);
+    expect(() => parseClientMetadataDocument(documentUrl, { client_id: documentUrl, client_name: 'X' })).toThrow(
+      OAuthError,
+    );
     expect(() => parseClientMetadataDocument(documentUrl, { ...validDocument, redirect_uris: [] })).toThrow(OAuthError);
   });
 
   it('refuses redirect URIs that are neither https nor loopback', () => {
-    expect(() => parseClientMetadataDocument(documentUrl, { ...validDocument, redirect_uris: ['http://app.example.com/cb'] }))
-      .toThrow(OAuthError);
+    expect(() =>
+      parseClientMetadataDocument(documentUrl, { ...validDocument, redirect_uris: ['http://app.example.com/cb'] }),
+    ).toThrow(OAuthError);
   });
 });
 
@@ -65,20 +74,33 @@ describe('dynamic registration', () => {
   });
 
   it('refuses grants and auth methods Bifrost does not implement', () => {
-    expect(() => parseRegistrationRequest({ redirect_uris: ['https://a.example/cb'], grant_types: ['implicit'] })).toThrow(OAuthError);
+    expect(() =>
+      parseRegistrationRequest({ redirect_uris: ['https://a.example/cb'], grant_types: ['implicit'] }),
+    ).toThrow(OAuthError);
   });
 
   it('rejects response types other than code', () => {
-    expect(() => parseRegistrationRequest({ redirect_uris: ['https://a.example/cb'], response_types: ['token'] })).toThrow(OAuthError);
+    expect(() =>
+      parseRegistrationRequest({ redirect_uris: ['https://a.example/cb'], response_types: ['token'] }),
+    ).toThrow(OAuthError);
   });
 
   it('rejects an empty response type list, which declares no supported flow at all', () => {
-    expect(() => parseRegistrationRequest({ redirect_uris: ['https://a.example/cb'], response_types: [] })).toThrow(OAuthError);
+    expect(() => parseRegistrationRequest({ redirect_uris: ['https://a.example/cb'], response_types: [] })).toThrow(
+      OAuthError,
+    );
   });
 
   it('accepts code as the only response type', () => {
-    expect(parseRegistrationRequest({ redirect_uris: ['https://a.example/cb'], response_types: ['code'] }).redirectUris).toEqual(['https://a.example/cb']);
-    expect(() => parseRegistrationRequest({ redirect_uris: ['https://a.example/cb'], token_endpoint_auth_method: 'client_secret_post' })).toThrow(OAuthError);
+    expect(
+      parseRegistrationRequest({ redirect_uris: ['https://a.example/cb'], response_types: ['code'] }).redirectUris,
+    ).toEqual(['https://a.example/cb']);
+    expect(() =>
+      parseRegistrationRequest({
+        redirect_uris: ['https://a.example/cb'],
+        token_endpoint_auth_method: 'client_secret_post',
+      }),
+    ).toThrow(OAuthError);
   });
 
   it('accepts the grants it does implement', () => {
@@ -92,7 +114,10 @@ describe('dynamic registration', () => {
 
   it('never issues a client secret, because these clients cannot keep one', () => {
     const response = registrationResponse({
-      clientId: 'bifrost-abc', clientName: 'X', redirectUris: ['https://a.example/cb'], registrationKind: 'dynamic',
+      clientId: 'bifrost-abc',
+      clientName: 'X',
+      redirectUris: ['https://a.example/cb'],
+      registrationKind: 'dynamic',
     });
     expect(response.client_secret).toBeUndefined();
     expect(response.token_endpoint_auth_method).toBe('none');
@@ -167,7 +192,9 @@ describe('fetching a client metadata document', () => {
 
   it('refuses a document claiming a client_id other than the URL it was served from', async () => {
     resolvesToAPublicAddress();
-    fetchMock.mockResolvedValue(new Response(JSON.stringify({ ...validDocument, client_id: 'https://evil.example.com/c.json' })));
+    fetchMock.mockResolvedValue(
+      new Response(JSON.stringify({ ...validDocument, client_id: 'https://evil.example.com/c.json' })),
+    );
     await expect(fetchClientMetadataDocument(documentUrl)).rejects.toThrow(OAuthError);
   });
 
@@ -179,19 +206,25 @@ describe('fetching a client metadata document', () => {
 
   it('honours a max-age that falls inside the bounds', async () => {
     resolvesToAPublicAddress();
-    fetchMock.mockResolvedValue(new Response(JSON.stringify(validDocument), { headers: { 'cache-control': 'public, max-age=7200' } }));
+    fetchMock.mockResolvedValue(
+      new Response(JSON.stringify(validDocument), { headers: { 'cache-control': 'public, max-age=7200' } }),
+    );
     await expect(fetchClientMetadataDocument(documentUrl)).resolves.toMatchObject({ cacheForMs: 7_200_000 });
   });
 
   it('raises a max-age below the floor, so a hostile document cannot force a fetch per authorization', async () => {
     resolvesToAPublicAddress();
-    fetchMock.mockResolvedValue(new Response(JSON.stringify(validDocument), { headers: { 'cache-control': 'max-age=60' } }));
+    fetchMock.mockResolvedValue(
+      new Response(JSON.stringify(validDocument), { headers: { 'cache-control': 'max-age=60' } }),
+    );
     await expect(fetchClientMetadataDocument(documentUrl)).resolves.toMatchObject({ cacheForMs: 300_000 });
   });
 
   it('lowers a max-age above the ceiling, so a rotated redirect_uris list still applies within a day', async () => {
     resolvesToAPublicAddress();
-    fetchMock.mockResolvedValue(new Response(JSON.stringify(validDocument), { headers: { 'cache-control': 'max-age=999999' } }));
+    fetchMock.mockResolvedValue(
+      new Response(JSON.stringify(validDocument), { headers: { 'cache-control': 'max-age=999999' } }),
+    );
     await expect(fetchClientMetadataDocument(documentUrl)).resolves.toMatchObject({ cacheForMs: 86_400_000 });
   });
 });

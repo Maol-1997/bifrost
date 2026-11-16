@@ -1,18 +1,35 @@
 import { describe, expect, it, vi } from 'vitest';
 import { PROVIDER_REGISTRY } from '../src/server/providers/registry.js';
 import { normalizeUpstreamTool } from '../src/server/tools/catalog.js';
-import { createInMemoryToolCacheStore, createRedisToolCacheStore, type ToolCacheSnapshotKey } from '../src/server/tools/cache-store.js';
+import {
+  createInMemoryToolCacheStore,
+  createRedisToolCacheStore,
+  type ToolCacheSnapshotKey,
+} from '../src/server/tools/cache-store.js';
 import { toolCacheKey, ToolDiscoveryCache } from '../src/server/tools/discovery-cache.js';
 import { AtomicRedisFake } from './helpers/atomic-redis.js';
 
 const key = { userId: 'snapshot-user', providerId: 'github' as const };
-const snapshotKey: ToolCacheSnapshotKey = { generationKey: toolCacheKey(key, 'generation'), entryKeyPrefix: toolCacheKey(key, 'entry-prefix') };
+const snapshotKey: ToolCacheSnapshotKey = {
+  generationKey: toolCacheKey(key, 'generation'),
+  entryKeyPrefix: toolCacheKey(key, 'entry-prefix'),
+};
 const provider = PROVIDER_REGISTRY.find((entry) => entry.id === key.providerId)!;
 const oldTool = normalizeUpstreamTool(provider, { name: 'get_issue', inputSchema: { type: 'object' } });
-const newTool = normalizeUpstreamTool(provider, { name: 'get_issue', description: 'Changed contract', inputSchema: { type: 'object' } });
+const newTool = normalizeUpstreamTool(provider, {
+  name: 'get_issue',
+  description: 'Changed contract',
+  inputSchema: { type: 'object' },
+});
 
 function record(generation: number, tool = oldTool): string {
-  return JSON.stringify({ generation, contracts: [tool.contract], freshUntil: 3_601_000, failureCount: 0, nextRetryAt: 0 });
+  return JSON.stringify({
+    generation,
+    contracts: [tool.contract],
+    freshUntil: 3_601_000,
+    failureCount: 0,
+    nextRetryAt: 0,
+  });
 }
 
 function harness() {
@@ -80,23 +97,34 @@ describe('atomic Lua discovery snapshots', () => {
   it('serializes a refresh landing mid-read and checks the next snapshot bytes', async () => {
     const { redis, read } = harness();
     await read();
-    redis.writeAfterNextGet(() => { redis.entries.set(toolCacheKey(key, 'entry', 0), record(0, newTool)); });
+    redis.writeAfterNextGet(() => {
+      redis.entries.set(toolCacheKey(key, 'entry', 0), record(0, newTool));
+    });
 
     const inFlight = await read();
     const next = await read();
 
-    expect([inFlight.tools[0]?.fingerprint, next.tools[0]?.fingerprint]).toEqual([oldTool.fingerprint, newTool.fingerprint]);
+    expect([inFlight.tools[0]?.fingerprint, next.tools[0]?.fingerprint]).toEqual([
+      oldTool.fingerprint,
+      newTool.fingerprint,
+    ]);
   });
 
   it('serializes key removal between the generation read and entry read', async () => {
     const { redis, read, load } = harness();
     await read();
-    redis.writeAfterNextGet(() => { redis.entries.delete(toolCacheKey(key, 'entry', 0)); });
+    redis.writeAfterNextGet(() => {
+      redis.entries.delete(toolCacheKey(key, 'entry', 0));
+    });
 
     const inFlight = await read();
     const next = await read();
 
-    expect({ first: inFlight.tools, next: next.tools, loads: load.mock.calls.length }).toEqual({ first: [oldTool], next: [newTool], loads: 1 });
+    expect({ first: inFlight.tools, next: next.tools, loads: load.mock.calls.length }).toEqual({
+      first: [oldTool],
+      next: [newTool],
+      loads: 1,
+    });
   });
 
   it('treats an entry removed before the snapshot as a miss, not a memo hit', async () => {
@@ -111,7 +139,9 @@ describe('atomic Lua discovery snapshots', () => {
     const { redis, cache } = harness();
     const entryKey = toolCacheKey(key, 'entry', 0);
     await cache.readFresh(key, async () => {
-      redis.writeAfterNextGet(() => { redis.entries.set(snapshotKey.generationKey, '1'); });
+      redis.writeAfterNextGet(() => {
+        redis.entries.set(snapshotKey.generationKey, '1');
+      });
       return [newTool];
     });
 
@@ -121,24 +151,40 @@ describe('atomic Lua discovery snapshots', () => {
   it('keeps null slots when no generation or entry exists', async () => {
     const store = createRedisToolCacheStore(new AtomicRedisFake());
 
-    expect(await store.readSnapshot(snapshotKey)).toEqual({ generationBefore: undefined, value: undefined, generationAfter: undefined });
+    expect(await store.readSnapshot(snapshotKey)).toEqual({
+      generationBefore: undefined,
+      value: undefined,
+      generationAfter: undefined,
+    });
   });
 
-  it.each(['01', '+1', '1suffix', ' 1', 'invalid', '-1', '9007199254740992'])('preserves legacy normalization for noncanonical generation %s', async (raw) => {
-    const { redis, store } = harness();
-    redis.entries.set(snapshotKey.generationKey, raw);
-    redis.entries.set(toolCacheKey(key, 'entry', 1), record(1));
-    const generation = ['01', '+1', '1suffix', ' 1'].includes(raw) ? 1 : 0;
+  it.each(['01', '+1', '1suffix', ' 1', 'invalid', '-1', '9007199254740992'])(
+    'preserves legacy normalization for noncanonical generation %s',
+    async (raw) => {
+      const { redis, store } = harness();
+      redis.entries.set(snapshotKey.generationKey, raw);
+      redis.entries.set(toolCacheKey(key, 'entry', 1), record(1));
+      const generation = ['01', '+1', '1suffix', ' 1'].includes(raw) ? 1 : 0;
 
-    expect(await store.readSnapshot(snapshotKey)).toEqual({ generationBefore: raw, value: record(generation), generationAfter: raw });
-  });
+      expect(await store.readSnapshot(snapshotKey)).toEqual({
+        generationBefore: raw,
+        value: record(generation),
+        generationAfter: raw,
+      });
+    },
+  );
 
-  it.each([[], [null, null], ['0', 42, '0'], ['0', null, false]].map((reply) => ({ reply })))('rejects malformed Redis snapshot replies: $reply', async ({ reply }) => {
-    const redis = new AtomicRedisFake();
-    vi.spyOn(redis, 'eval').mockResolvedValue(reply);
+  it.each([[], [null, null], ['0', 42, '0'], ['0', null, false]].map((reply) => ({ reply })))(
+    'rejects malformed Redis snapshot replies: $reply',
+    async ({ reply }) => {
+      const redis = new AtomicRedisFake();
+      vi.spyOn(redis, 'eval').mockResolvedValue(reply);
 
-    await expect(createRedisToolCacheStore(redis).readSnapshot(snapshotKey)).rejects.toThrow('invalid tool cache snapshot');
-  });
+      await expect(createRedisToolCacheStore(redis).readSnapshot(snapshotKey)).rejects.toThrow(
+        'invalid tool cache snapshot',
+      );
+    },
+  );
 });
 
 describe('in-process snapshot fallback', () => {

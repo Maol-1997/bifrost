@@ -17,11 +17,19 @@ const refreshTokenGrant = async (): Promise<unknown> => {
   const generation = refreshes;
   // Long enough that a second caller arrives while the first exchange is in flight.
   await sleep(REFRESH_DURATION_MS);
-  return { access_token: `refreshed-${generation}`, refresh_token: `refresh-${generation}`, expires_in: 3600, token_type: 'bearer' };
+  return {
+    access_token: `refreshed-${generation}`,
+    refresh_token: `refresh-${generation}`,
+    expires_in: 3600,
+    token_type: 'bearer',
+  };
 };
 
 beforeAll(async () => {
-  harness = await createIntegrationHarness({ environment: integrationEnvironment(), providerOAuth: { refreshTokenGrant } });
+  harness = await createIntegrationHarness({
+    environment: integrationEnvironment(),
+    providerOAuth: { refreshTokenGrant },
+  });
   adminUserId = await harness.createUser();
   await harness.connectProvider(adminUserId);
   await harness.decideTools(adminUserId, { github_echo: 'allowed_default_on' });
@@ -38,7 +46,9 @@ async function userWithExpiredToken(): Promise<{ userId: string; bearer: string 
   const bearer = await harness.issueBearer(userId);
   await harness.listTools(bearer);
   await harness.connectProvider(userId, {
-    accessToken: 'expired', refreshToken: 'original-refresh', expiresAt: new Date(Date.now() - 1_000),
+    accessToken: 'expired',
+    refreshToken: 'original-refresh',
+    expiresAt: new Date(Date.now() - 1_000),
   });
   refreshes = 0;
   harness.upstream.reset();
@@ -71,9 +81,13 @@ describe('provider token refresh under concurrency', () => {
   it('runs one exchange and hands its result to a waiting caller with the in-process lock', async () => {
     const { userId } = await userWithExpiredToken();
     const singleProcess = new OAuthService(harness.config, harness.database, new Coordinator(), {
-      authorizationCodeGrant: async () => { throw new Error('unexpected'); },
+      authorizationCodeGrant: async () => {
+        throw new Error('unexpected');
+      },
       refreshTokenGrant,
-      readAccountLabel: async () => { throw new Error('unexpected'); },
+      readAccountLabel: async () => {
+        throw new Error('unexpected');
+      },
     });
 
     const tokens = await Promise.all([
@@ -87,13 +101,17 @@ describe('provider token refresh under concurrency', () => {
   it('drops an exchange whose row was replaced meanwhile, keeping the newer connection', async () => {
     const { userId } = await userWithExpiredToken();
     const reconnecting = new OAuthService(harness.config, harness.database, new Coordinator(), {
-      authorizationCodeGrant: async () => { throw new Error('unexpected'); },
+      authorizationCodeGrant: async () => {
+        throw new Error('unexpected');
+      },
       refreshTokenGrant: async () => {
         // The user reconnects while the exchange for the old row is in flight.
         await harness.connectProvider(userId, { accessToken: 'reconnected' });
         return refreshTokenGrant();
       },
-      readAccountLabel: async () => { throw new Error('unexpected'); },
+      readAccountLabel: async () => {
+        throw new Error('unexpected');
+      },
     });
 
     const token = await reconnecting.getOrRefreshAccessToken(userId, 'github');

@@ -77,7 +77,8 @@ export function createRedisToolCacheStore(commands: ToolCacheRedisCommands): Too
         keys: [key.generationKey],
         arguments: [key.entryKeyPrefix],
       });
-      if (!Array.isArray(result) || result.length !== 3) throw new Error('Redis returned an invalid tool cache snapshot');
+      if (!Array.isArray(result) || result.length !== 3)
+        throw new Error('Redis returned an invalid tool cache snapshot');
       const generationBefore = snapshotString(result[0]);
       const generation = parseToolCacheGeneration(generationBefore);
       // INCR writes canonical decimal integers. Preserve the old normalization
@@ -97,7 +98,7 @@ export function createRedisToolCacheStore(commands: ToolCacheRedisCommands): Too
     },
 
     async writeIfAbsent(key, value, ttlMs) {
-      return await commands.set(key, value, { NX: true, PX: ttlMs }) === 'OK';
+      return (await commands.set(key, value, { NX: true, PX: ttlMs })) === 'OK';
     },
 
     async remove(key) {

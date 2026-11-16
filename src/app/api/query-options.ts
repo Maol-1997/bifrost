@@ -24,10 +24,7 @@ export const providersQueryOptions = queryOptions({
   queryFn: getProviders,
   gcTime: PERSISTED_GC_TIME_MS,
   staleTime: (query) => staleTimeFromServer(query.state.data?.cache.freshForMs),
-  refetchInterval: (query) => nextRefetchFromServer(
-    query.state.data?.cache.nextCheckInMs,
-    query.state.dataUpdatedAt,
-  ),
+  refetchInterval: (query) => nextRefetchFromServer(query.state.data?.cache.nextCheckInMs, query.state.dataUpdatedAt),
 });
 
 export const connectedClientsQueryOptions = queryOptions({
@@ -40,9 +37,6 @@ export function adminToolsQueryOptions(providerId: ProviderId) {
     queryKey: ['admin-tools', providerId],
     queryFn: () => getAdminProviderTools(providerId),
     staleTime: (query) => staleTimeFromServer(query.state.data?.cache.freshForMs),
-    refetchInterval: (query) => nextRefetchFromServer(
-      query.state.data?.cache.nextCheckInMs,
-      query.state.dataUpdatedAt,
-    ),
+    refetchInterval: (query) => nextRefetchFromServer(query.state.data?.cache.nextCheckInMs, query.state.dataUpdatedAt),
   });
 }

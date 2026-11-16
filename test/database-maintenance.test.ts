@@ -66,7 +66,9 @@ describe('expired authentication state sweeps', () => {
     maintenance.scheduler.start();
     await maintenance.settle();
     let closed = false;
-    const closing = maintenance.scheduler.close().then(() => { closed = true; });
+    const closing = maintenance.scheduler.close().then(() => {
+      closed = true;
+    });
 
     await maintenance.settle();
     expect(closed).toBe(false);
@@ -97,18 +99,29 @@ function createMaintenance() {
     },
     intervalMs: INTERVAL_MS,
   });
-  const settle = async (): Promise<void> => { await vi.advanceTimersByTimeAsync(0); };
+  const settle = async (): Promise<void> => {
+    await vi.advanceTimersByTimeAsync(0);
+  };
   return {
     deleteExpiredAuthState,
     lockKeys,
     scheduler,
     settle,
-    advance: async (milliseconds: number): Promise<void> => { await vi.advanceTimersByTimeAsync(milliseconds); },
+    advance: async (milliseconds: number): Promise<void> => {
+      await vi.advanceTimersByTimeAsync(milliseconds);
+    },
   };
 }
 
 function deferred() {
   let resolve: (counts: typeof NOTHING_EXPIRED) => void = () => undefined;
-  const promise = new Promise<typeof NOTHING_EXPIRED>((settle) => { resolve = settle; });
-  return { promise, resolve: (counts: typeof NOTHING_EXPIRED): void => { resolve(counts); } };
+  const promise = new Promise<typeof NOTHING_EXPIRED>((settle) => {
+    resolve = settle;
+  });
+  return {
+    promise,
+    resolve: (counts: typeof NOTHING_EXPIRED): void => {
+      resolve(counts);
+    },
+  };
 }

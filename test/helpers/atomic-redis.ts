@@ -9,7 +9,9 @@ export class AtomicRedisFake implements ToolCacheRedisCommands {
   private readonly pendingWrites: (() => void)[] = [];
 
   writeAfterNextGet(operation: () => void): void {
-    this.afterGet = () => { this.pendingWrites.push(operation); };
+    this.afterGet = () => {
+      this.pendingWrites.push(operation);
+    };
   }
 
   /** Bypasses serialization to test the cache's retained torn-snapshot guard. */
@@ -57,15 +59,18 @@ export class AtomicRedisFake implements ToolCacheRedisCommands {
         afterGet?.();
         return value;
       }
-      case 'del': return this.entries.delete(key) ? 1 : 0;
+      case 'del':
+        return this.entries.delete(key) ? 1 : 0;
       case 'incr': {
         const next = Number(this.entries.get(key) ?? 0) + 1;
         this.entries.set(key, String(next));
         return next;
       }
       // TTL/retention behavior is covered by the clocked in-memory store tests.
-      case 'pexpire': return 1;
-      default: throw new Error(`Unsupported fake Redis command: ${command}`);
+      case 'pexpire':
+        return 1;
+      default:
+        throw new Error(`Unsupported fake Redis command: ${command}`);
     }
   }
 }
@@ -81,9 +86,12 @@ function installStrings(state: LuaState, global: { name: string; values: readonl
 
 function redisReply(state: LuaState): unknown {
   switch (lua.lua_type(state, -1)) {
-    case lua.LUA_TSTRING: return lua.lua_tojsstring(state, -1);
-    case lua.LUA_TNUMBER: return lua.lua_tonumber(state, -1);
-    case lua.LUA_TBOOLEAN: return lua.lua_toboolean(state, -1) ? 1 : null;
+    case lua.LUA_TSTRING:
+      return lua.lua_tojsstring(state, -1);
+    case lua.LUA_TNUMBER:
+      return lua.lua_tonumber(state, -1);
+    case lua.LUA_TBOOLEAN:
+      return lua.lua_toboolean(state, -1) ? 1 : null;
     case lua.LUA_TTABLE: {
       const values: unknown[] = [];
       const length = lua.lua_rawlen(state, -1);
@@ -94,6 +102,7 @@ function redisReply(state: LuaState): unknown {
       }
       return values;
     }
-    default: throw new Error('Unsupported Lua result');
+    default:
+      throw new Error('Unsupported Lua result');
   }
 }

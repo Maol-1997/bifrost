@@ -68,7 +68,12 @@ export class UpstreamClientPool {
 
   constructor(private readonly options: UpstreamClientPoolOptions) {
     this.now = options.now ?? Date.now;
-    this.sweeper = setInterval(() => { this.closeIdle(); }, Math.min(options.idleTtlMs, MAX_SWEEP_INTERVAL_MS));
+    this.sweeper = setInterval(
+      () => {
+        this.closeIdle();
+      },
+      Math.min(options.idleTtlMs, MAX_SWEEP_INTERVAL_MS),
+    );
     this.sweeper.unref();
   }
 
@@ -76,7 +81,10 @@ export class UpstreamClientPool {
     return this.entries.size;
   }
 
-  async withClient<T>(request: UpstreamClientRequest, operation: (client: PooledUpstreamClient) => Promise<T>): Promise<T> {
+  async withClient<T>(
+    request: UpstreamClientRequest,
+    operation: (client: PooledUpstreamClient) => Promise<T>,
+  ): Promise<T> {
     try {
       return await this.runOnce(request, async (client) => {
         try {
@@ -110,7 +118,10 @@ export class UpstreamClientPool {
     await Promise.all([...this.entries.values()].map(async (entry) => this.retire(entry)));
   }
 
-  private async runOnce<T>(request: UpstreamClientRequest, operation: (client: PooledUpstreamClient) => Promise<T>): Promise<T> {
+  private async runOnce<T>(
+    request: UpstreamClientRequest,
+    operation: (client: PooledUpstreamClient) => Promise<T>,
+  ): Promise<T> {
     const entry = this.acquire(request);
     entry.inFlight += 1;
     try {
@@ -149,8 +160,14 @@ export class UpstreamClientPool {
       isRetired: false,
     };
     entry.client.then(
-      (client) => { client.onclose = () => { entry.isDead = true; }; },
-      () => { void this.retire(entry); },
+      (client) => {
+        client.onclose = () => {
+          entry.isDead = true;
+        };
+      },
+      () => {
+        void this.retire(entry);
+      },
     );
     this.entries.set(key, entry);
     this.closeOverflow(entry);
@@ -183,9 +200,11 @@ class SessionNotFoundError extends Error {
 }
 
 function isSessionNotFound(error: unknown, client: PooledUpstreamClient): boolean {
-  return error instanceof SdkHttpError
-    && error.status === SESSION_NOT_FOUND_STATUS
-    && client.transport?.sessionId !== undefined;
+  return (
+    error instanceof SdkHttpError &&
+    error.status === SESSION_NOT_FOUND_STATUS &&
+    client.transport?.sessionId !== undefined
+  );
 }
 
 function entryKey(userId: string, providerId: ProviderId): string {
@@ -207,8 +226,12 @@ async function abortable<T>(promise: Promise<T>, signal: AbortSignal | undefined
   if (!signal) return promise;
   signal.throwIfAborted();
   return new Promise<T>((resolve, reject) => {
-    const onAbort = (): void => { reject(signal.reason as Error); };
+    const onAbort = (): void => {
+      reject(signal.reason as Error);
+    };
     signal.addEventListener('abort', onAbort, { once: true });
-    promise.then(resolve, reject).finally(() => { signal.removeEventListener('abort', onAbort); });
+    promise.then(resolve, reject).finally(() => {
+      signal.removeEventListener('abort', onAbort);
+    });
   });
 }

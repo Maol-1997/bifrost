@@ -47,11 +47,9 @@ async function finishGoogle(context: AppContext): Promise<Response> {
   let returnTo: string;
   try {
     const parameters = callbackParameters(new URL(context.req.url));
-    const result = await context.get('dependencies').oauth.finishGoogle(
-      parameters.code,
-      parameters.state,
-      readGoogleOAuthNonceCookie(context),
-    );
+    const result = await context
+      .get('dependencies')
+      .oauth.finishGoogle(parameters.code, parameters.state, readGoogleOAuthNonceCookie(context));
     setSessionCookie(context, result.sessionToken);
     returnTo = result.returnTo;
   } catch (error) {

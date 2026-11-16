@@ -1,7 +1,9 @@
 import type { ProviderDefinition } from './types.js';
 
 export const sentryProvider: ProviderDefinition = {
-  id: 'sentry', prefix: 'sentry_', displayName: 'Sentry',
+  id: 'sentry',
+  prefix: 'sentry_',
+  displayName: 'Sentry',
   mcpUrl: 'https://mcp.sentry.dev/mcp',
   oauth: {
     kind: 'dynamic',

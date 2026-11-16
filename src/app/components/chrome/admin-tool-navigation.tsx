@@ -2,7 +2,13 @@ import { NavLink, useLocation } from 'react-router-dom';
 import { getProviderCatalog, isConnectableProvider } from '@app/api/bifrost';
 import { BifrostMark } from '@app/components/ui/bifrost-mark';
 import { ProviderIcon } from '@app/components/ui/provider-icon';
-import { SidebarCollapsible, SidebarCollapsibleContent, SidebarCollapsibleTrigger, SidebarGroup, SidebarNestedLink } from '@app/components/ui/sidebar';
+import {
+  SidebarCollapsible,
+  SidebarCollapsibleContent,
+  SidebarCollapsibleTrigger,
+  SidebarGroup,
+  SidebarNestedLink,
+} from '@app/components/ui/sidebar';
 import { APP_ROUTES } from '@features/utils/routes';
 
 const providers = getProviderCatalog().filter((provider) => isConnectableProvider(provider.id));
@@ -20,17 +26,17 @@ export function AdminToolNavigation(): React.JSX.Element {
         </SidebarCollapsibleTrigger>
         <SidebarCollapsibleContent>
           <nav aria-label="Tool administration providers">
-          {providers.map((provider) => {
-            const isActive = isAdminRoute && activeProviderId === provider.id;
-            return (
-              <SidebarNestedLink key={provider.id} asChild active={isActive}>
-                <NavLink to={`${APP_ROUTES.adminTools}/${provider.id}`}>
-                  <ProviderIcon providerId={provider.id} monogram={provider.monogram} size="sidebar" />
-                  <span>{provider.name}</span>
-                </NavLink>
-              </SidebarNestedLink>
-            );
-          })}
+            {providers.map((provider) => {
+              const isActive = isAdminRoute && activeProviderId === provider.id;
+              return (
+                <SidebarNestedLink key={provider.id} asChild active={isActive}>
+                  <NavLink to={`${APP_ROUTES.adminTools}/${provider.id}`}>
+                    <ProviderIcon providerId={provider.id} monogram={provider.monogram} size="sidebar" />
+                    <span>{provider.name}</span>
+                  </NavLink>
+                </SidebarNestedLink>
+              );
+            })}
           </nav>
         </SidebarCollapsibleContent>
       </SidebarCollapsible>

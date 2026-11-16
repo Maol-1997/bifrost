@@ -18,19 +18,31 @@ export function renderConsentPage(view: ConsentView): string {
   const host = redirectUriHost(view.redirectUri);
   const warning = isLoopbackOnly(view.redirectUris) ? (
     <p class="warning">
-      This client receives its response on your own machine (<code>{host}</code>).
-      Anything running locally can claim that address, so only approve this if you just started this program yourself.
+      This client receives its response on your own machine (<code>{host}</code>). Anything running locally can claim
+      that address, so only approve this if you just started this program yourself.
     </p>
   ) : null;
 
-  return renderOAuthPage('Authorize client', (
+  return renderOAuthPage(
+    'Authorize client',
     <>
       <h1>Authorize {view.clientName}?</h1>
-      <p>It is asking to use Bifrost as <strong>{view.userEmail}</strong>.</p>
+      <p>
+        It is asking to use Bifrost as <strong>{view.userEmail}</strong>.
+      </p>
       <dl>
-        <div class="row"><dt>Program</dt><dd>{view.clientName}</dd></div>
-        <div class="row"><dt>Sends to</dt><dd>{host}</dd></div>
-        <div class="row"><dt>Access</dt><dd>{view.scopes.join(', ')}</dd></div>
+        <div class="row">
+          <dt>Program</dt>
+          <dd>{view.clientName}</dd>
+        </div>
+        <div class="row">
+          <dt>Sends to</dt>
+          <dd>{host}</dd>
+        </div>
+        <div class="row">
+          <dt>Access</dt>
+          <dd>{view.scopes.join(', ')}</dd>
+        </div>
       </dl>
       {warning}
       <ul>
@@ -40,9 +52,13 @@ export function renderConsentPage(view: ConsentView): string {
       </ul>
       <form method="post" action={CONSENT_PATH}>
         <input type="hidden" name="consent_token" value={view.consentToken} />
-        <button type="submit" name="decision" value="deny">Cancel</button>
-        <button type="submit" name="decision" value="approve">Authorize</button>
+        <button type="submit" name="decision" value="deny">
+          Cancel
+        </button>
+        <button type="submit" name="decision" value="approve">
+          Authorize
+        </button>
       </form>
-    </>
-  ));
+    </>,
+  );
 }

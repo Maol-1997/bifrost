@@ -35,8 +35,15 @@ function fakeConnector(options: { sessions?: boolean } = {}) {
     clients,
     connect,
     /** Holds every connect until `open()`, so a test can pile callers onto one in-flight connection. */
-    hold(): void { gate = new Promise((resolve) => { release = resolve; }); },
-    open(): void { release?.(); gate = undefined; },
+    hold(): void {
+      gate = new Promise((resolve) => {
+        release = resolve;
+      });
+    },
+    open(): void {
+      release?.();
+      gate = undefined;
+    },
   };
 }
 
@@ -47,7 +54,10 @@ afterEach(async () => {
   pool = undefined;
 });
 
-function createPool(connector: ReturnType<typeof fakeConnector>, options: { maxClients?: number; now?: () => number } = {}): UpstreamClientPool {
+function createPool(
+  connector: ReturnType<typeof fakeConnector>,
+  options: { maxClients?: number; now?: () => number } = {},
+): UpstreamClientPool {
   pool = new UpstreamClientPool({
     connect: connector.connect,
     idleTtlMs: 300_000,
@@ -57,10 +67,13 @@ function createPool(connector: ReturnType<typeof fakeConnector>, options: { maxC
   return pool;
 }
 
-const request = (userId: string, accessToken = `token-${userId}`, provider = github) => ({ userId, provider, accessToken });
-const call = async (clients: UpstreamClientPool, userId: string, accessToken?: string) => (
-  clients.withClient(request(userId, accessToken), async (client) => client.callTool({ name: 'echo', arguments: {} }))
-);
+const request = (userId: string, accessToken = `token-${userId}`, provider = github) => ({
+  userId,
+  provider,
+  accessToken,
+});
+const call = async (clients: UpstreamClientPool, userId: string, accessToken?: string) =>
+  clients.withClient(request(userId, accessToken), async (client) => client.callTool({ name: 'echo', arguments: {} }));
 
 describe('upstream client pool', () => {
   it('reuses one connection per user and provider across calls', async () => {
@@ -72,8 +85,10 @@ describe('upstream client pool', () => {
     await clients.withClient(request('alice', 'token-alice', linear), async () => undefined);
     await call(clients, 'bob');
 
-    expect({ connects: connector.connect.mock.calls.map(([provider, token]) => `${provider.id}:${token}`), calls: connector.clients[0]!.callTool.mock.calls.length })
-      .toEqual({ connects: ['github:token-alice', 'linear:token-alice', 'github:token-bob'], calls: 2 });
+    expect({
+      connects: connector.connect.mock.calls.map(([provider, token]) => `${provider.id}:${token}`),
+      calls: connector.clients[0]!.callTool.mock.calls.length,
+    }).toEqual({ connects: ['github:token-alice', 'linear:token-alice', 'github:token-bob'], calls: 2 });
   });
 
   it('opens a single connection for concurrent first calls', async () => {
@@ -85,8 +100,10 @@ describe('upstream client pool', () => {
     connector.open();
     await Promise.all(calls);
 
-    expect({ connects: connector.connect.mock.calls.length, calls: connector.clients[0]!.callTool.mock.calls.length })
-      .toEqual({ connects: 1, calls: 3 });
+    expect({
+      connects: connector.connect.mock.calls.length,
+      calls: connector.clients[0]!.callTool.mock.calls.length,
+    }).toEqual({ connects: 1, calls: 3 });
   });
 
   it('replaces the connection when the access token changes, closing the old one', async () => {
@@ -96,8 +113,12 @@ describe('upstream client pool', () => {
     await call(clients, 'alice', 'before-refresh');
     await call(clients, 'alice', 'after-refresh');
 
-    expect(connector.clients.map((client) => ({ token: client.accessToken, closed: client.close.mock.calls.length })))
-      .toEqual([{ token: 'before-refresh', closed: 1 }, { token: 'after-refresh', closed: 0 }]);
+    expect(
+      connector.clients.map((client) => ({ token: client.accessToken, closed: client.close.mock.calls.length })),
+    ).toEqual([
+      { token: 'before-refresh', closed: 1 },
+      { token: 'after-refresh', closed: 0 },
+    ]);
   });
 
   it('runs a failed operation once, retires its connection, and reconnects only for the next call', async () => {
@@ -108,11 +129,17 @@ describe('upstream client pool', () => {
     connector.clients[0]!.callTool.mockRejectedValueOnce(failure);
 
     await expect(call(clients, 'alice')).rejects.toBe(failure);
-    const afterFailure = { calls: connector.clients[0]!.callTool.mock.calls.length, closed: connector.clients[0]!.close.mock.calls.length, connects: connector.connect.mock.calls.length };
+    const afterFailure = {
+      calls: connector.clients[0]!.callTool.mock.calls.length,
+      closed: connector.clients[0]!.close.mock.calls.length,
+      connects: connector.connect.mock.calls.length,
+    };
     await call(clients, 'alice');
 
-    expect({ afterFailure, connects: connector.connect.mock.calls.length })
-      .toEqual({ afterFailure: { calls: 2, closed: 1, connects: 1 }, connects: 2 });
+    expect({ afterFailure, connects: connector.connect.mock.calls.length }).toEqual({
+      afterFailure: { calls: 2, closed: 1, connects: 1 },
+      connects: 2,
+    });
   });
 
   it('reconnects before sending when the transport closed while idle', async () => {
@@ -123,8 +150,11 @@ describe('upstream client pool', () => {
     connector.clients[0]!.onclose?.();
     await call(clients, 'alice');
 
-    expect({ connects: connector.connect.mock.calls.length, oldCalls: connector.clients[0]!.callTool.mock.calls.length, newCalls: connector.clients[1]!.callTool.mock.calls.length })
-      .toEqual({ connects: 2, oldCalls: 1, newCalls: 1 });
+    expect({
+      connects: connector.connect.mock.calls.length,
+      oldCalls: connector.clients[0]!.callTool.mock.calls.length,
+      newCalls: connector.clients[1]!.callTool.mock.calls.length,
+    }).toEqual({ connects: 2, oldCalls: 1, newCalls: 1 });
   });
 
   it('propagates a connection failure and tries again on the next call', async () => {
@@ -150,8 +180,10 @@ describe('upstream client pool', () => {
     connector.open();
 
     await expect(patient).resolves.toBe(RESULT);
-    expect({ connects: connector.connect.mock.calls.length, closed: connector.clients[0]!.close.mock.calls.length })
-      .toEqual({ connects: 1, closed: 0 });
+    expect({
+      connects: connector.connect.mock.calls.length,
+      closed: connector.clients[0]!.close.mock.calls.length,
+    }).toEqual({ connects: 1, closed: 0 });
   });
 
   it('closes a connection when its credential is invalidated', async () => {
@@ -162,8 +194,10 @@ describe('upstream client pool', () => {
     await clients.invalidate('alice', 'github');
     await call(clients, 'alice');
 
-    expect({ closed: connector.clients[0]!.close.mock.calls.length, connects: connector.connect.mock.calls.length })
-      .toEqual({ closed: 1, connects: 2 });
+    expect({
+      closed: connector.clients[0]!.close.mock.calls.length,
+      connects: connector.connect.mock.calls.length,
+    }).toEqual({ closed: 1, connects: 2 });
   });
 
   it('closes only connections idle for the configured time', async () => {
@@ -176,9 +210,14 @@ describe('upstream client pool', () => {
 
     now = 300_000;
     clients.closeIdle();
-    await vi.waitFor(() => { expect(connector.clients[0]!.close).toHaveBeenCalledOnce(); });
+    await vi.waitFor(() => {
+      expect(connector.clients[0]!.close).toHaveBeenCalledOnce();
+    });
 
-    expect({ size: clients.size, bobClosed: connector.clients[1]!.close.mock.calls.length }).toEqual({ size: 1, bobClosed: 0 });
+    expect({ size: clients.size, bobClosed: connector.clients[1]!.close.mock.calls.length }).toEqual({
+      size: 1,
+      bobClosed: 0,
+    });
   });
 
   it('keeps at most the configured number, closing the least recently used idle connection', async () => {
@@ -190,16 +229,29 @@ describe('upstream client pool', () => {
 
     await call(clients, 'carol');
 
-    await vi.waitFor(() => { expect(connector.clients[1]!.close).toHaveBeenCalledOnce(); });
-    expect({ size: clients.size, aliceClosed: connector.clients[0]!.close.mock.calls.length }).toEqual({ size: 2, aliceClosed: 0 });
+    await vi.waitFor(() => {
+      expect(connector.clients[1]!.close).toHaveBeenCalledOnce();
+    });
+    expect({ size: clients.size, aliceClosed: connector.clients[0]!.close.mock.calls.length }).toEqual({
+      size: 2,
+      aliceClosed: 0,
+    });
   });
 
   it('never closes a connection with a call in flight, even over the cap', async () => {
     const connector = fakeConnector();
     const clients = createPool(connector, { maxClients: 1 });
     let finish = (): void => undefined;
-    const running = clients.withClient(request('alice'), async () => new Promise<void>((resolve) => { finish = resolve; }));
-    await vi.waitFor(() => { expect(connector.clients).toHaveLength(1); });
+    const running = clients.withClient(
+      request('alice'),
+      async () =>
+        new Promise<void>((resolve) => {
+          finish = resolve;
+        }),
+    );
+    await vi.waitFor(() => {
+      expect(connector.clients).toHaveLength(1);
+    });
 
     await call(clients, 'bob');
     const whileRunning = connector.clients[0]!.close.mock.calls.length;
@@ -221,7 +273,8 @@ describe('upstream client pool', () => {
   });
 
   describe('a session the provider dropped', () => {
-    const sessionNotFound = (): SdkHttpError => new SdkHttpError(SdkErrorCode.ClientHttpNotImplemented, 'Session not found', { status: 404 });
+    const sessionNotFound = (): SdkHttpError =>
+      new SdkHttpError(SdkErrorCode.ClientHttpNotImplemented, 'Session not found', { status: 404 });
 
     it('resends once on a fresh connection, since the provider processed nothing', async () => {
       const connector = fakeConnector({ sessions: true });
@@ -253,7 +306,14 @@ describe('upstream client pool', () => {
       await call(clients, 'alice');
       connector.clients[0]!.callTool.mockRejectedValueOnce(sessionNotFound());
       connector.connect.mockImplementationOnce(async () => {
-        const client = { callTool: vi.fn(async () => { throw sessionNotFound(); }), listTools: vi.fn(), close: vi.fn(async () => undefined), transport: { sessionId: 'session-2' } };
+        const client = {
+          callTool: vi.fn(async () => {
+            throw sessionNotFound();
+          }),
+          listTools: vi.fn(),
+          close: vi.fn(async () => undefined),
+          transport: { sessionId: 'session-2' },
+        };
         connector.clients.push(client as unknown as FakeClient);
         return client as unknown as PooledUpstreamClient;
       });

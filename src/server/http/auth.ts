@@ -27,8 +27,13 @@ export async function authenticateBrowser(context: AppContext): Promise<BrowserI
   const resolved = await database.resolveSessionAndTouch(token, request.headers.get('user-agent') ?? undefined);
   if (!resolved) return undefined;
   return {
-    kind: 'browser', sessionId: resolved.sessionId, userId: resolved.userId, clientId: resolved.clientId,
-    expiresAt: resolved.expiresAt, token, scopes: [MCP_SCOPE],
+    kind: 'browser',
+    sessionId: resolved.sessionId,
+    userId: resolved.userId,
+    clientId: resolved.clientId,
+    expiresAt: resolved.expiresAt,
+    token,
+    scopes: [MCP_SCOPE],
   };
 }
 
@@ -45,12 +50,20 @@ export async function authenticateAgent(context: AppContext): Promise<AgentIdent
   // Audience binding. Every token Bifrost issues names this resource, so a
   // mismatch means the value came from somewhere else and is not ours to honour.
   if (grant.resource !== canonicalResource(config.PUBLIC_URL)) {
-    logger.warn({ clientId: grant.clientId, resource: grant.resource }, 'Rejected an access token issued for a different resource');
+    logger.warn(
+      { clientId: grant.clientId, resource: grant.resource },
+      'Rejected an access token issued for a different resource',
+    );
     return undefined;
   }
   return {
-    kind: 'agent', grantId: grant.grantId, userId: grant.userId, clientId: grant.clientId,
-    expiresAt: grant.expiresAt, token, scopes: grant.scopes,
+    kind: 'agent',
+    grantId: grant.grantId,
+    userId: grant.userId,
+    clientId: grant.clientId,
+    expiresAt: grant.expiresAt,
+    token,
+    scopes: grant.scopes,
   };
 }
 
@@ -62,10 +75,7 @@ export function clearSessionCookie(context: AppContext): void {
   deleteCookie(context, SESSION_COOKIE, sessionCookieOptions(context.get('dependencies').config));
 }
 
-export function setGoogleOAuthNonceCookie(
-  context: AppContext,
-  authorization: GoogleAuthorizationStart,
-): void {
+export function setGoogleOAuthNonceCookie(context: AppContext, authorization: GoogleAuthorizationStart): void {
   setCookie(context, GOOGLE_OAUTH_NONCE_COOKIE, authorization.browserNonce, {
     ...googleOAuthNonceCookieOptions(context.get('dependencies').config),
     maxAge: authorization.expiresInSeconds,
@@ -77,11 +87,7 @@ export function readGoogleOAuthNonceCookie(context: AppContext): string | undefi
 }
 
 export function clearGoogleOAuthNonceCookie(context: AppContext): void {
-  deleteCookie(
-    context,
-    GOOGLE_OAUTH_NONCE_COOKIE,
-    googleOAuthNonceCookieOptions(context.get('dependencies').config),
-  );
+  deleteCookie(context, GOOGLE_OAUTH_NONCE_COOKIE, googleOAuthNonceCookieOptions(context.get('dependencies').config));
 }
 
 function sessionCookieOptions(config: Config): {
@@ -114,17 +120,17 @@ function googleOAuthNonceCookieOptions(config: Config): {
   };
 }
 
-type DevelopmentIdentityFields = Pick<
-  BrowserIdentity,
-  'userId' | 'clientId' | 'expiresAt' | 'token' | 'scopes'
->;
+type DevelopmentIdentityFields = Pick<BrowserIdentity, 'userId' | 'clientId' | 'expiresAt' | 'token' | 'scopes'>;
 
 function developmentIdentityFields(request: Request, config: Config): DevelopmentIdentityFields | undefined {
   const devUserId = request.headers.get('x-bifrost-dev-user') ?? undefined;
-  if (config.NODE_ENV !== 'development' || !config.BIFROST_DEV_USER_ID || devUserId !== config.BIFROST_DEV_USER_ID) return undefined;
+  if (config.NODE_ENV !== 'development' || !config.BIFROST_DEV_USER_ID || devUserId !== config.BIFROST_DEV_USER_ID)
+    return undefined;
   return {
     userId: devUserId,
     clientId: request.headers.get('x-bifrost-client-id') ?? 'development-client',
-    expiresAt: new Date(Date.now() + 3_600_000), token: 'development-header-auth', scopes: [MCP_SCOPE],
+    expiresAt: new Date(Date.now() + 3_600_000),
+    token: 'development-header-auth',
+    scopes: [MCP_SCOPE],
   };
 }

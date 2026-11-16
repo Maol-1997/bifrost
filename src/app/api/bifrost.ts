@@ -51,9 +51,11 @@ export async function getChatConfig(): Promise<{ configured: boolean }> {
 }
 
 export async function generateChatTitle(firstMessage: string): Promise<string> {
-  const response = await parseRpcResponse(bifrostClient.api.chat.title.$post({
-    json: { firstMessage },
-  }));
+  const response = await parseRpcResponse(
+    bifrostClient.api.chat.title.$post({
+      json: { firstMessage },
+    }),
+  );
   return response.title;
 }
 

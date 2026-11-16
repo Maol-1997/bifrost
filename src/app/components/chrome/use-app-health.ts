@@ -29,6 +29,8 @@ export function useAppHealth(): AppHealthState {
   return {
     snapshot: query.data,
     hasFailed: query.isError || query.isRefetchError,
-    reload: () => { void query.refetch(); },
+    reload: () => {
+      void query.refetch();
+    },
   };
 }

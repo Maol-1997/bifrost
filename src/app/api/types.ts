@@ -86,7 +86,8 @@ export type AutomaticToolRule = {
   updatedAt?: string | undefined;
 };
 
-export type AutomaticRuleClassification = 'applied' | 'not-configured' | 'no-rule' | 'busy' | 'backing-off' | 'not-connected' | 'failed';
+export type AutomaticRuleClassification =
+  'applied' | 'not-configured' | 'no-rule' | 'busy' | 'backing-off' | 'not-connected' | 'failed';
 
 export type AdminToolProvider = {
   providerId: ProviderId;

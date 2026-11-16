@@ -40,35 +40,46 @@ export function toAuthInfo(identity: AgentIdentity): AuthInfo {
 }
 
 export function createHumanMcpHandler(dependencies: UserToolDependencies): McpHttpHandler {
-  return createMcpHandler(async (requestContext) => {
-    const userId = requestContext.authInfo?.extra?.userId;
-    if (typeof userId !== 'string') throw new Error('Authenticated user identity is missing');
-    const signalOption = requestContext.requestInfo ? { signal: requestContext.requestInfo.signal } : {};
-    const calledToolName = toolCallName(requestContext);
-    const tools = calledToolName === undefined
-      ? await loadVisibleUserTools({ userId, dependencies, ...signalOption })
-      : await loadVisibleUserTool({ userId, toolName: calledToolName, dependencies, ...signalOption })
-        .then((tool) => (tool ? [tool] : []));
-    const server = new McpServer(
-      { name: 'bifrost', version: '0.1.0' },
-      { capabilities: { tools: {} }, instructions: `Bifrost unified internal gateway. Protocol ${LATEST_PROTOCOL_VERSION}.` },
-    );
-    for (const tool of tools) {
-      try {
-        registerTool(server, tool, { userId, authInfo: requestContext.authInfo, dependencies });
-      } catch (error) {
-        // A schema the SDK cannot convert is that one tool's problem. Leaving it
-        // out is fail-closed; letting it throw would fail the whole request,
-        // hiding every other provider behind one broken definition.
-        logger.warn({ userId, toolName: tool.name, ...errorSummary(error) }, 'Skipped an MCP tool that could not be registered');
+  return createMcpHandler(
+    async (requestContext) => {
+      const userId = requestContext.authInfo?.extra?.userId;
+      if (typeof userId !== 'string') throw new Error('Authenticated user identity is missing');
+      const signalOption = requestContext.requestInfo ? { signal: requestContext.requestInfo.signal } : {};
+      const calledToolName = toolCallName(requestContext);
+      const tools =
+        calledToolName === undefined
+          ? await loadVisibleUserTools({ userId, dependencies, ...signalOption })
+          : await loadVisibleUserTool({ userId, toolName: calledToolName, dependencies, ...signalOption }).then(
+              (tool) => (tool ? [tool] : []),
+            );
+      const server = new McpServer(
+        { name: 'bifrost', version: '0.1.0' },
+        {
+          capabilities: { tools: {} },
+          instructions: `Bifrost unified internal gateway. Protocol ${LATEST_PROTOCOL_VERSION}.`,
+        },
+      );
+      for (const tool of tools) {
+        try {
+          registerTool(server, tool, { userId, authInfo: requestContext.authInfo, dependencies });
+        } catch (error) {
+          // A schema the SDK cannot convert is that one tool's problem. Leaving it
+          // out is fail-closed; letting it throw would fail the whole request,
+          // hiding every other provider behind one broken definition.
+          logger.warn(
+            { userId, toolName: tool.name, ...errorSummary(error) },
+            'Skipped an MCP tool that could not be registered',
+          );
+        }
       }
-    }
-    return server;
-  }, {
-    legacy: 'reject',
-    responseMode: 'json',
-    onerror: (error) => logger.error(errorSummary(error), 'MCP handler error'),
-  });
+      return server;
+    },
+    {
+      legacy: 'reject',
+      responseMode: 'json',
+      onerror: (error) => logger.error(errorSummary(error), 'MCP handler error'),
+    },
+  );
 }
 
 /**
@@ -92,23 +103,31 @@ type ToolRegistration = {
   dependencies: ToolExecutionDependencies;
 };
 
-function registerTool(server: McpServer, tool: DiscoveredTool, { userId, authInfo, dependencies }: ToolRegistration): void {
-  server.registerTool(tool.name, {
-    title: tool.title,
-    description: tool.description,
-    inputSchema: fromJsonSchema(tool.inputSchema as JsonSchemaType),
-    ...(tool.outputSchema ? { outputSchema: fromJsonSchema(tool.outputSchema as JsonSchemaType) } : {}),
-    ...(tool.annotations ? { annotations: tool.annotations } : {}),
-  }, async (input, context) => {
-    const requestId = context.mcpReq._meta?.requestId;
-    return executeUserTool({
-      userId,
-      clientId: authInfo?.clientId ?? 'unknown',
-      tool,
-      input: input as Record<string, unknown>,
-      signal: context.mcpReq.signal,
-      ...(typeof requestId === 'string' ? { requestId } : {}),
-      dependencies,
-    });
-  });
+function registerTool(
+  server: McpServer,
+  tool: DiscoveredTool,
+  { userId, authInfo, dependencies }: ToolRegistration,
+): void {
+  server.registerTool(
+    tool.name,
+    {
+      title: tool.title,
+      description: tool.description,
+      inputSchema: fromJsonSchema(tool.inputSchema as JsonSchemaType),
+      ...(tool.outputSchema ? { outputSchema: fromJsonSchema(tool.outputSchema as JsonSchemaType) } : {}),
+      ...(tool.annotations ? { annotations: tool.annotations } : {}),
+    },
+    async (input, context) => {
+      const requestId = context.mcpReq._meta?.requestId;
+      return executeUserTool({
+        userId,
+        clientId: authInfo?.clientId ?? 'unknown',
+        tool,
+        input: input as Record<string, unknown>,
+        signal: context.mcpReq.signal,
+        ...(typeof requestId === 'string' ? { requestId } : {}),
+        dependencies,
+      });
+    },
+  );
 }

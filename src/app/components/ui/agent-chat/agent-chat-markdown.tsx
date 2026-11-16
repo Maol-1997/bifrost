@@ -1,51 +1,48 @@
-import * as React from "react"
+import * as React from 'react';
 
-import {
-  MarkdownRenderer,
-  preloadMarkdownDiagrams,
-} from "@app/components/ui/markdown-renderer/markdown-renderer"
+import { MarkdownRenderer, preloadMarkdownDiagrams } from '@app/components/ui/markdown-renderer/markdown-renderer';
 
 type AgentMarkdownProps = {
-  className?: string
-  markdown: string
-  streaming?: boolean
-}
+  className?: string;
+  markdown: string;
+  streaming?: boolean;
+};
 
 function usePreparedMarkdown(value: string, streaming: boolean) {
-  const [frameValue, setFrameValue] = React.useState(value)
-  const streamStarted = React.useRef(streaming)
+  const [frameValue, setFrameValue] = React.useState(value);
+  const streamStarted = React.useRef(streaming);
 
   React.useEffect(() => {
     if (streaming) {
-      streamStarted.current = true
+      streamStarted.current = true;
     }
 
     if (!streaming && !streamStarted.current) {
-      setFrameValue(value)
-      return
+      setFrameValue(value);
+      return;
     }
 
-    let active = true
+    let active = true;
     const frame = requestAnimationFrame(() => {
       void preloadMarkdownDiagrams(value)
         .catch(() => undefined)
         .then(() => {
           if (active) {
-            setFrameValue(value)
+            setFrameValue(value);
             if (!streaming) {
-              streamStarted.current = false
+              streamStarted.current = false;
             }
           }
-        })
-    })
+        });
+    });
 
     return () => {
-      active = false
-      cancelAnimationFrame(frame)
-    }
-  }, [streaming, value])
+      active = false;
+      cancelAnimationFrame(frame);
+    };
+  }, [streaming, value]);
 
-  return frameValue
+  return frameValue;
 }
 
 const AgentMarkdown = React.memo(function AgentMarkdown({
@@ -53,17 +50,9 @@ const AgentMarkdown = React.memo(function AgentMarkdown({
   markdown,
   streaming = false,
 }: AgentMarkdownProps) {
-  const renderedMarkdown = usePreparedMarkdown(markdown, streaming)
+  const renderedMarkdown = usePreparedMarkdown(markdown, streaming);
 
-  return (
-    <MarkdownRenderer
-      className={className}
-      markdown={renderedMarkdown}
-      streaming={streaming}
-    />
-  )
-})
+  return <MarkdownRenderer className={className} markdown={renderedMarkdown} streaming={streaming} />;
+});
 
-export {
-  AgentMarkdown,
-}
+export { AgentMarkdown };

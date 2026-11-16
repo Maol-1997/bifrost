@@ -1,7 +1,9 @@
 import type { ProviderDefinition } from './types.js';
 
 export const granolaProvider: ProviderDefinition = {
-  id: 'granola', prefix: 'granola_', displayName: 'Granola',
+  id: 'granola',
+  prefix: 'granola_',
+  displayName: 'Granola',
   mcpUrl: 'https://mcp.granola.ai/mcp',
   oauth: {
     kind: 'dynamic',

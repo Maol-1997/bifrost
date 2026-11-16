@@ -104,8 +104,10 @@ function parseMessage(serializedMessage: string): BrowserEventMessage | undefine
 function isBrowserEventMessage(value: unknown): value is BrowserEventMessage {
   if (value === null || typeof value !== 'object') return false;
   const message = value as Record<string, unknown>;
-  return message.version === MESSAGE_VERSION
-    && typeof message.targetUserId === 'string'
-    && BROWSER_EVENTS.has(message.event as BrowserEvent)
-    && typeof message.originId === 'string';
+  return (
+    message.version === MESSAGE_VERSION &&
+    typeof message.targetUserId === 'string' &&
+    BROWSER_EVENTS.has(message.event as BrowserEvent) &&
+    typeof message.originId === 'string'
+  );
 }

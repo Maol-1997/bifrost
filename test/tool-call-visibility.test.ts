@@ -9,7 +9,11 @@ import type { UpstreamClientPool } from '../src/server/providers/upstream-pool.j
 import { normalizeUpstreamTool, type ToolPolicyState } from '../src/server/tools/catalog.js';
 import { createInMemoryToolCacheStore } from '../src/server/tools/cache-store.js';
 import { ToolDiscoveryService } from '../src/server/tools/discovery.js';
-import { loadVisibleUserTool, loadVisibleUserTools, type UserToolDependencies } from '../src/server/tools/user-toolset.js';
+import {
+  loadVisibleUserTool,
+  loadVisibleUserTools,
+  type UserToolDependencies,
+} from '../src/server/tools/user-toolset.js';
 
 vi.mock('../src/server/logger.js', () => ({
   logger: { debug: vi.fn(), error: vi.fn(), info: vi.fn(), warn: vi.fn() },
@@ -34,13 +38,15 @@ type State = {
   preference: boolean | undefined;
 };
 
-const fingerprints = new Map(PROVIDERS.flatMap((providerId) => {
-  const provider = PROVIDER_REGISTRY.find((entry) => entry.id === providerId)!;
-  return UPSTREAM_TOOLS.map((tool) => {
-    const normalized = normalizeUpstreamTool(provider, tool);
-    return [normalized.name, normalized.fingerprint] as const;
-  });
-}));
+const fingerprints = new Map(
+  PROVIDERS.flatMap((providerId) => {
+    const provider = PROVIDER_REGISTRY.find((entry) => entry.id === providerId)!;
+    return UPSTREAM_TOOLS.map((tool) => {
+      const normalized = normalizeUpstreamTool(provider, tool);
+      return [normalized.name, normalized.fingerprint] as const;
+    });
+  }),
+);
 
 /** Real discovery over a stub upstream, recording which providers each resolution listed. */
 function dependencies(state: State): { dependencies: UserToolDependencies; listed: ProviderId[] } {
@@ -51,11 +57,20 @@ function dependencies(state: State): { dependencies: UserToolDependencies; liste
       return operation({ listTools: async () => ({ tools: UPSTREAM_TOOLS }) } as never);
     },
   };
-  const mounts: ProviderMount[] = PROVIDERS.map((providerId) => ({ providerId, isMounted: state.mounted.includes(providerId) }));
+  const mounts: ProviderMount[] = PROVIDERS.map((providerId) => ({
+    providerId,
+    isMounted: state.mounted.includes(providerId),
+  }));
   const oauth = { getOrRefreshAccessToken: vi.fn(async () => 'token') } as unknown as OAuthService;
-  const policies = new Map([...fingerprints].map(([name, fingerprint]) => [name, { toolName: name, fingerprint, state: 'allowed_default_on' as ToolPolicyState }]));
+  const policies = new Map(
+    [...fingerprints].map(([name, fingerprint]) => [
+      name,
+      { toolName: name, fingerprint, state: 'allowed_default_on' as ToolPolicyState },
+    ]),
+  );
   if (state.policy === 'none') policies.delete(TARGET);
-  else if (state.policy === 'stale fingerprint') policies.set(TARGET, { toolName: TARGET, fingerprint: '0'.repeat(64), state: 'allowed_default_on' });
+  else if (state.policy === 'stale fingerprint')
+    policies.set(TARGET, { toolName: TARGET, fingerprint: '0'.repeat(64), state: 'allowed_default_on' });
   else policies.set(TARGET, { toolName: TARGET, fingerprint: fingerprints.get(TARGET)!, state: state.policy });
   const preferences = new Map(state.preference === undefined ? [] : [[TARGET, state.preference]]);
   return {
@@ -74,7 +89,12 @@ function dependencies(state: State): { dependencies: UserToolDependencies; liste
         }),
         toolPolicyDecisions: async () => policies,
       } as unknown as Database,
-      toolDiscovery: new ToolDiscoveryService({ oauth, mounts, store: createInMemoryToolCacheStore(), upstreamClients }),
+      toolDiscovery: new ToolDiscoveryService({
+        oauth,
+        mounts,
+        store: createInMemoryToolCacheStore(),
+        upstreamClients,
+      }),
     },
   };
 }
@@ -83,7 +103,13 @@ function* states(): Generator<State> {
   for (const mounted of [PROVIDERS, ['linear'] as const]) {
     for (const connected of [PROVIDERS, ['github'] as const, ['linear'] as const, [] as const]) {
       for (const hidden of [[] as const, ['github'] as const]) {
-        for (const policy of ['none', 'blocked', 'allowed_default_off', 'allowed_default_on', 'stale fingerprint'] as const) {
+        for (const policy of [
+          'none',
+          'blocked',
+          'allowed_default_off',
+          'allowed_default_on',
+          'stale fingerprint',
+        ] as const) {
           for (const preference of [undefined, true, false]) yield { mounted, connected, hidden, policy, preference };
         }
       }
@@ -99,7 +125,11 @@ describe('resolving the one tool a tools/call names', () => {
     for (const state of states()) {
       for (const name of CALLED_NAMES) {
         const full = await loadVisibleUserTools({ userId: USER_ID, dependencies: dependencies(state).dependencies });
-        const single = await loadVisibleUserTool({ userId: USER_ID, toolName: name, dependencies: dependencies(state).dependencies });
+        const single = await loadVisibleUserTool({
+          userId: USER_ID,
+          toolName: name,
+          dependencies: dependencies(state).dependencies,
+        });
         const expected = full.find((tool) => tool.name === name);
         decisions += 1;
         if (expected) visibleDecisions += 1;
@@ -110,23 +140,42 @@ describe('resolving the one tool a tools/call names', () => {
     }
 
     // Both outcomes must actually occur, or the comparison proves nothing.
-    expect({ mismatches, decisions, someVisible: visibleDecisions > 0, someHidden: visibleDecisions < decisions })
-      .toEqual({ mismatches: [], decisions: 240 * CALLED_NAMES.length, someVisible: true, someHidden: true });
+    expect({
+      mismatches,
+      decisions,
+      someVisible: visibleDecisions > 0,
+      someHidden: visibleDecisions < decisions,
+    }).toEqual({ mismatches: [], decisions: 240 * CALLED_NAMES.length, someVisible: true, someHidden: true });
   });
 
   it('lists only the named tool’s provider, not every connected one', async () => {
-    const state: State = { mounted: PROVIDERS, connected: PROVIDERS, hidden: [], policy: 'allowed_default_on', preference: undefined };
+    const state: State = {
+      mounted: PROVIDERS,
+      connected: PROVIDERS,
+      hidden: [],
+      policy: 'allowed_default_on',
+      preference: undefined,
+    };
     const single = dependencies(state);
     const full = dependencies(state);
 
     await loadVisibleUserTool({ userId: USER_ID, toolName: 'github_echo', dependencies: single.dependencies });
     await loadVisibleUserTools({ userId: USER_ID, dependencies: full.dependencies });
 
-    expect({ single: single.listed, full: [...full.listed].sort() }).toEqual({ single: ['github'], full: ['github', 'linear'] });
+    expect({ single: single.listed, full: [...full.listed].sort() }).toEqual({
+      single: ['github'],
+      full: ['github', 'linear'],
+    });
   });
 
   it('refuses a blocked, hidden, unconnected or changed tool', async () => {
-    const visible: State = { mounted: PROVIDERS, connected: PROVIDERS, hidden: [], policy: 'allowed_default_on', preference: undefined };
+    const visible: State = {
+      mounted: PROVIDERS,
+      connected: PROVIDERS,
+      hidden: [],
+      policy: 'allowed_default_on',
+      preference: undefined,
+    };
     const cases: Record<string, State> = {
       visible,
       blocked: { ...visible, policy: 'blocked' },
@@ -137,10 +186,18 @@ describe('resolving the one tool a tools/call names', () => {
       'fingerprint changed': { ...visible, policy: 'stale fingerprint' },
     };
 
-    const outcomes = Object.fromEntries(await Promise.all(Object.entries(cases).map(async ([label, state]): Promise<[string, string]> => {
-      const tool = await loadVisibleUserTool({ userId: USER_ID, toolName: TARGET, dependencies: dependencies(state).dependencies });
-      return [label, tool?.name ?? 'refused'];
-    })));
+    const outcomes = Object.fromEntries(
+      await Promise.all(
+        Object.entries(cases).map(async ([label, state]): Promise<[string, string]> => {
+          const tool = await loadVisibleUserTool({
+            userId: USER_ID,
+            toolName: TARGET,
+            dependencies: dependencies(state).dependencies,
+          });
+          return [label, tool?.name ?? 'refused'];
+        }),
+      ),
+    );
 
     expect(outcomes).toEqual({
       visible: TARGET,

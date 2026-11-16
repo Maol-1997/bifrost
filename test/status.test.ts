@@ -1,6 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { describeClient } from '../src/server/clients/describe.js';
-import { statuspageHealth, type AppHealth, type HealthSnapshot, type StatusAppId, type StatuspageIndicator } from '../src/server/status/upstream.js';
+import {
+  statuspageHealth,
+  type AppHealth,
+  type HealthSnapshot,
+  type StatusAppId,
+  type StatuspageIndicator,
+} from '../src/server/status/upstream.js';
 
 vi.mock('../src/server/logger.js', () => ({
   logger: { warn: vi.fn(), info: vi.fn(), error: vi.fn(), debug: vi.fn() },
@@ -28,7 +34,11 @@ describe('client identification', () => {
   it('shows an unrecognized client verbatim instead of inventing a name', () => {
     // A client the user cannot identify is the one they may want to revoke, so
     // guessing a friendly label here would hide exactly the wrong thing.
-    expect(describeClient('mcp', 'weird-agent/9.9 (unknown)')).toEqual({ name: 'weird-agent', monogram: 'we', logo: undefined });
+    expect(describeClient('mcp', 'weird-agent/9.9 (unknown)')).toEqual({
+      name: 'weird-agent',
+      monogram: 'we',
+      logo: undefined,
+    });
     expect(describeClient('mcp', undefined)).toEqual({ name: 'mcp', monogram: 'mc', logo: undefined });
   });
 
@@ -167,7 +177,16 @@ describe('reading the vendors status feeds', () => {
       ...statuspageFeeds(
         STATUSPAGE_HOSTS.github,
         { status: { indicator: 'major' } },
-        { incidents: [{ name: 'Elevated errors on the API', status: 'investigating', created_at: '2026-08-18T11:30:00.000Z', resolved_at: null }] },
+        {
+          incidents: [
+            {
+              name: 'Elevated errors on the API',
+              status: 'investigating',
+              created_at: '2026-08-18T11:30:00.000Z',
+              resolved_at: null,
+            },
+          ],
+        },
       ),
     });
 
@@ -184,7 +203,12 @@ describe('reading the vendors status feeds', () => {
     const { readAppHealth } = await loadStatusReader({
       ...allHealthyFeeds(),
       ...slackFeeds(
-        { status: 'active', active_incidents: [{ title: 'Message sending is failing', type: 'outage', date_created: '2026-08-18T11:00:00.000Z' }] },
+        {
+          status: 'active',
+          active_incidents: [
+            { title: 'Message sending is failing', type: 'outage', date_created: '2026-08-18T11:00:00.000Z' },
+          ],
+        },
         [],
       ),
     });
@@ -204,7 +228,12 @@ describe('reading the vendors status feeds', () => {
     const { readAppHealth } = await loadStatusReader({
       ...allHealthyFeeds(),
       ...slackFeeds(
-        { status: 'active', active_incidents: [{ title: 'Some links are slow to unfurl', type: 'incident', date_created: '2026-08-18T11:00:00.000Z' }] },
+        {
+          status: 'active',
+          active_incidents: [
+            { title: 'Some links are slow to unfurl', type: 'incident', date_created: '2026-08-18T11:00:00.000Z' },
+          ],
+        },
         [],
       ),
     });
@@ -224,9 +253,19 @@ describe('reading the vendors status feeds', () => {
 
     // Unknown, never operational: a vendor's status page being down says
     // nothing about the vendor.
-    expect(appHealth(snapshot, 'linear')).toEqual({ appId: 'linear', health: 'unknown', statusUrl: STATUSPAGE_HOSTS.linear });
+    expect(appHealth(snapshot, 'linear')).toEqual({
+      appId: 'linear',
+      health: 'unknown',
+      statusUrl: STATUSPAGE_HOSTS.linear,
+    });
     const unaffected: readonly StatusAppId[] = ['github', 'notion', 'sentry', 'slack', 'granola'];
-    expect(unaffected.map((appId) => appHealth(snapshot, appId).health)).toEqual(['operational', 'operational', 'operational', 'operational', 'operational']);
+    expect(unaffected.map((appId) => appHealth(snapshot, appId).health)).toEqual([
+      'operational',
+      'operational',
+      'operational',
+      'operational',
+      'operational',
+    ]);
   });
 
   it('reads a malformed resolution timestamp as no history rather than a quiet streak', async () => {
@@ -235,10 +274,23 @@ describe('reading the vendors status feeds', () => {
       ...statuspageFeeds(
         STATUSPAGE_HOSTS.notion,
         { status: { indicator: 'none' } },
-        { incidents: [{ name: 'Search was degraded', status: 'resolved', created_at: '2026-08-01T09:00:00.000Z', resolved_at: 'not-a-date' }] },
+        {
+          incidents: [
+            {
+              name: 'Search was degraded',
+              status: 'resolved',
+              created_at: '2026-08-01T09:00:00.000Z',
+              resolved_at: 'not-a-date',
+            },
+          ],
+        },
       ),
     });
 
-    expect(appHealth(await readAppHealth(), 'notion')).toEqual({ appId: 'notion', health: 'operational', statusUrl: STATUSPAGE_HOSTS.notion });
+    expect(appHealth(await readAppHealth(), 'notion')).toEqual({
+      appId: 'notion',
+      health: 'operational',
+      statusUrl: STATUSPAGE_HOSTS.notion,
+    });
   });
 });

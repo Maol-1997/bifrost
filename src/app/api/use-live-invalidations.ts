@@ -26,6 +26,8 @@ export function useLiveInvalidations(isSignedIn: boolean): void {
         void queryClient.invalidateQueries({ queryKey });
       });
     }
-    return () => { source.close(); };
+    return () => {
+      source.close();
+    };
   }, [isSignedIn, queryClient]);
 }

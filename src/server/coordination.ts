@@ -83,9 +83,8 @@ export class Coordinator {
       return;
     }
     const state = this.localRates.get(scope);
-    const current = !state || state.resetAt <= Date.now()
-      ? { count: 0, resetAt: (window + 1) * RATE_WINDOW_MS }
-      : state;
+    const current =
+      !state || state.resetAt <= Date.now() ? { count: 0, resetAt: (window + 1) * RATE_WINDOW_MS } : state;
     current.count += 1;
     this.localRates.set(scope, current);
     if (current.count > request.maximumStarts) throw rateLimitReached(request.provider);
@@ -161,7 +160,7 @@ export class Coordinator {
     const lockKey = key.startsWith('bifrost:v1:') ? key : `lock:${key}`;
     const owner = randomUUID();
     const deadline = Date.now() + maxWaitMs;
-    while (await this.redis?.set(lockKey, owner, { NX: true, PX: DEFAULT_LOCK_MS }) !== 'OK') {
+    while ((await this.redis?.set(lockKey, owner, { NX: true, PX: DEFAULT_LOCK_MS })) !== 'OK') {
       if (Date.now() >= deadline) throw new AgentFacingError('Credential refresh already in progress; retry shortly');
       await sleep(LOCK_POLL_MS);
     }
@@ -175,7 +174,9 @@ export class Coordinator {
   private async withLocalLock<T>(key: string, operation: () => Promise<T>): Promise<T> {
     const predecessor = this.localLocks.get(key) ?? Promise.resolve();
     let release = (): void => undefined;
-    const current = new Promise<void>((resolve) => { release = resolve; });
+    const current = new Promise<void>((resolve) => {
+      release = resolve;
+    });
     const queued = predecessor.then(() => current);
     this.localLocks.set(key, queued);
     await predecessor;

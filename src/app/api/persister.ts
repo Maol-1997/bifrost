@@ -48,9 +48,7 @@ export const persistOptions: OmitKeyof<PersistQueryClientOptions, 'queryClient'>
   buster: CACHE_BUSTER,
   persister,
   dehydrateOptions: {
-    shouldDehydrateQuery: (query) => (
-      defaultShouldDehydrateQuery(query) && query.queryKey[0] === PERSISTED_QUERY_ROOT
-    ),
+    shouldDehydrateQuery: (query) => defaultShouldDehydrateQuery(query) && query.queryKey[0] === PERSISTED_QUERY_ROOT,
   },
 };
 
@@ -67,7 +65,7 @@ export async function clearPersistedQueries(): Promise<void> {
  */
 export async function claimPersistedQueries(queryClient: QueryClient, ownerEmail: string): Promise<void> {
   if (!isPersistenceEnabled) return;
-  if (await get<string>(OWNER_KEY) === ownerEmail) return;
+  if ((await get<string>(OWNER_KEY)) === ownerEmail) return;
   queryClient.removeQueries({ queryKey: [PERSISTED_QUERY_ROOT] });
   await del(STORAGE_KEY);
   await set(OWNER_KEY, ownerEmail);

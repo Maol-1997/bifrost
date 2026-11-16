@@ -8,12 +8,18 @@ import type { CredentialRowKey, CredentialReplacement, StoredCredentialRecord } 
 
 type Row = CredentialRowKey & { record: StoredCredentialRecord | Error };
 
-function row(userId: string, record: StoredCredentialRecord | Error = { accessToken: `token-${userId}`, scopes: [], version: `iv-${userId}` }): Row {
+function row(
+  userId: string,
+  record: StoredCredentialRecord | Error = { accessToken: `token-${userId}`, scopes: [], version: `iv-${userId}` },
+): Row {
   return { userId, providerId: 'github', record };
 }
 
 /** A store over fixed rows that records every write and lets a test change a row mid-rotation. */
-function fakeStore(rows: readonly Row[], hooks: { beforeReplace?: (replacement: CredentialReplacement) => boolean } = {}) {
+function fakeStore(
+  rows: readonly Row[],
+  hooks: { beforeReplace?: (replacement: CredentialReplacement) => boolean } = {},
+) {
   const writes: CredentialReplacement[] = [];
   const pages: (CredentialRowKey | undefined)[] = [];
   const store: CredentialRotationStore = {
@@ -57,17 +63,29 @@ describe('credential key rotation', () => {
 
     expect({ reencrypted: report.reencrypted, writes }).toEqual({
       reencrypted: 1,
-      writes: [{ userId: 'a', providerId: 'github', credential: { accessToken: 'token-a', scopes: [] }, expectedVersion: 'iv-a' }],
+      writes: [
+        {
+          userId: 'a',
+          providerId: 'github',
+          credential: { accessToken: 'token-a', scopes: [] },
+          expectedVersion: 'iv-a',
+        },
+      ],
     });
   });
 
   it('leaves a row alone when a refresh replaced it between read and write', async () => {
-    const { store, writes } = fakeStore([row('a'), row('b')], { beforeReplace: (replacement) => replacement.userId !== 'a' });
+    const { store, writes } = fakeStore([row('a'), row('b')], {
+      beforeReplace: (replacement) => replacement.userId !== 'a',
+    });
 
     const report = await rotateCredentials({ store, withRowLock: unlocked, apply: true, batchSize: 10 });
 
-    expect({ reencrypted: report.reencrypted, changed: report.changedConcurrently, written: writes.map((write) => write.userId) })
-      .toEqual({ reencrypted: 1, changed: 1, written: ['b'] });
+    expect({
+      reencrypted: report.reencrypted,
+      changed: report.changedConcurrently,
+      written: writes.map((write) => write.userId),
+    }).toEqual({ reencrypted: 1, changed: 1, written: ['b'] });
   });
 
   it('counts a row removed after it was listed as changed concurrently', async () => {
@@ -83,7 +101,10 @@ describe('credential key rotation', () => {
     const { store, writes } = fakeStore([row('a'), row('b')]);
     const reads: string[] = [];
     const read = store.getCredential;
-    store.getCredential = async (userId, providerId) => { reads.push(userId); return read(userId, providerId); };
+    store.getCredential = async (userId, providerId) => {
+      reads.push(userId);
+      return read(userId, providerId);
+    };
 
     const report = await rotateCredentials({
       store,
@@ -95,8 +116,11 @@ describe('credential key rotation', () => {
       batchSize: 10,
     });
 
-    expect({ busy: report.busy, reads, written: writes.map((write) => write.userId) })
-      .toEqual({ busy: 1, reads: ['b'], written: ['b'] });
+    expect({ busy: report.busy, reads, written: writes.map((write) => write.userId) }).toEqual({
+      busy: 1,
+      reads: ['b'],
+      written: ['b'],
+    });
   });
 
   it('reports rows no configured key can open and keeps going', async () => {
@@ -115,7 +139,9 @@ describe('credential key rotation', () => {
 
     const report = await rotateCredentials({ store, withRowLock: unlocked, apply: true, batchSize: 2 });
 
-    expect({ reencrypted: report.reencrypted, pages: pages.map((page) => page?.userId) })
-      .toEqual({ reencrypted: 5, pages: [undefined, 'b', 'd'] });
+    expect({ reencrypted: report.reencrypted, pages: pages.map((page) => page?.userId) }).toEqual({
+      reencrypted: 5,
+      pages: [undefined, 'b', 'd'],
+    });
   });
 });

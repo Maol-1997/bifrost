@@ -21,7 +21,10 @@ export function modernRequestBody(id: number, method: string, params: Record<str
     jsonrpc: '2.0',
     id,
     method,
-    params: { ...params, _meta: { [PROTOCOL_VERSION_META_KEY]: MODERN_PROTOCOL_VERSION, [CLIENT_CAPABILITIES_META_KEY]: {} } },
+    params: {
+      ...params,
+      _meta: { [PROTOCOL_VERSION_META_KEY]: MODERN_PROTOCOL_VERSION, [CLIENT_CAPABILITIES_META_KEY]: {} },
+    },
   };
 }
 

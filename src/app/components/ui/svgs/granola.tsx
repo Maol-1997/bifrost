@@ -1,4 +1,4 @@
-import type { SVGProps } from "react";
+import type { SVGProps } from 'react';
 
 const Granola = (props: SVGProps<SVGSVGElement>) => (
   <svg {...props} viewBox="0 0 32 32" fill="none">

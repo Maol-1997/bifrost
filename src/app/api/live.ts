@@ -20,9 +20,7 @@ function protectedResourceUrl(metadata: unknown): string | undefined {
 
   try {
     const resourceUrl = new URL(result.data.resource);
-    return resourceUrl.protocol === 'https:' || resourceUrl.protocol === 'http:'
-      ? resourceUrl.href
-      : undefined;
+    return resourceUrl.protocol === 'https:' || resourceUrl.protocol === 'http:' ? resourceUrl.href : undefined;
   } catch {
     return undefined;
   }
@@ -79,24 +77,30 @@ export const liveApi: BifrostApi = {
   },
   disconnectProvider: async (providerId) => {
     if (!isConnectableProvider(providerId)) return;
-    await parseRpcResponse(bifrostClient.api.connections[':providerId'].disconnect.$post({
-      param: { providerId },
-    }));
+    await parseRpcResponse(
+      bifrostClient.api.connections[':providerId'].disconnect.$post({
+        param: { providerId },
+      }),
+    );
   },
   setProviderHidden: async (providerId, isHidden) => {
     if (!isConnectableProvider(providerId)) return;
-    await parseRpcResponse(bifrostClient.api.connections[':providerId'].preference.$post({
-      param: { providerId },
-      json: { isHidden },
-    }));
+    await parseRpcResponse(
+      bifrostClient.api.connections[':providerId'].preference.$post({
+        param: { providerId },
+        json: { isHidden },
+      }),
+    );
   },
   // The MCP tool name is also the route key and the registered server name, so
   // there is no mapping that can drift between the switch and execution.
   setToolEnabled: async (toolName, isEnabled) => {
-    await parseRpcResponse(bifrostClient.api.tools[':toolName'].preference.$post({
-      param: { toolName },
-      json: { isEnabled },
-    }));
+    await parseRpcResponse(
+      bifrostClient.api.tools[':toolName'].preference.$post({
+        param: { toolName },
+        json: { isEnabled },
+      }),
+    );
   },
   getAdminProviderTools: async (providerId) => {
     const { provider, cache } = await parseRpcResponse(
@@ -111,17 +115,21 @@ export const liveApi: BifrostApi = {
     return { data: { ...provider, providerId }, cache };
   },
   setToolPolicies: async ({ providerId, tools }) => {
-    const result = await parseRpcResponse(bifrostClient.api.admin.tools[':providerId'].policies.$post({
-      param: { providerId },
-      json: { tools: [...tools] },
-    }));
+    const result = await parseRpcResponse(
+      bifrostClient.api.admin.tools[':providerId'].policies.$post({
+        param: { providerId },
+        json: { tools: [...tools] },
+      }),
+    );
     return result.cache;
   },
   setAutomaticToolRule: async (providerId, instructions) => {
-    const result = await parseRpcResponse(bifrostClient.api.admin.tools[':providerId'].rule.$put({
-      param: { providerId },
-      json: { instructions },
-    }));
+    const result = await parseRpcResponse(
+      bifrostClient.api.admin.tools[':providerId'].rule.$put({
+        param: { providerId },
+        json: { instructions },
+      }),
+    );
     return result.classification;
   },
   clearAutomaticToolRule: async (providerId) => {
@@ -132,14 +140,18 @@ export const liveApi: BifrostApi = {
     return clients;
   },
   renewClient: async (client) => {
-    await parseRpcResponse(bifrostClient.api.clients[':kind'][':id'][':action'].$post({
-      param: { kind: client.kind, id: client.id, action: 'renew' },
-    }));
+    await parseRpcResponse(
+      bifrostClient.api.clients[':kind'][':id'][':action'].$post({
+        param: { kind: client.kind, id: client.id, action: 'renew' },
+      }),
+    );
   },
   revokeClient: async (client) => {
-    const result = await parseRpcResponse(bifrostClient.api.clients[':kind'][':id'][':action'].$post({
-      param: { kind: client.kind, id: client.id, action: 'revoke' },
-    }));
+    const result = await parseRpcResponse(
+      bifrostClient.api.clients[':kind'][':id'][':action'].$post({
+        param: { kind: client.kind, id: client.id, action: 'revoke' },
+      }),
+    );
     // Revoking the current browser kills its backing cookie immediately.
     if ('wasCurrentClient' in result && result.wasCurrentClient) {
       await clearPersistedQueries().catch(() => undefined);

@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
-  authorizationServerMetadata, bearerChallenge, canonicalResource, issuerUrl,
-  protectedResourceMetadata, protectedResourceMetadataUrl,
+  authorizationServerMetadata,
+  bearerChallenge,
+  canonicalResource,
+  issuerUrl,
+  protectedResourceMetadata,
+  protectedResourceMetadataUrl,
 } from '../src/server/oauth-server/metadata.js';
 
 describe('issuer identification', () => {
@@ -18,8 +22,9 @@ describe('issuer identification', () => {
   });
 
   it('publishes resource metadata under the resource path, as RFC 9728 requires', () => {
-    expect(protectedResourceMetadataUrl('https://bifrost.example'))
-      .toBe('https://bifrost.example/.well-known/oauth-protected-resource/mcp');
+    expect(protectedResourceMetadataUrl('https://bifrost.example')).toBe(
+      'https://bifrost.example/.well-known/oauth-protected-resource/mcp',
+    );
   });
 });
 
@@ -70,12 +75,14 @@ describe('authorization server metadata', () => {
 
 describe('bearer challenge', () => {
   it('carries the discovery URL, which is all an unauthenticated client has to go on', () => {
-    expect(bearerChallenge('https://bifrost.example'))
-      .toBe('Bearer resource_metadata="https://bifrost.example/.well-known/oauth-protected-resource/mcp", scope="mcp"');
+    expect(bearerChallenge('https://bifrost.example')).toBe(
+      'Bearer resource_metadata="https://bifrost.example/.well-known/oauth-protected-resource/mcp", scope="mcp"',
+    );
   });
 
   it('says invalid_token when a credential was presented, so the client refreshes instead of re-registering', () => {
-    expect(bearerChallenge('https://bifrost.example', 'invalid_token'))
-      .toBe('Bearer error="invalid_token", resource_metadata="https://bifrost.example/.well-known/oauth-protected-resource/mcp", scope="mcp"');
+    expect(bearerChallenge('https://bifrost.example', 'invalid_token')).toBe(
+      'Bearer error="invalid_token", resource_metadata="https://bifrost.example/.well-known/oauth-protected-resource/mcp", scope="mcp"',
+    );
   });
 });

@@ -2,11 +2,36 @@ import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ChevronDown } from 'lucide-react';
 import { Link, Navigate, useParams } from 'react-router-dom';
-import { clearAutomaticToolRule, getProviderCatalog, isConnectableProvider, refreshAdminProviderTools, setAutomaticToolRule, setToolPolicies, type AdminTool, type AdminToolProvider, type AutomaticRuleClassification, type AutomaticToolRule, type CachedResult, type ProviderId, type ToolContractChange, type ToolContractReview, type ToolMutability, type ToolPolicyBatchChange, type ToolPolicyChange, type ToolPolicyState } from '@app/api/bifrost';
+import {
+  clearAutomaticToolRule,
+  getProviderCatalog,
+  isConnectableProvider,
+  refreshAdminProviderTools,
+  setAutomaticToolRule,
+  setToolPolicies,
+  type AdminTool,
+  type AdminToolProvider,
+  type AutomaticRuleClassification,
+  type AutomaticToolRule,
+  type CachedResult,
+  type ProviderId,
+  type ToolContractChange,
+  type ToolContractReview,
+  type ToolMutability,
+  type ToolPolicyBatchChange,
+  type ToolPolicyChange,
+  type ToolPolicyState,
+} from '@app/api/bifrost';
 import { adminToolsQueryOptions } from '@app/api/query-options';
 import { Button } from '@app/components/ui/button';
 import { Checkbox, type CheckboxState } from '@app/components/ui/checkbox';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger } from '@app/components/ui/dropdown-menu';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+} from '@app/components/ui/dropdown-menu';
 import { ErrorState } from '@app/components/ui/error-state';
 import { ExpandableText } from '@app/components/ui/expandable-text';
 import { SearchInput } from '@app/components/ui/input';
@@ -24,7 +49,8 @@ const POLICY_OPTIONS: readonly { value: ToolPolicyState; label: string }[] = [
   { value: 'allowed_default_on', label: 'Allowed, on by default' },
 ];
 const RULE_OUTCOME_MESSAGES: Partial<Record<AutomaticRuleClassification, string>> = {
-  'not-connected': 'Rule saved. Connect your admin account to apply it now; otherwise it applies as tools are discovered.',
+  'not-connected':
+    'Rule saved. Connect your admin account to apply it now; otherwise it applies as tools are discovered.',
   busy: 'Rule saved. It is being applied in the background; the list updates when it finishes.',
   'backing-off': 'Rule saved. The classifier failed recently, so it will retry shortly.',
   failed: 'Rule saved, but the tools could not be classified. New tools stay blocked until it succeeds.',
@@ -40,7 +66,10 @@ function providerName(providerId: ProviderId): string {
 }
 
 function matchesSearch(tool: AdminTool, normalizedSearch: string): boolean {
-  return normalizedSearch.length === 0 || `${tool.title} ${tool.name} ${tool.description}`.toLowerCase().includes(normalizedSearch);
+  return (
+    normalizedSearch.length === 0 ||
+    `${tool.title} ${tool.name} ${tool.description}`.toLowerCase().includes(normalizedSearch)
+  );
 }
 
 function compareTools(left: AdminTool, right: AdminTool): number {
@@ -48,7 +77,7 @@ function compareTools(left: AdminTool, right: AdminTool): number {
   if (left.isUncertain !== right.isUncertain) return left.isUncertain ? -1 : 1;
   const leftBlocked = left.state === 'blocked';
   const rightBlocked = right.state === 'blocked';
-  return leftBlocked !== rightBlocked ? leftBlocked ? -1 : 1 : left.title.localeCompare(right.title);
+  return leftBlocked !== rightBlocked ? (leftBlocked ? -1 : 1) : left.title.localeCompare(right.title);
 }
 
 function addSelection(selected: ReadonlySet<string>, toolName: string): Set<string> {
@@ -96,9 +125,15 @@ function useToolSelection(): ToolSelectionController {
   const [selectedToolNames, setSelectedToolNames] = useState<Set<string>>(() => new Set());
 
   return {
-    clear: () => { setSelectedToolNames(new Set()); },
-    deselect: (toolName) => { setSelectedToolNames((current) => removeSelection(current, toolName)); },
-    deselectAll: (tools) => { setSelectedToolNames((current) => removeSelections(current, tools)); },
+    clear: () => {
+      setSelectedToolNames(new Set());
+    },
+    deselect: (toolName) => {
+      setSelectedToolNames((current) => removeSelection(current, toolName));
+    },
+    deselectAll: (tools) => {
+      setSelectedToolNames((current) => removeSelections(current, tools));
+    },
     deselectNames: (toolNames) => {
       setSelectedToolNames((current) => {
         const next = new Set(current);
@@ -107,8 +142,12 @@ function useToolSelection(): ToolSelectionController {
       });
     },
     isSelected: (toolName) => selectedToolNames.has(toolName),
-    select: (toolName) => { setSelectedToolNames((current) => addSelection(current, toolName)); },
-    selectAll: (tools) => { setSelectedToolNames((current) => addSelections(current, tools)); },
+    select: (toolName) => {
+      setSelectedToolNames((current) => addSelection(current, toolName));
+    },
+    selectAll: (tools) => {
+      setSelectedToolNames((current) => addSelections(current, tools));
+    },
     selectedCount: selectedToolNames.size,
     stateFor: (tools) => getSelectionState(tools, selectedToolNames),
   };
@@ -120,17 +159,48 @@ type ToolAdministrationController = {
   selection: ToolSelectionController;
 };
 
-function PolicyMenu({ ariaLabel, disabled, triggerLabel, value, className, onChange }: { ariaLabel: string; disabled: boolean; triggerLabel: string; value?: ToolPolicyState; className?: string; onChange: (state: ToolPolicyState) => void }): React.JSX.Element {
+function PolicyMenu({
+  ariaLabel,
+  disabled,
+  triggerLabel,
+  value,
+  className,
+  onChange,
+}: {
+  ariaLabel: string;
+  disabled: boolean;
+  triggerLabel: string;
+  value?: ToolPolicyState;
+  className?: string;
+  onChange: (state: ToolPolicyState) => void;
+}): React.JSX.Element {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button type="button" variant="outline" size="select" aria-label={ariaLabel} disabled={disabled} className={cn('justify-start [&_svg]:absolute [&_svg]:right-2.5', className)}>
-          {triggerLabel}<ChevronDown aria-hidden />
+        <Button
+          type="button"
+          variant="outline"
+          size="select"
+          aria-label={ariaLabel}
+          disabled={disabled}
+          className={cn('justify-start [&_svg]:absolute [&_svg]:right-2.5', className)}
+        >
+          {triggerLabel}
+          <ChevronDown aria-hidden />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
-        <DropdownMenuRadioGroup {...(value === undefined ? {} : { value })} onValueChange={(next) => { if (isToolPolicyState(next)) onChange(next); }}>
-          {POLICY_OPTIONS.map((option) => <DropdownMenuRadioItem key={option.value} value={option.value}>{option.label}</DropdownMenuRadioItem>)}
+        <DropdownMenuRadioGroup
+          {...(value === undefined ? {} : { value })}
+          onValueChange={(next) => {
+            if (isToolPolicyState(next)) onChange(next);
+          }}
+        >
+          {POLICY_OPTIONS.map((option) => (
+            <DropdownMenuRadioItem key={option.value} value={option.value}>
+              {option.label}
+            </DropdownMenuRadioItem>
+          ))}
         </DropdownMenuRadioGroup>
       </DropdownMenuContent>
     </DropdownMenu>
@@ -141,7 +211,9 @@ function ContractBlock({ label, value }: { label: string; value: string }): Reac
   return (
     <Surface variant="inset" className="min-w-0 p-3">
       <div className="mb-2 text-xs font-medium text-linear-bright">{label}</div>
-      <pre className="max-h-64 overflow-auto whitespace-pre font-mono text-xs leading-5 text-linear-input-disabled">{value}</pre>
+      <pre className="max-h-64 overflow-auto whitespace-pre font-mono text-xs leading-5 text-linear-input-disabled">
+        {value}
+      </pre>
     </Surface>
   );
 }
@@ -149,10 +221,12 @@ function ContractBlock({ label, value }: { label: string; value: string }): Reac
 function ReviewBadge({ review }: { review: ToolContractReview }): React.JSX.Element | null {
   if (review.kind === 'approved') return null;
   return (
-    <span className={cn(
-      'rounded-full px-2 py-0.5 text-xs font-semibold',
-      review.kind === 'new' ? 'bg-brand/10 text-brand-hover' : 'bg-warning/10 text-warning',
-    )}>
+    <span
+      className={cn(
+        'rounded-full px-2 py-0.5 text-xs font-semibold',
+        review.kind === 'new' ? 'bg-brand/10 text-brand-hover' : 'bg-warning/10 text-warning',
+      )}
+    >
       {review.kind === 'new' ? 'New tool' : 'Contract changed'}
     </span>
   );
@@ -176,7 +250,9 @@ function AutomaticBadge({ tool }: { tool: AdminTool }): React.JSX.Element | null
 function AutomaticRule({ providerId, rule }: { providerId: ProviderId; rule: AutomaticToolRule }): React.JSX.Element {
   const queryClient = useQueryClient();
   const [draft, setDraft] = useState(rule.instructions ?? '');
-  useEffect(() => { setDraft(rule.instructions ?? ''); }, [rule.instructions]);
+  useEffect(() => {
+    setDraft(rule.instructions ?? '');
+  }, [rule.instructions]);
   const invalidate = () => queryClient.invalidateQueries({ queryKey: adminToolsQueryOptions(providerId).queryKey });
   const saveMutation = useMutation({
     mutationFn: () => setAutomaticToolRule(providerId, draft.trim()),
@@ -184,7 +260,9 @@ function AutomaticRule({ providerId, rule }: { providerId: ProviderId; rule: Aut
   });
   const clearMutation = useMutation({
     mutationFn: () => clearAutomaticToolRule(providerId),
-    onSuccess: () => { setDraft(''); },
+    onSuccess: () => {
+      setDraft('');
+    },
     onSettled: invalidate,
   });
   const isPending = saveMutation.isPending || clearMutation.isPending;
@@ -193,32 +271,74 @@ function AutomaticRule({ providerId, rule }: { providerId: ProviderId; rule: Aut
     <SectionCard className="mt-6 p-4">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h2 className="text-sm font-semibold">Automatic rule</h2>
-        <span className="text-xs text-app-text-quaternary">{rule.revision !== undefined ? `Active · revision ${rule.revision}` : 'Off'}</span>
+        <span className="text-xs text-app-text-quaternary">
+          {rule.revision !== undefined ? `Active · revision ${rule.revision}` : 'Off'}
+        </span>
       </div>
       <p className="mt-1 text-xs leading-5 text-app-text-tertiary text-pretty">
-        Describe which tools should be on by default. New and changed tools are classified against it: clear matches are on by default, everything else is allowed but off, and unclear ones are flagged here. Your manual decisions always win. Users only see the resulting defaults.
+        Describe which tools should be on by default. New and changed tools are classified against it: clear matches are
+        on by default, everything else is allowed but off, and unclear ones are flagged here. Your manual decisions
+        always win. Users only see the resulting defaults.
       </p>
       {rule.isAvailable ? (
         <>
-          <label htmlFor="automatic-rule" className="sr-only">Automatic rule for {providerName(providerId)}</label>
+          <label htmlFor="automatic-rule" className="sr-only">
+            Automatic rule for {providerName(providerId)}
+          </label>
           <textarea
             id="automatic-rule"
             value={draft}
             maxLength={1000}
             rows={3}
             disabled={isPending}
-            onChange={(event) => { setDraft(event.target.value); }}
+            onChange={(event) => {
+              setDraft(event.target.value);
+            }}
             placeholder="Only tools that create, edit, merge or push files to a pull request."
             className="mt-3 block w-full resize-y rounded-notice linear-border-hairline border-app-border-pane bg-transparent px-3 py-2 text-sm text-linear-bright outline-none placeholder:text-app-text-quaternary focus-visible:linear-focus-outline"
           />
           <div className="mt-2 flex items-center justify-end gap-1.5">
-            {rule.revision !== undefined ? <Button type="button" variant="ghost" size="large" disabled={isPending} onClick={() => { clearMutation.mutate(); }}>Turn off</Button> : null}
-            <Button type="button" variant="outline" size="large" disabled={isPending || draft.trim().length === 0 || draft.trim() === rule.instructions} onClick={() => { saveMutation.mutate(); }}>{saveMutation.isPending ? 'Applying…' : 'Save and apply'}</Button>
+            {rule.revision !== undefined ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="large"
+                disabled={isPending}
+                onClick={() => {
+                  clearMutation.mutate();
+                }}
+              >
+                Turn off
+              </Button>
+            ) : null}
+            <Button
+              type="button"
+              variant="outline"
+              size="large"
+              disabled={isPending || draft.trim().length === 0 || draft.trim() === rule.instructions}
+              onClick={() => {
+                saveMutation.mutate();
+              }}
+            >
+              {saveMutation.isPending ? 'Applying…' : 'Save and apply'}
+            </Button>
           </div>
-          {outcomeMessage ? <p aria-live="polite" className="mt-2 text-xs text-app-text-secondary">{outcomeMessage}</p> : null}
-          {saveMutation.isError || clearMutation.isError ? <p role="alert" className="mt-2 text-xs text-danger">The rule was not saved. Try again.</p> : null}
+          {outcomeMessage ? (
+            <p aria-live="polite" className="mt-2 text-xs text-app-text-secondary">
+              {outcomeMessage}
+            </p>
+          ) : null}
+          {saveMutation.isError || clearMutation.isError ? (
+            <p role="alert" className="mt-2 text-xs text-danger">
+              The rule was not saved. Try again.
+            </p>
+          ) : null}
         </>
-      ) : <p className="mt-3 text-xs text-app-text-quaternary">Set OPENROUTER_API_KEY on the server to enable automatic rules.</p>}
+      ) : (
+        <p className="mt-3 text-xs text-app-text-quaternary">
+          Set OPENROUTER_API_KEY on the server to enable automatic rules.
+        </p>
+      )}
     </SectionCard>
   );
 }
@@ -228,11 +348,17 @@ function ContractChangeRow({ change }: { change: ToolContractChange }): React.JS
     <div className="rounded-notice linear-border-hairline border-app-border-pane p-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <code className="break-all font-mono text-xs text-linear-bright">{change.path}</code>
-        <span className="rounded-full bg-linear-card-hover px-2 py-0.5 text-xs font-semibold uppercase tracking-label text-app-text-tertiary">{change.kind}</span>
+        <span className="rounded-full bg-linear-card-hover px-2 py-0.5 text-xs font-semibold uppercase tracking-label text-app-text-tertiary">
+          {change.kind}
+        </span>
       </div>
       <div className="mt-3 grid gap-3 sm:grid-cols-2">
-        {change.kind === 'added' ? null : <ContractBlock label="Previous" value={JSON.stringify(change.before, null, 2)} />}
-        {change.kind === 'removed' ? null : <ContractBlock label="Current" value={JSON.stringify(change.after, null, 2)} />}
+        {change.kind === 'added' ? null : (
+          <ContractBlock label="Previous" value={JSON.stringify(change.before, null, 2)} />
+        )}
+        {change.kind === 'removed' ? null : (
+          <ContractBlock label="Current" value={JSON.stringify(change.after, null, 2)} />
+        )}
       </div>
     </div>
   );
@@ -252,7 +378,10 @@ function ContractReviewDetails({ review }: { review: ToolContractReview }): Reac
     return (
       <div className="sm:col-span-2 rounded-notice linear-border-hairline border-warning/30 bg-warning/5 p-3 text-xs text-app-text-secondary">
         <div className="font-semibold text-linear-bright">Contract changed</div>
-        <p className="mt-1">The previous approval predates contract snapshots, so its exact changes are unavailable. Approving this version enables detailed comparisons from now on.</p>
+        <p className="mt-1">
+          The previous approval predates contract snapshots, so its exact changes are unavailable. Approving this
+          version enables detailed comparisons from now on.
+        </p>
       </div>
     );
   }
@@ -260,44 +389,90 @@ function ContractReviewDetails({ review }: { review: ToolContractReview }): Reac
     <div className="sm:col-span-2">
       <div className="mb-2 flex items-center justify-between gap-3">
         <div className="font-semibold text-linear-bright">Changes since approval</div>
-        <span className="tabular-nums text-app-text-quaternary">{review.changes.length}{review.truncated ? '+' : ''} changes</span>
+        <span className="tabular-nums text-app-text-quaternary">
+          {review.changes.length}
+          {review.truncated ? '+' : ''} changes
+        </span>
       </div>
-      <div className="space-y-2">{review.changes.map((change) => <ContractChangeRow key={`${change.kind}:${change.path}`} change={change} />)}</div>
+      <div className="space-y-2">
+        {review.changes.map((change) => (
+          <ContractChangeRow key={`${change.kind}:${change.path}`} change={change} />
+        ))}
+      </div>
       {review.truncated ? <p className="mt-2 text-warning">Only the first 100 changes are shown.</p> : null}
     </div>
   );
 }
 
-function ToolRow({ tool, providerId, controller }: { tool: AdminTool; providerId: ProviderId; controller: ToolAdministrationController }): React.JSX.Element {
+function ToolRow({
+  tool,
+  providerId,
+  controller,
+}: {
+  tool: AdminTool;
+  providerId: ProviderId;
+  controller: ToolAdministrationController;
+}): React.JSX.Element {
   const currentPolicy = POLICY_OPTIONS.find((option) => option.value === tool.state);
   const { disabled, selection } = controller;
   return (
     <SettingsRow className="block h-auto min-h-[65px] p-0">
       <div className="grid grid-cols-[44px_minmax(0,1fr)] items-start gap-x-3 px-4 py-4 sm:grid-cols-[44px_minmax(0,1fr)_188px]">
         <label className="flex size-11 cursor-pointer items-start justify-center pt-0.5">
-          <Checkbox aria-label={`Select ${tool.title}`} checked={selection.isSelected(tool.name)} disabled={disabled} onCheckedChange={(checked) => { if (checked) selection.select(tool.name); else selection.deselect(tool.name); }} />
+          <Checkbox
+            aria-label={`Select ${tool.title}`}
+            checked={selection.isSelected(tool.name)}
+            disabled={disabled}
+            onCheckedChange={(checked) => {
+              if (checked) selection.select(tool.name);
+              else selection.deselect(tool.name);
+            }}
+          />
         </label>
         <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2"><span className="text-sm font-medium text-linear-bright">{tool.title}</span><ReviewBadge review={tool.review} /><AutomaticBadge tool={tool} /></div>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-sm font-medium text-linear-bright">{tool.title}</span>
+            <ReviewBadge review={tool.review} />
+            <AutomaticBadge tool={tool} />
+          </div>
           <ExpandableText label={tool.title} text={tool.description} />
-          <code className="mt-1 block truncate font-mono text-xs text-app-text-quaternary" title={tool.name}>{tool.name}</code>
+          <code className="mt-1 block truncate font-mono text-xs text-app-text-quaternary" title={tool.name}>
+            {tool.name}
+          </code>
         </div>
         <div className="col-start-2 mt-3 min-w-0 text-xs font-medium text-app-text-tertiary sm:col-start-3 sm:row-start-1 sm:mt-0">
           <div>Policy</div>
-          <PolicyMenu ariaLabel={`Policy for ${tool.title}`} disabled={disabled} triggerLabel={currentPolicy?.label ?? tool.state} value={tool.state} className="mt-1 w-full" onChange={(state) => { if (state !== tool.state) controller.changePolicy({ providerId, toolName: tool.name, fingerprint: tool.fingerprint, state }); }} />
+          <PolicyMenu
+            ariaLabel={`Policy for ${tool.title}`}
+            disabled={disabled}
+            triggerLabel={currentPolicy?.label ?? tool.state}
+            value={tool.state}
+            className="mt-1 w-full"
+            onChange={(state) => {
+              if (state !== tool.state)
+                controller.changePolicy({ providerId, toolName: tool.name, fingerprint: tool.fingerprint, state });
+            }}
+          />
         </div>
       </div>
       <details className="group text-xs text-app-text-tertiary open:linear-border-t-hairline open:border-linear-settings-divider">
         <summary className="flex min-h-11 cursor-pointer list-none items-center gap-1.5 px-4 pl-18 font-medium outline-none hover:text-linear-bright focus-visible:linear-focus-outline [&::-webkit-details-marker]:hidden">
-          <ChevronDown aria-hidden className="size-3.5 shrink-0 -rotate-90 transition-transform duration-150 group-open:rotate-0 motion-reduce:transition-none" />
+          <ChevronDown
+            aria-hidden
+            className="size-3.5 shrink-0 -rotate-90 transition-transform duration-150 group-open:rotate-0 motion-reduce:transition-none"
+          />
           Review contract and fingerprint
         </summary>
         <div className="grid gap-3 px-4 pb-4 sm:grid-cols-2">
           <ContractReviewDetails review={tool.review} />
-          <div className="sm:col-span-2"><ContractBlock label="Fingerprint" value={tool.fingerprint} /></div>
+          <div className="sm:col-span-2">
+            <ContractBlock label="Fingerprint" value={tool.fingerprint} />
+          </div>
           <ContractBlock label="Annotations" value={JSON.stringify(tool.annotations, null, 2)} />
           <ContractBlock label="Input schema" value={JSON.stringify(tool.inputSchema, null, 2)} />
-          {tool.outputSchema !== undefined ? <ContractBlock label="Output schema" value={JSON.stringify(tool.outputSchema, null, 2)} /> : null}
+          {tool.outputSchema !== undefined ? (
+            <ContractBlock label="Output schema" value={JSON.stringify(tool.outputSchema, null, 2)} />
+          ) : null}
         </div>
       </details>
     </SettingsRow>
@@ -307,7 +482,9 @@ function ToolRow({ tool, providerId, controller }: { tool: AdminTool; providerId
 function ToolRowSkeleton(): React.JSX.Element {
   return (
     <div className="grid min-h-[65px] grid-cols-[44px_minmax(0,1fr)] items-start gap-x-3 linear-border-t-hairline border-linear-settings-divider px-4 py-4 first:border-t-0 sm:grid-cols-[44px_minmax(0,1fr)_188px]">
-      <div className="flex justify-center pt-0.5"><Skeleton shape="checkbox" className="size-4" /></div>
+      <div className="flex justify-center pt-0.5">
+        <Skeleton shape="checkbox" className="size-4" />
+      </div>
       <div className="flex min-w-0 flex-col gap-2.5 pt-1">
         <Skeleton className="h-2.5 w-36" />
         <Skeleton variant="subtle" className="h-2 w-full max-w-105" />
@@ -331,7 +508,9 @@ function ToolAdministrationSkeleton(): React.JSX.Element {
             <Skeleton variant="subtle" className="h-2 w-6" />
           </div>
           <SectionCard className="mt-2 overflow-hidden">
-            {Array.from({ length: rowCount }, (_, index) => <ToolRowSkeleton key={index} />)}
+            {Array.from({ length: rowCount }, (_, index) => (
+              <ToolRowSkeleton key={index} />
+            ))}
           </SectionCard>
         </section>
       ))}
@@ -342,7 +521,13 @@ function ToolAdministrationSkeleton(): React.JSX.Element {
 
 type ToolGroupModel = { mutability: ToolMutability; tools: readonly AdminTool[]; providerId: ProviderId };
 
-function ToolGroup({ group, controller }: { group: ToolGroupModel; controller: ToolAdministrationController }): React.JSX.Element | null {
+function ToolGroup({
+  group,
+  controller,
+}: {
+  group: ToolGroupModel;
+  controller: ToolAdministrationController;
+}): React.JSX.Element | null {
   const { mutability, tools, providerId } = group;
   if (tools.length === 0) return null;
   const isRead = mutability === 'read';
@@ -351,17 +536,48 @@ function ToolGroup({ group, controller }: { group: ToolGroupModel; controller: T
     <section className="mt-3">
       <div className="flex items-center justify-between px-1">
         <div className="flex items-center gap-3">
-          <h3 className={isRead ? 'text-xs font-semibold uppercase tracking-section text-success' : 'text-xs font-semibold uppercase tracking-section text-warning'}>{isRead ? 'Read' : 'Write'}</h3>
-          <label className="flex min-h-11 cursor-pointer items-center gap-2 text-xs text-app-text-tertiary"><Checkbox aria-label={`Select all ${isRead ? 'read' : 'write'} tools`} checked={selectedState} disabled={controller.disabled} onCheckedChange={(checked) => { if (checked) controller.selection.selectAll(tools); else controller.selection.deselectAll(tools); }} />Select all</label>
+          <h3
+            className={
+              isRead
+                ? 'text-xs font-semibold uppercase tracking-section text-success'
+                : 'text-xs font-semibold uppercase tracking-section text-warning'
+            }
+          >
+            {isRead ? 'Read' : 'Write'}
+          </h3>
+          <label className="flex min-h-11 cursor-pointer items-center gap-2 text-xs text-app-text-tertiary">
+            <Checkbox
+              aria-label={`Select all ${isRead ? 'read' : 'write'} tools`}
+              checked={selectedState}
+              disabled={controller.disabled}
+              onCheckedChange={(checked) => {
+                if (checked) controller.selection.selectAll(tools);
+                else controller.selection.deselectAll(tools);
+              }}
+            />
+            Select all
+          </label>
         </div>
         <span className="text-xs tabular-nums text-app-text-quaternary">{tools.length}</span>
       </div>
-      <SectionCard className="mt-2 overflow-hidden">{tools.map((tool) => <ToolRow key={tool.name} tool={tool} providerId={providerId} controller={controller} />)}</SectionCard>
+      <SectionCard className="mt-2 overflow-hidden">
+        {tools.map((tool) => (
+          <ToolRow key={tool.name} tool={tool} providerId={providerId} controller={controller} />
+        ))}
+      </SectionCard>
     </section>
   );
 }
 
-function ProviderTools({ provider, normalizedSearch, controller }: { provider: AdminToolProvider; normalizedSearch: string; controller: ToolAdministrationController }): React.JSX.Element {
+function ProviderTools({
+  provider,
+  normalizedSearch,
+  controller,
+}: {
+  provider: AdminToolProvider;
+  normalizedSearch: string;
+  controller: ToolAdministrationController;
+}): React.JSX.Element {
   const matchingTools = provider.tools.filter((tool) => matchesSearch(tool, normalizedSearch));
   const sortedTools = [...matchingTools].sort(compareTools);
   const readTools = sortedTools.filter((tool) => tool.mutability === 'read');
@@ -372,22 +588,90 @@ function ProviderTools({ provider, normalizedSearch, controller }: { provider: A
       <div className="flex min-h-11 items-center justify-between gap-3">
         <h2 className="text-sm font-semibold">{providerName(provider.providerId)}</h2>
         <div className="flex items-center gap-3">
-          {provider.status === 'ready' && matchingTools.length > 0 ? <label className="flex min-h-11 cursor-pointer items-center gap-2 text-xs text-app-text-tertiary"><Checkbox aria-label="Select all visible tools" checked={allSelectedState} disabled={controller.disabled} onCheckedChange={(checked) => { if (checked) controller.selection.selectAll(matchingTools); else controller.selection.deselectAll(matchingTools); }} />Select all</label> : null}
-          <span className="text-xs text-app-text-quaternary">{provider.status === 'ready' ? `${matchingTools.length} tools` : null}</span>
+          {provider.status === 'ready' && matchingTools.length > 0 ? (
+            <label className="flex min-h-11 cursor-pointer items-center gap-2 text-xs text-app-text-tertiary">
+              <Checkbox
+                aria-label="Select all visible tools"
+                checked={allSelectedState}
+                disabled={controller.disabled}
+                onCheckedChange={(checked) => {
+                  if (checked) controller.selection.selectAll(matchingTools);
+                  else controller.selection.deselectAll(matchingTools);
+                }}
+              />
+              Select all
+            </label>
+          ) : null}
+          <span className="text-xs text-app-text-quaternary">
+            {provider.status === 'ready' ? `${matchingTools.length} tools` : null}
+          </span>
         </div>
       </div>
-      {provider.status === 'not-connected' ? <p className="mt-2 rounded-notice linear-border-hairline border-app-border-pane p-3.5 text-xs text-app-text-tertiary">Connect your admin account to {providerName(provider.providerId)} in <Link className="text-brand hover:text-brand-hover" to={APP_ROUTES.integrations}>Integrations</Link> to review its official tools.</p> : null}
-      {provider.status === 'error' ? <p role="alert" className="mt-2 rounded-notice linear-border-hairline border-warning/35 bg-warning/7 p-3.5 text-xs text-app-text-secondary">The official MCP endpoint could not be loaded. Reconnect the provider if this continues.</p> : null}
-      {provider.status === 'ready' && matchingTools.length === 0 ? <p className="mt-2 rounded-notice linear-border-hairline border-app-border-pane p-3.5 text-xs text-app-text-tertiary">No tools match this search.</p> : null}
-      {provider.status === 'ready' ? <ToolGroup group={{ mutability: 'read', tools: readTools, providerId: provider.providerId }} controller={controller} /> : null}
-      {provider.status === 'ready' ? <ToolGroup group={{ mutability: 'write', tools: writeTools, providerId: provider.providerId }} controller={controller} /> : null}
+      {provider.status === 'not-connected' ? (
+        <p className="mt-2 rounded-notice linear-border-hairline border-app-border-pane p-3.5 text-xs text-app-text-tertiary">
+          Connect your admin account to {providerName(provider.providerId)} in{' '}
+          <Link className="text-brand hover:text-brand-hover" to={APP_ROUTES.integrations}>
+            Integrations
+          </Link>{' '}
+          to review its official tools.
+        </p>
+      ) : null}
+      {provider.status === 'error' ? (
+        <p
+          role="alert"
+          className="mt-2 rounded-notice linear-border-hairline border-warning/35 bg-warning/7 p-3.5 text-xs text-app-text-secondary"
+        >
+          The official MCP endpoint could not be loaded. Reconnect the provider if this continues.
+        </p>
+      ) : null}
+      {provider.status === 'ready' && matchingTools.length === 0 ? (
+        <p className="mt-2 rounded-notice linear-border-hairline border-app-border-pane p-3.5 text-xs text-app-text-tertiary">
+          No tools match this search.
+        </p>
+      ) : null}
+      {provider.status === 'ready' ? (
+        <ToolGroup
+          group={{ mutability: 'read', tools: readTools, providerId: provider.providerId }}
+          controller={controller}
+        />
+      ) : null}
+      {provider.status === 'ready' ? (
+        <ToolGroup
+          group={{ mutability: 'write', tools: writeTools, providerId: provider.providerId }}
+          controller={controller}
+        />
+      ) : null}
     </section>
   );
 }
 
-function BatchActions({ controller, onChange }: { controller: ToolAdministrationController; onChange: (state: ToolPolicyState) => void }): React.JSX.Element {
+function BatchActions({
+  controller,
+  onChange,
+}: {
+  controller: ToolAdministrationController;
+  onChange: (state: ToolPolicyState) => void;
+}): React.JSX.Element {
   const { disabled, selection } = controller;
-  return <div aria-label="Batch actions" className="flex min-h-11 items-center justify-between gap-3"><div aria-live="polite" className="text-xs font-medium tabular-nums">{selection.selectedCount} selected</div><div className="flex items-center gap-1.5"><Button type="button" variant="ghost" size="large" disabled={disabled} onClick={selection.clear}>Clear</Button><PolicyMenu ariaLabel={`Set policy for ${selection.selectedCount} selected tools`} disabled={disabled} triggerLabel={disabled ? 'Applying…' : 'Set policy'} className="w-40" onChange={onChange} /></div></div>;
+  return (
+    <div aria-label="Batch actions" className="flex min-h-11 items-center justify-between gap-3">
+      <div aria-live="polite" className="text-xs font-medium tabular-nums">
+        {selection.selectedCount} selected
+      </div>
+      <div className="flex items-center gap-1.5">
+        <Button type="button" variant="ghost" size="large" disabled={disabled} onClick={selection.clear}>
+          Clear
+        </Button>
+        <PolicyMenu
+          ariaLabel={`Set policy for ${selection.selectedCount} selected tools`}
+          disabled={disabled}
+          triggerLabel={disabled ? 'Applying…' : 'Set policy'}
+          className="w-40"
+          onChange={onChange}
+        />
+      </div>
+    </div>
+  );
 }
 
 function AdminProviderTools({ providerId }: { providerId: ProviderId }): React.JSX.Element {
@@ -397,7 +681,9 @@ function AdminProviderTools({ providerId }: { providerId: ProviderId }): React.J
   const queryOptions = adminToolsQueryOptions(providerId);
   const toolsQuery = useQuery(queryOptions);
   const normalizedSearch = search.trim().toLowerCase();
-  useEffect(() => { window.scrollTo({ top: 0, left: 0, behavior: 'auto' }); }, [providerId]);
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+  }, [providerId]);
   const refreshMutation = useMutation({
     mutationFn: () => refreshAdminProviderTools(providerId),
     onSuccess: (result) => {
@@ -409,15 +695,44 @@ function AdminProviderTools({ providerId }: { providerId: ProviderId }): React.J
     mutationFn: setToolPolicies,
     onSuccess: (cache, change) => {
       const stateByName = new Map(change.tools.map((tool) => [tool.toolName, tool.state]));
-      queryClient.setQueryData<CachedResult<AdminToolProvider>>(queryOptions.queryKey, (result) => result && ({ cache, data: { ...result.data, tools: result.data.tools.map((tool) => { const state = stateByName.get(tool.name); return state === undefined ? tool : { ...tool, state, needsReview: false, review: { kind: 'approved' }, autoProbability: null, isUncertain: false }; }) } }));
+      queryClient.setQueryData<CachedResult<AdminToolProvider>>(
+        queryOptions.queryKey,
+        (result) =>
+          result && {
+            cache,
+            data: {
+              ...result.data,
+              tools: result.data.tools.map((tool) => {
+                const state = stateByName.get(tool.name);
+                return state === undefined
+                  ? tool
+                  : {
+                      ...tool,
+                      state,
+                      needsReview: false,
+                      review: { kind: 'approved' },
+                      autoProbability: null,
+                      isUncertain: false,
+                    };
+              }),
+            },
+          },
+      );
       selection.deselectNames(change.tools.map((tool) => tool.toolName));
     },
   });
-  const changeOne = (change: ToolPolicyChange) => { policyMutation.mutate({ providerId: change.providerId, tools: [{ toolName: change.toolName, fingerprint: change.fingerprint, state: change.state }] }); };
+  const changeOne = (change: ToolPolicyChange) => {
+    policyMutation.mutate({
+      providerId: change.providerId,
+      tools: [{ toolName: change.toolName, fingerprint: change.fingerprint, state: change.state }],
+    });
+  };
   const changeSelected = (state: ToolPolicyState) => {
     const provider = toolsQuery.data?.data;
     if (!provider) return;
-    const tools: ToolPolicyBatchChange['tools'] = provider.tools.filter((tool) => selection.isSelected(tool.name)).map((tool) => ({ toolName: tool.name, fingerprint: tool.fingerprint, state }));
+    const tools: ToolPolicyBatchChange['tools'] = provider.tools
+      .filter((tool) => selection.isSelected(tool.name))
+      .map((tool) => ({ toolName: tool.name, fingerprint: tool.fingerprint, state }));
     if (tools.length !== 0) policyMutation.mutate({ providerId, tools });
   };
   const controller: ToolAdministrationController = {
@@ -427,27 +742,77 @@ function AdminProviderTools({ providerId }: { providerId: ProviderId }): React.J
   };
   return (
     <section>
-      <PageHead title={`${providerName(providerId)} tools`} subtitle={`Review tools discovered from ${providerName(providerId)}'s official MCP server. New or changed contracts stay blocked until you approve their current fingerprint.`} />
+      <PageHead
+        title={`${providerName(providerId)} tools`}
+        subtitle={`Review tools discovered from ${providerName(providerId)}'s official MCP server. New or changed contracts stay blocked until you approve their current fingerprint.`}
+      />
       <div className="mt-4 min-h-11">
-        {selection.selectedCount > 0
-          ? <BatchActions controller={controller} onChange={changeSelected} />
-          : <div className="flex min-h-11 items-center justify-end"><Button type="button" variant="outline" size="large" disabled={refreshMutation.isPending} className="min-w-28" onClick={() => { refreshMutation.mutate(); }}>{refreshMutation.isPending ? 'Refreshing…' : 'Refresh tools'}</Button></div>}
+        {selection.selectedCount > 0 ? (
+          <BatchActions controller={controller} onChange={changeSelected} />
+        ) : (
+          <div className="flex min-h-11 items-center justify-end">
+            <Button
+              type="button"
+              variant="outline"
+              size="large"
+              disabled={refreshMutation.isPending}
+              className="min-w-28"
+              onClick={() => {
+                refreshMutation.mutate();
+              }}
+            >
+              {refreshMutation.isPending ? 'Refreshing…' : 'Refresh tools'}
+            </Button>
+          </div>
+        )}
       </div>
-      <label htmlFor="tool-search" className="mt-6 block text-xs font-medium text-app-text-tertiary">Search tools</label>
-      <SearchInput id="tool-search" variant="content" value={search} onChange={(event) => { setSearch(event.target.value); }} placeholder="Name or description" containerClassName="mt-1" className="h-11" />
+      <label htmlFor="tool-search" className="mt-6 block text-xs font-medium text-app-text-tertiary">
+        Search tools
+      </label>
+      <SearchInput
+        id="tool-search"
+        variant="content"
+        value={search}
+        onChange={(event) => {
+          setSearch(event.target.value);
+        }}
+        placeholder="Name or description"
+        containerClassName="mt-1"
+        className="h-11"
+      />
       {toolsQuery.isPending ? <ToolAdministrationSkeleton /> : null}
-      {toolsQuery.isError ? <ErrorState title="We couldn't load tool administration" body="You may not have administrator access, or provider discovery failed before the catalog could load." onRetry={() => { void toolsQuery.refetch(); }} /> : null}
-      {policyMutation.isError ? <p role="alert" className="mt-4 text-xs text-danger">No policies were saved. A selected tool may have changed, refresh and review it again.</p> : null}
-      {refreshMutation.isError ? <p role="alert" className="mt-4 text-xs text-danger">The official MCP endpoint could not be refreshed. Try again.</p> : null}
+      {toolsQuery.isError ? (
+        <ErrorState
+          title="We couldn't load tool administration"
+          body="You may not have administrator access, or provider discovery failed before the catalog could load."
+          onRetry={() => {
+            void toolsQuery.refetch();
+          }}
+        />
+      ) : null}
+      {policyMutation.isError ? (
+        <p role="alert" className="mt-4 text-xs text-danger">
+          No policies were saved. A selected tool may have changed, refresh and review it again.
+        </p>
+      ) : null}
+      {refreshMutation.isError ? (
+        <p role="alert" className="mt-4 text-xs text-danger">
+          The official MCP endpoint could not be refreshed. Try again.
+        </p>
+      ) : null}
       {toolsQuery.data ? <AutomaticRule providerId={providerId} rule={toolsQuery.data.data.rule} /> : null}
-      {toolsQuery.data ? <ProviderTools provider={toolsQuery.data.data} normalizedSearch={normalizedSearch} controller={controller} /> : null}
+      {toolsQuery.data ? (
+        <ProviderTools provider={toolsQuery.data.data} normalizedSearch={normalizedSearch} controller={controller} />
+      ) : null}
     </section>
   );
 }
 
 export default function AdminTools(): React.JSX.Element {
   const { providerId } = useParams();
-  return providerId === undefined || !isConnectableProvider(providerId)
-    ? <Navigate to={`${APP_ROUTES.adminTools}/github`} replace />
-    : <AdminProviderTools key={providerId} providerId={providerId} />;
+  return providerId === undefined || !isConnectableProvider(providerId) ? (
+    <Navigate to={`${APP_ROUTES.adminTools}/github`} replace />
+  ) : (
+    <AdminProviderTools key={providerId} providerId={providerId} />
+  );
 }

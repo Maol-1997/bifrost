@@ -64,10 +64,17 @@ export function authorizationCodeKey(code: string): string {
   return `oauth:code:${code}`;
 }
 
-export async function handleAuthorize(context: OAuthServerContext, url: URL, userId: string | undefined): Promise<OAuthHttpResult> {
+export async function handleAuthorize(
+  context: OAuthServerContext,
+  url: URL,
+  userId: string | undefined,
+): Promise<OAuthHttpResult> {
   const parsed = authorizeRequestSchema.safeParse(Object.fromEntries(url.searchParams));
   if (!parsed.success) {
-    return errorPage('This request could not be read', 'It is missing client_id, redirect_uri or a PKCE code challenge, so there is nothing safe to act on.');
+    return errorPage(
+      'This request could not be read',
+      'It is missing client_id, redirect_uri or a PKCE code challenge, so there is nothing safe to act on.',
+    );
   }
   const request = parsed.data;
 
@@ -110,8 +117,7 @@ export async function handleAuthorize(context: OAuthServerContext, url: URL, use
 type AuthorizeRequest = z.infer<typeof authorizeRequestSchema>;
 type GrantedRequest = { resource: string; scopes: readonly string[] };
 type ValidatedAuthorizeRequest =
-  | { kind: 'granted'; granted: GrantedRequest }
-  | { kind: 'rejected'; result: OAuthHttpResult };
+  { kind: 'granted'; granted: GrantedRequest } | { kind: 'rejected'; result: OAuthHttpResult };
 
 /**
  * The protocol checks that run once `redirect_uri` is trusted, so every
@@ -123,8 +129,10 @@ function validateAuthorizeRequest(context: OAuthServerContext, request: Authoriz
     result: redirectFailure(context, { redirectUri: request.redirect_uri, code, description, state: request.state }),
   });
 
-  if (request.response_type !== 'code') return reject('unsupported_response_type', 'Only the authorization code flow is supported');
-  if (!isSupportedChallengeMethod(request.code_challenge_method)) return reject('invalid_request', 'code_challenge_method must be S256');
+  if (request.response_type !== 'code')
+    return reject('unsupported_response_type', 'Only the authorization code flow is supported');
+  if (!isSupportedChallengeMethod(request.code_challenge_method))
+    return reject('invalid_request', 'code_challenge_method must be S256');
 
   const resource = normalizeResource(context, request.resource);
   if (!resource) return reject('invalid_target', 'The resource parameter does not name this MCP server');
@@ -135,7 +143,9 @@ function validateAuthorizeRequest(context: OAuthServerContext, request: Authoriz
   return { kind: 'granted', granted: { resource, scopes } };
 }
 
-function pendingConsentFor(input: { client: RegisteredClient; request: AuthorizeRequest; userId: string } & GrantedRequest): PendingConsent {
+function pendingConsentFor(
+  input: { client: RegisteredClient; request: AuthorizeRequest; userId: string } & GrantedRequest,
+): PendingConsent {
   return {
     clientId: input.client.clientId,
     clientName: input.client.clientName,
@@ -148,7 +158,11 @@ function pendingConsentFor(input: { client: RegisteredClient; request: Authorize
   };
 }
 
-async function askForConsent(context: OAuthServerContext, client: RegisteredClient, pending: PendingConsent): Promise<OAuthHttpResult> {
+async function askForConsent(
+  context: OAuthServerContext,
+  client: RegisteredClient,
+  pending: PendingConsent,
+): Promise<OAuthHttpResult> {
   const user = await context.database.getUser(pending.userId);
   if (!user) return errorPage('Account not found', 'The signed-in account no longer exists. Sign in again and retry.');
 
@@ -176,22 +190,43 @@ async function askForConsent(context: OAuthServerContext, client: RegisteredClie
  * can make the browser POST still has no token, and a real token only works
  * once, for the user it was issued to.
  */
-export async function handleConsent(context: OAuthServerContext, body: URLSearchParams, userId: string | undefined): Promise<OAuthHttpResult> {
+export async function handleConsent(
+  context: OAuthServerContext,
+  body: URLSearchParams,
+  userId: string | undefined,
+): Promise<OAuthHttpResult> {
   if (!userId) return errorPage('You are signed out', 'Sign in again and reconnect from your program.', 401);
   const consentToken = body.get('consent_token');
   if (!consentToken) return errorPage('This form could not be read', 'It arrived without an approval token.', 400);
 
   const raw = await context.coordinator.takeEphemeral(`oauth:consent:${consentToken}`);
-  if (!raw) return errorPage('This approval expired', 'Approval requests are short-lived. Reconnect from your program to try again.', 400);
+  if (!raw)
+    return errorPage(
+      'This approval expired',
+      'Approval requests are short-lived. Reconnect from your program to try again.',
+      400,
+    );
   const pending = pendingConsentSchema.parse(JSON.parse(raw));
 
   if (pending.userId !== userId) {
-    logger.warn({ clientId: pending.clientId }, 'Consent submitted by a different account than the one it was issued to');
-    return errorPage('This approval was not yours', 'It was issued to a different account. Nothing was authorized.', 403);
+    logger.warn(
+      { clientId: pending.clientId },
+      'Consent submitted by a different account than the one it was issued to',
+    );
+    return errorPage(
+      'This approval was not yours',
+      'It was issued to a different account. Nothing was authorized.',
+      403,
+    );
   }
 
   if (body.get('decision') !== 'approve') {
-    return redirectFailure(context, { redirectUri: pending.redirectUri, code: 'access_denied', description: 'The user declined the request', state: pending.state });
+    return redirectFailure(context, {
+      redirectUri: pending.redirectUri,
+      code: 'access_denied',
+      description: 'The user declined the request',
+      state: pending.state,
+    });
   }
   logger.info({ clientId: pending.clientId, userId }, 'Client authorized by user');
   return issueAuthorizationCode(context, pending);
@@ -206,13 +241,21 @@ export async function handleConsent(context: OAuthServerContext, body: URLSearch
 async function getOrFetchClient(context: OAuthServerContext, clientId: string): Promise<RegisteredClient> {
   const isMetadataDocument = isClientIdMetadataDocumentUrl(clientId);
   if (isMetadataDocument && !context.config.OAUTH_ENABLE_CLIENT_ID_METADATA_DOCUMENTS) {
-    throw new OAuthError('invalid_client', 'This server is not accepting client metadata documents; register the client instead');
+    throw new OAuthError(
+      'invalid_client',
+      'This server is not accepting client metadata documents; register the client instead',
+    );
   }
 
   const stored = await context.database.getOAuthClient(clientId);
   const isCacheLive = stored?.metadataExpiresAt !== undefined && stored.metadataExpiresAt.getTime() > Date.now();
   if (stored && (stored.registrationKind === 'dynamic' || isCacheLive)) {
-    return { clientId, clientName: stored.clientName, redirectUris: stored.redirectUris, registrationKind: stored.registrationKind };
+    return {
+      clientId,
+      clientName: stored.clientName,
+      redirectUris: stored.redirectUris,
+      registrationKind: stored.registrationKind,
+    };
   }
   if (!isMetadataDocument) throw new OAuthError('invalid_client', 'This client is not registered with Bifrost');
 
@@ -235,7 +278,11 @@ async function issueAuthorizationCode(context: OAuthServerContext, pending: Pend
   };
   // Short-lived and single-use: `takeEphemeral` is a get-and-delete, so a code
   // replayed against the token endpoint finds nothing.
-  await context.coordinator.setEphemeral(authorizationCodeKey(code), JSON.stringify(payload), AUTHORIZATION_CODE_TTL_SECONDS);
+  await context.coordinator.setEphemeral(
+    authorizationCodeKey(code),
+    JSON.stringify(payload),
+    AUTHORIZATION_CODE_TTL_SECONDS,
+  );
   const location = new URL(pending.redirectUri);
   location.searchParams.set('code', code);
   if (pending.state !== undefined) location.searchParams.set('state', pending.state);
@@ -279,7 +326,10 @@ function normalizeResource(context: OAuthServerContext, resource: string | undef
  * for it politely.
  */
 function parseScopes(scope: string | undefined): string[] | undefined {
-  const requested = (scope ?? '').split(' ').filter(Boolean).filter((entry) => entry !== OFFLINE_ACCESS_SCOPE);
+  const requested = (scope ?? '')
+    .split(' ')
+    .filter(Boolean)
+    .filter((entry) => entry !== OFFLINE_ACCESS_SCOPE);
   if (requested.length === 0) return [MCP_SCOPE];
   return requested.every((entry) => entry === MCP_SCOPE) ? [MCP_SCOPE] : undefined;
 }

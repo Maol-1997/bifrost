@@ -24,10 +24,8 @@ export function createStaticRoutes(): Hono<AppEnv> {
     path: 'index.html',
     onFound: (_path, context) => context.header('Cache-Control', 'no-cache'),
   });
-  const frontendUnavailable = (context: Parameters<typeof serveIndex>[0]) => context.json(
-    { error: 'Frontend bundle is unavailable. Run npm run build.' },
-    503,
-  );
+  const frontendUnavailable = (context: Parameters<typeof serveIndex>[0]) =>
+    context.json({ error: 'Frontend bundle is unavailable. Run npm run build.' }, 503);
 
   for (const route of SPA_FALLBACK_ROUTES) routes.get(route, serveIndex, frontendUnavailable);
   return routes;

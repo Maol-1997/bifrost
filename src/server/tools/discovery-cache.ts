@@ -4,12 +4,7 @@ import type { Tool } from '@modelcontextprotocol/client';
 import { z } from 'zod';
 import { PROVIDER_REGISTRY, SUPPORTED_APPS } from '../providers/registry.js';
 import type { ProviderId } from '../providers/types.js';
-import {
-  mcpToolNameSchema,
-  normalizeUpstreamTool,
-  type DiscoveredTool,
-  type ToolContractSnapshot,
-} from './catalog.js';
+import { mcpToolNameSchema, normalizeUpstreamTool, type DiscoveredTool, type ToolContractSnapshot } from './catalog.js';
 import { parseToolCacheGeneration, type ToolCacheStore } from './cache-store.js';
 
 /**
@@ -370,12 +365,7 @@ export class ToolDiscoveryCache {
     return undefined;
   }
 
-  private revalidate(
-    key: ToolCacheKey,
-    generation: number,
-    entry: CacheEntry,
-    load: ToolLoader,
-  ): void {
+  private revalidate(key: ToolCacheKey, generation: number, entry: CacheEntry, load: ToolLoader): void {
     const lockKey = toolCacheKey(key, 'refresh', generation);
     if (this.backgroundRefreshes.has(lockKey)) return;
     this.backgroundRefreshes.add(lockKey);
@@ -398,7 +388,7 @@ export class ToolDiscoveryCache {
     const owner = randomUUID();
     // Another worker already owns this refresh; a second upstream round trip
     // would buy nothing, and the stale answer is already on its way out.
-    if (!await this.store.writeIfAbsent(lockKey, owner, this.options.refreshLockMs)) return;
+    if (!(await this.store.writeIfAbsent(lockKey, owner, this.options.refreshLockMs))) return;
     try {
       await this.writeSuccess(key, generation, await load());
     } catch (error) {
@@ -409,11 +399,7 @@ export class ToolDiscoveryCache {
     }
   }
 
-  private async writeSuccess(
-    key: ToolCacheKey,
-    generation: number,
-    tools: readonly DiscoveredTool[],
-  ): Promise<void> {
+  private async writeSuccess(key: ToolCacheKey, generation: number, tools: readonly DiscoveredTool[]): Promise<void> {
     await this.writeRecord(key, {
       generation,
       contracts: tools.map((tool) => tool.contract),
@@ -423,22 +409,14 @@ export class ToolDiscoveryCache {
     });
   }
 
-  private async writeFailure(
-    key: ToolCacheKey,
-    generation: number,
-    entry: CacheEntry | undefined,
-  ): Promise<void> {
+  private async writeFailure(key: ToolCacheKey, generation: number, entry: CacheEntry | undefined): Promise<void> {
     const now = this.now();
     const failureCount = (entry?.failureCount ?? 0) + 1;
-    const backoffMs = Math.min(
-      this.options.initialRetryMs * 2 ** (failureCount - 1),
-      this.options.maxRetryMs,
-    );
-    const canRetainStaleTools = entry?.tools !== undefined
-      && now < entry.freshUntil + this.options.retentionMs;
+    const backoffMs = Math.min(this.options.initialRetryMs * 2 ** (failureCount - 1), this.options.maxRetryMs);
+    const canRetainStaleTools = entry?.tools !== undefined && now < entry.freshUntil + this.options.retentionMs;
     await this.writeRecord(key, {
       generation,
-      contracts: canRetainStaleTools ? entry.tools?.map((tool) => tool.contract) ?? null : null,
+      contracts: canRetainStaleTools ? (entry.tools?.map((tool) => tool.contract) ?? null) : null,
       freshUntil: canRetainStaleTools ? entry.freshUntil : 0,
       failureCount,
       nextRetryAt: now + backoffMs,
@@ -450,13 +428,13 @@ export class ToolDiscoveryCache {
     // Checking the generation on both sides of the write closes the window one
     // check leaves open: a bump before it makes the write pointless, and a bump
     // after it leaves behind an entry only this caller still knows to remove.
-    if (await this.readGeneration(key) !== record.generation) return;
+    if ((await this.readGeneration(key)) !== record.generation) return;
     const now = this.now();
     const expiresAt = record.contracts
       ? record.freshUntil + this.options.retentionMs
       : record.nextRetryAt + this.options.maxRetryMs;
     await this.store.write(entryKey, JSON.stringify(record), Math.max(1, expiresAt - now));
-    if (await this.readGeneration(key) !== record.generation) await this.store.remove(entryKey);
+    if ((await this.readGeneration(key)) !== record.generation) await this.store.remove(entryKey);
   }
 
   private async readGeneration(key: ToolCacheKey): Promise<number> {
@@ -489,7 +467,9 @@ export function aggregateToolCacheHints(hints: readonly ToolCacheHint[]): ToolCa
   }
   const state = hints.some((hint) => hint.state === 'revalidating')
     ? 'revalidating'
-    : hints.some((hint) => hint.state === 'refresh_failed') ? 'refresh_failed' : 'fresh';
+    : hints.some((hint) => hint.state === 'refresh_failed')
+      ? 'refresh_failed'
+      : 'fresh';
   return {
     state,
     freshForMs: Math.min(...hints.map((hint) => hint.freshForMs)),

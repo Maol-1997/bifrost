@@ -11,14 +11,24 @@ export function ExpandableText({ label, text }: { label: string; text: string })
 
   return (
     <div>
-      <p id={textId} className={cn('mt-1 text-[12.5px] leading-5 text-app-text-tertiary', canExpand && !isExpanded && 'line-clamp-3')}>{text}</p>
+      <p
+        id={textId}
+        className={cn(
+          'mt-1 text-[12.5px] leading-5 text-app-text-tertiary',
+          canExpand && !isExpanded && 'line-clamp-3',
+        )}
+      >
+        {text}
+      </p>
       {canExpand ? (
         <button
           type="button"
           aria-controls={textId}
           aria-expanded={isExpanded}
           className="-my-1 inline-flex min-h-11 items-center text-[11.5px] font-medium text-app-text-secondary hover:text-app-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
-          onClick={() => { setIsExpanded((current) => !current); }}
+          onClick={() => {
+            setIsExpanded((current) => !current);
+          }}
         >
           {isExpanded ? 'View less' : 'View more'} <span className="sr-only">about {label}</span>
         </button>

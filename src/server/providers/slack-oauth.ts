@@ -19,18 +19,23 @@ export async function normalizeSlackTokenResponse(response: Response): Promise<R
   const topLevelUserTokens = slackUserTokens.safeParse(parsed.data);
   const userTokens = nestedUserTokens.success
     ? nestedUserTokens.data
-    : topLevelUserTokens.success ? topLevelUserTokens.data : undefined;
+    : topLevelUserTokens.success
+      ? topLevelUserTokens.data
+      : undefined;
   if (!userTokens) return response;
 
   const headers = new Headers(response.headers);
   headers.set('Content-Type', 'application/json');
   headers.delete('Content-Length');
-  return Response.json({
-    ...parsed.data,
-    access_token: userTokens.access_token,
-    token_type: 'bearer',
-    ...(userTokens.refresh_token ? { refresh_token: userTokens.refresh_token } : {}),
-    ...(userTokens.expires_in ? { expires_in: userTokens.expires_in } : {}),
-    ...(userTokens.scope ? { scope: userTokens.scope } : {}),
-  }, { status: response.status, headers });
+  return Response.json(
+    {
+      ...parsed.data,
+      access_token: userTokens.access_token,
+      token_type: 'bearer',
+      ...(userTokens.refresh_token ? { refresh_token: userTokens.refresh_token } : {}),
+      ...(userTokens.expires_in ? { expires_in: userTokens.expires_in } : {}),
+      ...(userTokens.scope ? { scope: userTokens.scope } : {}),
+    },
+    { status: response.status, headers },
+  );
 }

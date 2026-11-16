@@ -43,7 +43,10 @@ export function createSessionStore(database: AppDatabase) {
      * that "Sessions" reflects what is actually talking to Bifrost. Expired
      * sessions match nothing and are therefore never revived by this call.
      */
-    async resolveSessionAndTouch(token: string, userAgent?: string): Promise<{ sessionId: string; userId: string; clientId: string; expiresAt: Date } | undefined> {
+    async resolveSessionAndTouch(
+      token: string,
+      userAgent?: string,
+    ): Promise<{ sessionId: string; userId: string; clientId: string; expiresAt: Date } | undefined> {
       const [row] = await database
         .update(sessions)
         .set({
@@ -51,7 +54,12 @@ export function createSessionStore(database: AppDatabase) {
           userAgent: sql`coalesce(${userAgent ?? null}, ${sessions.userAgent})`,
         })
         .where(and(eq(sessions.tokenHash, hashToken(token)), gt(sessions.expiresAt, sql`now()`)))
-        .returning({ sessionId: sessions.id, userId: sessions.userId, clientId: sessions.clientId, expiresAt: sessions.expiresAt });
+        .returning({
+          sessionId: sessions.id,
+          userId: sessions.userId,
+          clientId: sessions.clientId,
+          expiresAt: sessions.expiresAt,
+        });
       return row;
     },
 

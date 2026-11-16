@@ -15,5 +15,14 @@ export function CopyButton({ value, className }: { value: string; className?: st
     timeoutRef.current = window.setTimeout(() => setIsCopied(false), 1600);
   }
 
-  return <Button type="button" variant="outline" onClick={() => void copy()} className={cn('min-w-[72px]', isCopied && 'border-success/30 bg-success/15 text-success', className)}>{isCopied ? 'Copied ✓' : 'Copy'}</Button>;
+  return (
+    <Button
+      type="button"
+      variant="outline"
+      onClick={() => void copy()}
+      className={cn('min-w-[72px]', isCopied && 'border-success/30 bg-success/15 text-success', className)}
+    >
+      {isCopied ? 'Copied ✓' : 'Copy'}
+    </Button>
+  );
 }

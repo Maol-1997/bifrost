@@ -40,10 +40,12 @@ export function isRedirectUriAllowed(candidate: string, registered: readonly str
   if (!requested) return false;
   return registered.some((entry) => {
     const allowed = asLoopbackUri(entry);
-    return allowed !== undefined
-      && allowed.hostname === requested.hostname
-      && allowed.pathname === requested.pathname
-      && allowed.search === requested.search;
+    return (
+      allowed !== undefined &&
+      allowed.hostname === requested.hostname &&
+      allowed.pathname === requested.pathname &&
+      allowed.search === requested.search
+    );
   });
 }
 
