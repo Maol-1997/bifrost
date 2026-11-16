@@ -1,5 +1,5 @@
 import type { OpenAIToolOptions } from '@ai-sdk/openai';
-import { tool, type ToolSet } from 'ai';
+import { tool, type ToolApprovalStatus, type ToolSet } from 'ai';
 import { z } from 'zod';
 import type { AppDependencies } from '../http/context.js';
 import type { BrowserIdentity } from '../mcp.js';
@@ -94,18 +94,38 @@ type AdminAgentToolRequest = {
   signal: AbortSignal;
 };
 
+/**
+ * Tools that change what every user's agents can do. The chat model runs in the
+ * same loop as web search and provider tool output, so text from any of those
+ * could ask for one of these calls. Each call therefore stops until the
+ * administrator approves its exact input in the chat. The approval is not
+ * signed: the browser sending it already holds an administrator session that
+ * can make the same changes through the admin API.
+ */
+export const ADMIN_TOOLS_REQUIRING_APPROVAL = [
+  'bifrost_admin_set_mcp_tool_policies',
+  'bifrost_admin_set_mcp_tool_rule',
+  'bifrost_admin_clear_mcp_tool_rule',
+] as const;
+
+const APPROVAL_INSTRUCTIONS =
+  'Changes to tool policies and automatic rules wait for the administrator to approve them in the chat. ' +
+  'If a change is denied, do not retry it; ask the administrator what to do instead.';
+
 export type AdminAgentContext = {
   tools: ToolSet;
   instructions: string;
+  toolApproval: Readonly<Record<string, ToolApprovalStatus>>;
 };
 
 export async function createAdminAgentContext(request: AdminAgentToolRequest): Promise<AdminAgentContext> {
-  if (!(await hasAdministratorAccess(request))) return { tools: {}, instructions: '' };
+  if (!(await hasAdministratorAccess(request))) return { tools: {}, instructions: '', toolApproval: {} };
   const notes = await request.dependencies.database.providerAgentNotes(request.identity.userId);
 
   return {
-    instructions: providerAgentNoteInstructions(notes),
+    instructions: `${providerAgentNoteInstructions(notes)}\n\n${APPROVAL_INSTRUCTIONS}`,
     tools: createAdminAgentTools(request),
+    toolApproval: Object.fromEntries(ADMIN_TOOLS_REQUIRING_APPROVAL.map((name) => [name, 'user-approval'] as const)),
   };
 }
 
@@ -175,7 +195,7 @@ function createAdminAgentTools(request: AdminAgentToolRequest): ToolSet {
     }),
     bifrost_admin_set_mcp_tool_rule: tool({
       title: 'Set MCP tool rule',
-      description: `Create or replace the automatic tool rule for one MCP provider and apply it immediately to tools it has not decided yet. ${RULE_BEHAVIOUR} Confirm the wording with the user before replacing an existing rule.`,
+      description: `Create or replace the automatic tool rule for one MCP provider and apply it immediately to tools it has not decided yet. ${RULE_BEHAVIOUR} The administrator approves each call in the chat before it runs.`,
       inputSchema: setToolRuleSchema,
       providerOptions: { openai: ADMIN_TOOL_OPTIONS },
       metadata: { source: 'bifrost-admin' },

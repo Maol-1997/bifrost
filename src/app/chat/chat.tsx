@@ -7,6 +7,7 @@ import {
   DefaultChatTransport,
   getToolName,
   isToolUIPart,
+  lastAssistantMessageIsCompleteWithApprovalResponses,
   type DynamicToolUIPart,
   type ToolUIPart,
   type UIMessage,
@@ -43,6 +44,7 @@ import {
 } from './utils/chat-history';
 import { useConversationRecord } from './hooks/use-conversation-record';
 import { useMessageEditing } from './hooks/use-message-editing';
+import { describeAdminApproval } from './utils/admin-approval';
 import { messageText } from './utils/chat-messages';
 
 const CHAT_ID_QUERY_PARAMETER = 'id';
@@ -84,6 +86,7 @@ type ChatConversationDock = {
 
 type ChatToolPart = DynamicToolUIPart | ToolUIPart;
 type ChatToolSource = { kind: 'bifrost' } | { kind: 'provider'; providerId: ProviderId } | { kind: 'unknown' };
+type ApprovalResponder = (response: { id: string; approved: boolean }) => void;
 
 export default function Chat({ active = true, owner, toolbarHost }: ChatProps): React.JSX.Element | null {
   const { data: config } = useQuery({ queryKey: ['chat-config'], queryFn: getChatConfig });
@@ -400,10 +403,13 @@ function ChatConversation({
   const { conversation, history } = record;
   const [input, setInput] = useState('');
   const transport = useMemo(() => new DefaultChatTransport({ api: '/api/chat' }), []);
-  const { error, messages, regenerate, sendMessage, setMessages, status, stop } = useChat({
+  const { addToolApprovalResponse, error, messages, regenerate, sendMessage, setMessages, status, stop } = useChat({
     id: conversation.id,
     messages: conversation.messages,
     transport,
+    // Once every pending change in the last answer is approved or denied, the
+    // agent continues with those decisions.
+    sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithApprovalResponses,
   });
   const isWorking = status === 'submitted' || status === 'streaming';
   const isMiniChat = dock.placement !== 'page';
@@ -424,7 +430,16 @@ function ChatConversation({
   });
   const conversationHistoryItems = historyItems(history, conversation.id);
 
+  function respondToApproval(response: { id: string; approved: boolean }): void {
+    void addToolApprovalResponse(response);
+  }
+
   function submit(value: string): void {
+    // A pending tool call without an answer would leave the model's history incomplete.
+    if (hasPendingApproval(messages)) {
+      toast.error('Approve or deny the pending change first');
+      return;
+    }
     if (messageEditing.submitEditedMessage(value)) {
       setInput('');
       return;
@@ -514,6 +529,7 @@ function ChatConversation({
                 <ChatMessage
                   key={message.id}
                   message={message}
+                  onApprovalResponse={isWorking ? undefined : respondToApproval}
                   onCopy={() => copyMessage(message)}
                   onEdit={() => beginEditingMessage(message)}
                   showAssistantActions={isMiniChat}
@@ -564,12 +580,14 @@ function ChatConversation({
 
 function ChatMessage({
   message,
+  onApprovalResponse,
   onCopy,
   onEdit,
   showAssistantActions,
   streaming,
 }: {
   message: UIMessage;
+  onApprovalResponse: ApprovalResponder | undefined;
   onCopy: () => void;
   onEdit: () => void;
   showAssistantActions: boolean;
@@ -585,9 +603,19 @@ function ChatMessage({
       {...(message.role === 'user' ? { onEditMessage: onEdit } : {})}
       role={message.role === 'user' ? 'user' : 'assistant'}
     >
-      {toolParts.map((part) => (
-        <ToolActivity key={part.toolCallId} part={part} />
-      ))}
+      {toolParts.map((part) =>
+        part.state === 'approval-requested' && part.approval.isAutomatic !== true ? (
+          <ToolApprovalRequest
+            key={part.toolCallId}
+            approvalId={part.approval.id}
+            input={part.input}
+            onResponse={onApprovalResponse}
+            toolName={getToolName(part)}
+          />
+        ) : (
+          <ToolActivity key={part.toolCallId} part={part} />
+        ),
+      )}
       {message.role === 'assistant' ? <AgentMarkdown markdown={text} streaming={streaming} /> : text}
     </AgentChatMessage>
   );
@@ -616,6 +644,57 @@ function conversationMarkdown(title: string, messages: readonly UIMessage[]): st
   return `# ${title}\n\n${transcript}\n`;
 }
 
+function hasPendingApproval(messages: readonly UIMessage[]): boolean {
+  return messages.some((message) =>
+    message.parts.some((part) => isToolUIPart(part) && part.state === 'approval-requested'),
+  );
+}
+
+function ToolApprovalRequest({
+  approvalId,
+  input,
+  onResponse,
+  toolName,
+}: {
+  approvalId: string;
+  input: unknown;
+  onResponse: ApprovalResponder | undefined;
+  toolName: string;
+}): React.JSX.Element {
+  const summary = describeAdminApproval(toolName, input);
+
+  return (
+    <div
+      aria-label="Change waiting for your approval"
+      className="mb-3 rounded-notice linear-border-hairline border-warning/35 bg-warning/7 p-3.5 text-xs text-app-text-secondary"
+      role="group"
+    >
+      <p className="font-medium text-linear-bright">{summary.title}</p>
+      {summary.details.length > 0 ? (
+        <ul className="mt-2 max-h-48 space-y-1 overflow-y-auto whitespace-pre-wrap break-words">
+          {summary.details.map((detail, index) => (
+            <li key={index}>{detail}</li>
+          ))}
+        </ul>
+      ) : null}
+      <p className="mt-2 text-app-text-tertiary">Nothing changes until you approve.</p>
+      <div className="mt-3 flex gap-2">
+        <Button disabled={!onResponse} onClick={() => onResponse?.({ id: approvalId, approved: true })} size="compact">
+          Approve
+        </Button>
+        <Button
+          disabled={!onResponse}
+          onClick={() => onResponse?.({ id: approvalId, approved: false })}
+          size="compact"
+          variant="secondary"
+        >
+          Deny
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 function ToolActivity({ part }: { part: ChatToolPart }): React.JSX.Element {
   const finished = part.state === 'output-available' || part.state === 'output-error' || part.state === 'output-denied';
   const source = toolSource(part);
@@ -636,7 +715,7 @@ function ToolActivity({ part }: { part: ChatToolPart }): React.JSX.Element {
         )}
       </span>
       <span>
-        {finished ? 'Used' : 'Using'} {title}
+        {part.state === 'output-denied' ? 'Denied' : finished ? 'Used' : 'Using'} {title}
       </span>
     </div>
   );

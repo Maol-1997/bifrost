@@ -58,3 +58,12 @@ browser identity belongs to an address in `ADMIN_EMAILS`. Those tools can inspec
 atomically update deployment policies and read or change each provider's automatic rule, but they are never registered by `createHumanMcpHandler` and
 therefore never appear on `/mcp`. Keep that boundary: external agents must not receive administrative
 capabilities through their OAuth grants.
+
+The chat model reads web search results and provider tool output in the same loop, and any of that
+text can try to steer it. So every admin tool that changes policies or rules
+(`ADMIN_TOOLS_REQUIRING_APPROVAL`: set policies, set rule, clear rule) uses the AI SDK's
+`toolApproval`. The call stops with an approval request, the chat shows the exact change (every tool
+and state in a batch, or the full rule text), and nothing runs until the administrator presses
+**Approve**. **Deny** returns a denial to the model instead. The fingerprint check still runs when the
+approved call executes, so a definition that changed while the request waited rejects the batch.
+Notes and read-only admin tools run without approval.

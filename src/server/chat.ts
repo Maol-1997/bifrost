@@ -111,6 +111,7 @@ export async function createBifrostChatResponse(request: {
       ...deferredTools,
       ...adminContext.tools,
     },
+    toolApproval: adminContext.toolApproval,
     stopWhen: stepCountIs(MAX_AGENT_STEPS),
   });
   return createAgentUIStreamResponse({

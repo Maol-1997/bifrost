@@ -34,7 +34,7 @@ Three ideas explain most of the design:
 
 - **Provider tokens never leave the server.** They are encrypted with AES-256-GCM, bound to their database row, and decrypted only to make an outbound call. Keys can be rotated online ([docs/encryption-keys.md](docs/encryption-keys.md)).
 - **Agents get their own short-lived credentials.** Bifrost tokens are opaque and stored as SHA-256 hashes. A reused refresh token revokes the whole grant. Browser cookies and agent bearer tokens are checked by separate code against separate tables.
-- **New and changed tools start blocked.** Each tool contract has a fingerprint. Any change to the contract creates a new fingerprint, and the tool stays blocked until an administrator approves it.
+- **New and changed tools start blocked.** Each tool contract has a fingerprint. Any change to the contract creates a new fingerprint, and the tool stays blocked until an administrator approves it. When the admin web chat wants to change a policy or a rule, it shows the exact change and waits for the administrator to approve it.
 - **Everything fails closed.** A missing policy, a missing tool, a fingerprint mismatch or an unavailable Redis means "no access", not a default. Logs redact tokens and secrets.
 
 More detail: [docs/tool-visibility.md](docs/tool-visibility.md), [docs/oauth.md](docs/oauth.md) and [docs/request-lifecycle.md](docs/request-lifecycle.md).
