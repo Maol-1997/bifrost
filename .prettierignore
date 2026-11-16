@@ -1,0 +1,8 @@
+dist/
+coverage/
+node_modules/
+.worktree/
+migrations/
+bench/results/
+bun.lock
+*.md
