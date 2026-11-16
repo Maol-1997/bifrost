@@ -4,6 +4,12 @@ Bifrost is a small gateway between your coding agent and the tools your team use
 
 Bifrost also has a web chat. It can use the same tools as your agent, and administrators can use it to review and approve tools.
 
+![Integrations: each user connects their own accounts](docs/images/integrations.png)
+
+![Tool administration: new or changed tools stay blocked until an administrator approves their fingerprint](docs/images/tool-administration.png)
+
+_Screenshots use the built-in mock API (`VITE_USE_MOCK_API=true`), so no real accounts are shown._
+
 ---
 
 ## Why it exists
