@@ -61,17 +61,28 @@ public OAuth client with `https://mcp-auth.granola.ai`, uses PKCE with the `mcp`
 the generated client ID inside the encrypted credential. Each user authorizes their own Granola
 account in the browser.
 
-## 8. OpenAI chat
+## 8. Claude chat
 
-Put an OpenAI API key in `OPENAI_API_KEY` to enable the built-in chat. It uses
-the Responses API through the Vercel AI SDK and can run up to 20 model and tool
-steps per turn. Tool definitions are loaded lazily through Tool Search, grouped
-by provider, and the agent can search the live web through OpenAI Web Search.
-The model defaults to `gpt-6-sol` and reasoning effort defaults to `medium`;
-override them with `OPENAI_MODEL` and `OPENAI_REASONING_EFFORT`.
+Put an Anthropic API key in `ANTHROPIC_API_KEY` to enable the built-in chat. It
+calls Claude through the Vercel AI SDK's Anthropic provider and can run up to 20
+model and tool steps per turn. The model defaults to `claude-sonnet-5-5` and
+effort to `high`; override them with `ANTHROPIC_MODEL` and `ANTHROPIC_EFFORT`
+(`low`, `medium`, `high`, `xhigh` or `max`). Thinking is adaptive, so effort is
+the only setting that controls how much the model thinks.
 
-`OPENAI_BASE_URL` defaults to `https://api.openai.com/v1`. An override must be
-an OpenAI-compatible API base that supports Responses, Tool Search and Web Search.
+- **Tools.** Bifrost tools are sent with `defer_loading` and found through
+  Anthropic's BM25 tool search, so the model does not read every definition on
+  every turn. Web search uses Anthropic's server-side `web_search_20260209` tool.
+- **Refusals.** Requests opt into server-side fallback (`fallbacks: "default"`):
+  when a safety classifier declines a turn, the API retries it on a fallback
+  model. If that model declines too, the chat shows that Claude declined the
+  request instead of an error.
+- **History.** Chat history stays in the browser and is sent back on every turn,
+  thinking blocks included. When an earlier turn no longer matches what the model
+  saw (an administrator note or the tool list changed), the API drops that
+  reasoning and the turn continues.
+
+`ANTHROPIC_BASE_URL` defaults to `https://api.anthropic.com/v1`.
 
 The chat does not need a separate Bifrost token. Its authenticated browser
 session resolves the same visible tool set and runs each call through the same
@@ -128,10 +139,10 @@ variable out to use its default. `.env.example` is a starting point for local de
 | `SLACK_CLIENT_ID`, `SLACK_CLIENT_SECRET` | none | Slack app (section 6). Same behavior as GitHub. |
 | `ALLOWED_EMAIL_DOMAINS`, `ALLOWED_EMAILS` | empty | Comma-separated lists of who may sign in; they OR together. Both empty lets any verified Google account in. Checked on every request, so removing someone ends their sessions and agent access. |
 | `ADMIN_EMAILS` | empty | Comma-separated exact emails that may review tools. Empty keeps every tool blocked. |
-| `OPENAI_API_KEY` | none | Turns on the web chat (section 8). |
-| `OPENAI_BASE_URL` | `https://api.openai.com/v1` | Chat API base. Must support Responses, Tool Search and Web Search. |
-| `OPENAI_MODEL` | `gpt-6-sol` | Chat model. |
-| `OPENAI_REASONING_EFFORT` | `medium` | `none`, `minimal`, `low`, `medium`, `high`, `xhigh` or `max`, when the model supports it. |
+| `ANTHROPIC_API_KEY` | none | Turns on the web chat (section 8). |
+| `ANTHROPIC_BASE_URL` | `https://api.anthropic.com/v1` | Anthropic API base for the chat. |
+| `ANTHROPIC_MODEL` | `claude-sonnet-5-5` | Chat model. |
+| `ANTHROPIC_EFFORT` | `high` | `low`, `medium`, `high`, `xhigh` or `max`. |
 | `OPENROUTER_API_KEY` | none | Turns on automatic tool rules. Without it new tools wait for an administrator. |
 | `OPENROUTER_BASE_URL` | `https://openrouter.ai/api` | Base URL for the classifier requests. |
 | `JEV_MODEL` | `typesafe/jev-1.13` | Classifier model for automatic tool rules. |

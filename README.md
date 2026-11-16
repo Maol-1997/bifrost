@@ -47,7 +47,7 @@ Discovered tool lists are cached in Redis for one hour. Tool calls reuse the cac
 
 ### Web chat and automatic tool rules
 
-The web chat uses the Vercel AI SDK and the OpenAI Responses API. It sees the same tools as the signed-in user's agent and can also search the web. Chat history stays in the browser (IndexedDB). The default model is `gpt-6-sol`, the value of `OPENAI_MODEL` when it is not set; any model that supports Responses, Tool Search and Web Search works.
+The web chat uses the Vercel AI SDK with Anthropic's Claude. The default model is Claude Sonnet 5.5 (`claude-sonnet-5-5`) at `high` effort, set by `ANTHROPIC_MODEL` and `ANTHROPIC_EFFORT`. It sees the same tools as the signed-in user's agent, finds them with Anthropic's tool search instead of loading every definition up front, and can search the web. If Claude declines a request, the API first retries it on a fallback model, and the chat says so plainly if that one declines too. Chat history stays in the browser (IndexedDB).
 
 Administrators can write one plain-language rule per provider, such as "only tools that read issues". Bifrost then sends the name, description, access type and parameter names of each new tool to Jev, the classifier model set by `JEV_MODEL` (default `typesafe/jev-1.13`), through OpenRouter. Jev returns a probability that the tool matches the rule, and Bifrost turns it into "on by default" or "off by default" ([src/server/tools/rule-classifier.ts](src/server/tools/rule-classifier.ts)). A rule never blocks a tool, never changes an administrator's decision, and never re-approves a tool whose contract changed: that tool stays blocked until an administrator reviews it. Without `OPENROUTER_API_KEY`, new tools wait for an administrator.
 
@@ -86,7 +86,7 @@ Settings are environment variables, checked at startup by `src/server/config.ts`
 | `GOOGLE_CLIENT_ID` / `_SECRET` | yes | Google sign-in. |
 | `ALLOWED_EMAIL_DOMAINS`, `ALLOWED_EMAILS` | recommended | Who may sign in. **If both are empty, any verified Google account can sign in.** |
 | `ADMIN_EMAILS` | recommended | Exact emails that may approve tools. **If empty, every tool stays blocked.** |
-| `OPENAI_API_KEY` | for chat | Turns on the web chat. Bifrost starts without it. |
+| `ANTHROPIC_API_KEY` | for chat | Turns on the web chat. Bifrost starts without it. |
 
 ## Development
 

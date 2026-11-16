@@ -61,7 +61,7 @@ Jev (`JEV_MODEL`, via OpenRouter's decisions API) and written as a deployment po
 
 ## Admin tools stay off `/mcp`
 
-The built-in web chat adds a separate `bifrost_admin` tool namespace only when the cookie-backed
+The built-in web chat adds the `bifrost_admin_` tools only when the cookie-backed
 browser identity belongs to an address in `ADMIN_EMAILS`. Those tools can inspect providers,
 atomically update deployment policies and read or change each provider's automatic rule, but they are never registered by `createHumanMcpHandler` and
 therefore never appear on `/mcp`. Keep that boundary: external agents must not receive administrative

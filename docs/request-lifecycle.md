@@ -25,7 +25,7 @@ without deleting anything. Administrator rights (`ADMIN_EMAILS`) are also read o
 
 The React SPA (`src/app`) is built by Vite and served through Hono by that same Node process,
 so there is one deployment, not two. Its built-in chat uses a Vercel AI SDK
-`ToolLoopAgent`, OpenAI's Responses API, and the browser user's visible Bifrost
+`ToolLoopAgent`, Claude through the Anthropic provider, and the browser user's visible Bifrost
 tools. Chat history stays client-side in IndexedDB.
 
 ## The one thing to understand first

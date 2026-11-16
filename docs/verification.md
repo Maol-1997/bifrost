@@ -140,7 +140,7 @@ Never send this header to an external site or attach it globally to browser traf
 
 ## Boot and UI limitations
 
-- No OpenAI key is needed to boot; the chat reports that it is not configured.
+- No Anthropic key is needed to boot; the chat reports that it is not configured.
 - Omit `REDIS_URL` entirely for in-process development; an empty string does not pass `z.url()`.
   Production requires Redis. Configured-but-unavailable Redis makes `/healthz` return 503.
 - Google/provider app credentials are not startup requirements. Google sign-in with no configured
@@ -150,4 +150,4 @@ Never send this header to an external site or attach it globally to browser traf
   redirects even the mocked Integrations screen to sign-in. Vendor status is deliberately live.
 - Authenticated screenshots are possible with an automation browser injecting the dev header
   **only on the exact local origin**, or with a locally minted browser session. Chat still reports
-  "not configured" without an OpenAI key; a fake deterministic chat model is not implemented.
+  "not configured" without an Anthropic key; a fake deterministic chat model is not implemented.
