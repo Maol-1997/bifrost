@@ -14,6 +14,7 @@ import {
   setSessionCookie,
 } from './auth.js';
 import type { AppContext, AppEnv } from './context.js';
+import { rateLimitByAddress } from './rate-limit.js';
 import { createStaticRoutes } from './static.js';
 
 export function createPublicRoutes() {
@@ -34,7 +35,7 @@ export function createPublicRoutes() {
         isRestricted: isAccessRestricted(accessPolicy),
       });
     })
-    .get('/auth/google/start', async (context) => {
+    .get('/auth/google/start', rateLimitByAddress('googleSignInStart', 'browser'), async (context) => {
       const authorization = await context.get('dependencies').oauth.startGoogleAuthorization('/');
       setGoogleOAuthNonceCookie(context, authorization);
       return context.redirect(authorization.location);

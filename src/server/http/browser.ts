@@ -25,6 +25,7 @@ import { isAdministrator } from '../security/access.js';
 import { authenticateBrowser, clearSessionCookie, setSessionCookie } from './auth.js';
 import type { AppContext, AppEnv } from './context.js';
 import { callbackParameters } from './public.js';
+import { rateLimitByUser } from './rate-limit.js';
 import { limitRequestBody, readJsonBody } from './request-body.js';
 
 // A live session inside this window still works, but the UI warns that it will
@@ -104,7 +105,7 @@ export function createBrowserRoutes() {
       });
       return context.json({ title });
     })
-    .post('/api/chat', async (context) => {
+    .post('/api/chat', rateLimitByUser('chatTurn'), async (context) => {
       const parsed = chatRequestSchema.safeParse(await readJsonBody(context));
       if (!parsed.success) return context.json({ error: 'Invalid request body' }, 400);
       return createBifrostChatResponse({

@@ -3,6 +3,7 @@ import { Hono } from 'hono';
 import type { ContentfulStatusCode } from 'hono/utils/http-status';
 import { authenticateBrowser, setGoogleOAuthNonceCookie } from '../http/auth.js';
 import type { AppContext, AppEnv } from '../http/context.js';
+import { rateLimitByAddress } from '../http/rate-limit.js';
 import { limitRequestBody, readFormBody, readJsonBody } from '../http/request-body.js';
 import { handleAuthorize, handleConsent } from './authorize.js';
 import type { OAuthHttpResult, OAuthServerContext } from './context.js';
@@ -26,8 +27,8 @@ export function createOAuthRoutes(): Hono<AppEnv> {
   routes.get(`${PROTECTED_RESOURCE_PATH}/mcp`, protectedResourceDocument);
   routes.get(PROTECTED_RESOURCE_PATH, protectedResourceDocument);
   routes.get(AUTHORIZATION_SERVER_PATH, authorizationServerDocument);
-  routes.post(REGISTER_PATH, limitRequestBody, registerClient);
-  routes.post(TOKEN_PATH, limitRequestBody, exchangeToken);
+  routes.post(REGISTER_PATH, rateLimitByAddress('clientRegistration', 'oauth'), limitRequestBody, registerClient);
+  routes.post(TOKEN_PATH, rateLimitByAddress('tokenExchange', 'oauth'), limitRequestBody, exchangeToken);
   routes.post(REVOKE_PATH, limitRequestBody, revokeToken);
   routes.get(AUTHORIZE_PATH, authorizeClient);
   routes.post(CONSENT_PATH, limitRequestBody, submitConsent);

@@ -34,7 +34,8 @@ export function createDatabase(config: Config) {
      */
     async deleteExpiredAuthState(): Promise<ExpiredAuthStateCounts> {
       const deletedSessions = await sessions.deleteExpiredSessions();
-      return { sessions: deletedSessions, ...(await grants.deleteExpiredOAuthTokens()) };
+      const tokens = await grants.deleteExpiredOAuthTokens();
+      return { sessions: deletedSessions, ...tokens, unusedClients: await grants.deleteUnusedDynamicClients() };
     },
 
     async close(): Promise<void> {
@@ -47,6 +48,7 @@ export type ExpiredAuthStateCounts = {
   sessions: number;
   accessTokens: number;
   refreshTokens: number;
+  unusedClients: number;
 };
 
 export type Database = ReturnType<typeof createDatabase>;

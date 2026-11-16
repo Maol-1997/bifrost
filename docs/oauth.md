@@ -44,6 +44,10 @@ Two invariants on provider connections:
 
 Worth knowing before touching `src/server/oauth-server/`:
 
+- **Unauthenticated endpoints are rate limited.** `/oauth/register` (10 per minute), `/oauth/token`
+  (60) and `/auth/google/start` (20) are limited per client address, and `/api/chat` (30) per user,
+  through the same Redis counters as provider calls (`src/server/http/rate-limit.ts`). Behind a
+  reverse proxy, set `TRUSTED_PROXY_HOPS` or every caller shares the proxy's address.
 - **Dynamic Client Registration is deprecated** in 2026-07-28, replaced by Client ID Metadata
   Documents. Both paths are implemented; `OAUTH_ENABLE_CLIENT_ID_METADATA_DOCUMENTS` decides
   which one clients take, because advertising support is what makes them choose.
@@ -53,7 +57,8 @@ Worth knowing before touching `src/server/oauth-server/`:
   enumerated, so `oauth-server/revocation.ts` remembers the revocation for the code lifetime and
   the token endpoint rejects any code issued before it.
 - **Expired credentials are housekeeping-bounded.** Startup and hourly maintenance remove expired
-  sessions, access tokens and refresh tokens. Consumed refresh tokens stay until their own expiry so
+  sessions, access tokens and refresh tokens, and dynamically registered clients that are more than
+  a day old and never got a grant. Consumed refresh tokens stay until their own expiry so
   replay detection remains available for the full validity window.
 - **Tokens are opaque, stored as SHA-256 hashes.** Not JWTs: this gives instant revocation and no
   key management, and the bearer regex in `authenticateAgent()` would not match a JWT's dots anyway.

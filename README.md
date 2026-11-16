@@ -135,7 +135,6 @@ CI runs the same command on every push, with real Postgres and Redis, so it also
 - **No end-to-end or UI tests.** Unit and integration tests cover the server; the React app is not tested in a browser.
 - **No durable audit log.** Tool calls are written to the logs with the user id, but there is no audit table, and a policy change replaces the previous policy without keeping history.
 - **Compatible upstream changes can go unnoticed for up to an hour.** Calls use the cached tool definition, so a provider change is seen at the next discovery.
-- **No inbound rate limits.** Outbound calls to providers are rate limited per user, but `/oauth/register`, `/oauth/token`, `/auth/google/start` and `/api/chat` are not. Unused dynamically registered clients are not purged.
 - **Redis is required in production.** Locks and rate limits fail closed when it is down, so Redis is a single point of failure by choice.
 
 See [docs/gotchas.md](docs/gotchas.md#known-gaps) for more.

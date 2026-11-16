@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { DatabaseMaintenance } from '../src/server/database/maintenance.js';
 
 const INTERVAL_MS = 60_000;
-const NOTHING_EXPIRED = { sessions: 0, accessTokens: 0, refreshTokens: 0 };
+const NOTHING_EXPIRED = { sessions: 0, accessTokens: 0, refreshTokens: 0, unusedClients: 0 };
 
 afterEach(() => {
   vi.useRealTimers();

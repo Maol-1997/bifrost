@@ -15,7 +15,8 @@ export type DatabaseMaintenanceOptions = {
 };
 
 /**
- * Sweeps lapsed sessions and OAuth tokens on a timer.
+ * Sweeps lapsed sessions and OAuth tokens, and dynamically registered OAuth
+ * clients that never got a grant, on a timer.
  *
  * Expiry is already enforced on every read, so this only bounds table growth.
  * That is why every failure here is logged and dropped: a sweep that cannot run
@@ -56,9 +57,9 @@ export class DatabaseMaintenance {
   private async sweepOnce(): Promise<void> {
     try {
       const counts = await this.options.withLock(SWEEP_LOCK_KEY, this.options.deleteExpiredAuthState);
-      const deleted = counts.sessions + counts.accessTokens + counts.refreshTokens;
+      const deleted = counts.sessions + counts.accessTokens + counts.refreshTokens + counts.unusedClients;
       if (deleted === 0) logger.debug(counts, 'Nothing expired to sweep');
-      else logger.info(counts, 'Deleted expired sessions and OAuth tokens');
+      else logger.info(counts, 'Deleted expired sessions, OAuth tokens and unused OAuth clients');
     } catch (error) {
       // Includes another worker already holding the lock: whoever holds it is
       // doing the work, and this worker simply tries again next interval.

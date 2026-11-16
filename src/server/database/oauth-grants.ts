@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto';
-import { and, desc, eq, gt, inArray, isNull, lte, sql } from 'drizzle-orm';
+import { and, desc, eq, gt, inArray, isNull, lte, notExists, sql } from 'drizzle-orm';
 import type { Config } from '../config.js';
 import type { AppDatabase, AppTransaction } from './client.js';
 import { oauthAccessTokens, oauthClients, oauthGrants, oauthRefreshTokens, users } from './schema.js';
@@ -9,6 +9,7 @@ const OAUTH_TOKEN_BYTES = 32;
 const MILLISECONDS_PER_DAY = 86_400_000;
 /** "Sessions" shows last use to the minute; stamping it more often only adds a write to every MCP call. */
 const GRANT_TOUCH_INTERVAL_SECONDS = 60;
+const UNUSED_CLIENT_RETENTION_HOURS = 24;
 
 export type StoredOAuthClient = {
   clientId: string;
@@ -320,6 +321,29 @@ export function createOAuthGrantStore(database: AppDatabase, config: Config) {
         .delete(oauthRefreshTokens)
         .where(lte(oauthRefreshTokens.expiresAt, sql`now()`));
       return { accessTokens: accessTokens.rowCount ?? 0, refreshTokens: refreshTokens.rowCount ?? 0 };
+    },
+
+    /**
+     * Anyone can register a client, so registrations that never led to a grant
+     * would otherwise pile up forever. A day is far longer than any consent
+     * flow, and a client whose last grant was disconnected registers again.
+     */
+    async deleteUnusedDynamicClients(): Promise<number> {
+      const result = await database
+        .delete(oauthClients)
+        .where(
+          and(
+            eq(oauthClients.registrationKind, 'dynamic'),
+            lte(oauthClients.createdAt, sql`now() - make_interval(hours => ${UNUSED_CLIENT_RETENTION_HOURS})`),
+            notExists(
+              database
+                .select({ clientId: oauthGrants.clientId })
+                .from(oauthGrants)
+                .where(eq(oauthGrants.clientId, oauthClients.clientId)),
+            ),
+          ),
+        );
+      return result.rowCount ?? 0;
     },
   };
 }

@@ -74,6 +74,9 @@ const environmentSchema = z.object({
   // Exact addresses only. Domain-wide administration is deliberately unsupported.
   ADMIN_EMAILS: z.string().default(''),
   BIFROST_DEV_USER_ID: z.preprocess((value) => (value === '' ? undefined : value), z.uuid().optional()),
+  // How many reverse proxies in front of Bifrost append to X-Forwarded-For.
+  // Zero trusts only the socket address, so the header cannot be spoofed.
+  TRUSTED_PROXY_HOPS: z.coerce.number().int().min(0).default(0),
   SLOW_REQUEST_MS: z.coerce.number().int().positive().default(1000),
   SLOW_TOOL_MS: z.coerce.number().int().positive().default(2000),
   // Connected upstream MCP clients kept per process, one per user and provider.

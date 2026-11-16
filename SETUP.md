@@ -141,5 +141,6 @@ variable out to use its default. `.env.example` is a starting point for local de
 | `BIFROST_DEV_USER_ID` | none | Development only: a UUID accepted from the `X-Bifrost-Dev-User` header when `NODE_ENV=development`. Never set it in production. See [docs/verification.md](docs/verification.md). |
 | `UPSTREAM_CLIENT_IDLE_SECONDS` | `300` | Idle lifetime of a pooled upstream MCP client. |
 | `UPSTREAM_CLIENT_MAX` | `200` | Maximum pooled upstream MCP clients per process. |
+| `TRUSTED_PROXY_HOPS` | `0` | Number of reverse proxies in front of Bifrost that append to `X-Forwarded-For`. Inbound rate limits use the address the outermost trusted proxy saw; with `0` they use the socket address and ignore the header. |
 | `SLOW_REQUEST_MS` | `1000` | Requests slower than this are logged as warnings. |
 | `SLOW_TOOL_MS` | `2000` | Tool calls slower than this are logged as warnings. |

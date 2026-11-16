@@ -7,6 +7,7 @@ const DEFAULT_LOCK_MS = 30_000;
 const LOCK_POLL_MS = 50;
 const RATE_WINDOW_SECONDS = 60;
 const RATE_WINDOW_MS = RATE_WINDOW_SECONDS * 1_000;
+const MAX_LOCAL_RATE_SCOPES = 10_000;
 // This must outlive expected tool calls so a dead worker cannot make live work
 // disappear from the shared count too early.
 const CONCURRENCY_LEASE_SECONDS = 120;
@@ -70,24 +71,39 @@ export class Coordinator {
   }
 
   async enforceRateLimit(request: RateLimitRequest): Promise<void> {
+    if (!(await this.consumeRateLimit(tenantProviderScope(request), request.maximumStarts))) {
+      throw rateLimitReached(request.provider);
+    }
+  }
+
+  /**
+   * Counts one start against `scope` in a fixed one-minute window shared by
+   * every worker. False once the window already holds `maximum` starts.
+   */
+  async consumeRateLimit(scope: string, maximum: number): Promise<boolean> {
     const window = Math.floor(Date.now() / RATE_WINDOW_MS);
-    const scope = tenantProviderScope(request);
-    const key = `rate:${scope}:${window}`;
     if (this.redis) {
       const count = await this.redis.eval(RATE_LIMIT_SCRIPT, {
-        keys: [key],
+        keys: [`rate:${scope}:${window}`],
         arguments: [String(RATE_WINDOW_SECONDS)],
       });
       if (typeof count !== 'number') throw new Error('Redis returned an invalid rate limit count');
-      if (count > request.maximumStarts) throw rateLimitReached(request.provider);
-      return;
+      return count <= maximum;
     }
+    // Inbound scopes are keyed by client address, so the in-process fallback
+    // must not keep one entry per address forever.
+    if (this.localRates.size >= MAX_LOCAL_RATE_SCOPES) this.pruneLocalRates();
     const state = this.localRates.get(scope);
     const current =
       !state || state.resetAt <= Date.now() ? { count: 0, resetAt: (window + 1) * RATE_WINDOW_MS } : state;
     current.count += 1;
     this.localRates.set(scope, current);
-    if (current.count > request.maximumStarts) throw rateLimitReached(request.provider);
+    return current.count <= maximum;
+  }
+
+  private pruneLocalRates(): void {
+    const now = Date.now();
+    for (const [scope, state] of this.localRates) if (state.resetAt <= now) this.localRates.delete(scope);
   }
 
   async withConcurrencyLease<T>(request: ConcurrencyLeaseRequest<T>): Promise<T> {
