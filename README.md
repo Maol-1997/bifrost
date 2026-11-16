@@ -18,16 +18,32 @@ Giving an AI agent access to your team's tools usually means one of two bad opti
 
 ## How it works
 
-```
-                 ┌──────────────────────── Bifrost ────────────────────────┐
-                 │                                                          │
-  Browser ──cookie──▶  React UI  ──▶  /api/*     Postgres (encrypted creds, │
-  (Google sign-in)                                sessions, OAuth grants)  │
-                 │                                                          │
-  Claude Code ──bearer──▶  POST /mcp  ──▶  per-request MCP server          │──▶ provider
-  Cursor, etc.   │        (OAuth 2.1)       built from *your* connections   │    MCP servers
-                 │                          and *your* tool preferences     │
-                 └──────────────────────────────────────────────────────────┘
+```mermaid
+flowchart LR
+    browser["Browser<br/>(Google sign-in)"]
+    agent["Claude Code, Cursor<br/>or any MCP client"]
+
+    subgraph bifrost["Bifrost"]
+        direction LR
+        ui["React UI"]
+        api["/api/*"]
+        oauth["OAuth 2.1<br/>authorization server"]
+        mcp["POST /mcp<br/>MCP server built per request<br/>with only your allowed tools"]
+        policy["Tool policies<br/>approved by an admin"]
+        pg[("Postgres<br/>encrypted credentials,<br/>sessions, OAuth grants")]
+        redis[("Redis<br/>locks, rate limits,<br/>tool catalog cache")]
+    end
+
+    providers["Provider MCP servers<br/>GitHub, Linear, Sentry,<br/>Slack, Notion, Granola"]
+
+    browser -- "session cookie" --> ui --> api
+    agent -- "OAuth sign-in" --> oauth
+    agent -- "bearer token" --> mcp
+    api --> pg
+    oauth --> pg
+    mcp --> policy --> pg
+    mcp --> redis
+    mcp -- "your own token" --> providers
 ```
 
 Three ideas explain most of the design:
