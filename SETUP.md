@@ -32,8 +32,9 @@ Reconnect Linear once to move them to the MCP-native flow.
 ## 4. Sentry
 
 No Sentry application or environment variables are required. Bifrost dynamically registers a
-public OAuth client with `https://mcp.sentry.dev`, uses PKCE, and stores the generated client ID
-inside the encrypted credential. Sentry's hosted MCP server owns the upstream Sentry application.
+public OAuth client with `https://mcp.sentry.dev`, uses PKCE with the `org:read`, `project:write`,
+`team:write` and `event:write` scopes, and stores the generated client ID inside the encrypted
+credential. Sentry's hosted MCP server owns the upstream Sentry application.
 
 ## 5. Notion
 

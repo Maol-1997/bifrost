@@ -21,8 +21,8 @@ function daysAfterNow(days: number): string {
 }
 
 /**
- * Design-preview fixture, using the real MCP tool names on purpose. A preview
- * built on invented tools is how this screen drifted into fiction the first time.
+ * Design-preview fixture. It uses real MCP tool names so the preview cannot
+ * show tools that do not exist.
  */
 const mockTools: Readonly<Record<string, readonly [string, string, ToolMutability][]>> = {
   github: [

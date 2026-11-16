@@ -15,7 +15,6 @@ import {
   type StoredToolPolicy,
 } from './catalog.js';
 import type { ToolPolicyOrigin } from '../database/tool-policies.js';
-import type { ToolDiscoveryService } from './discovery.js';
 import { clearToolRule, saveToolRule, toolRuleInstructionsSchema } from './auto-policy.js';
 import { applyToolPolicies, countToolPolicyStates } from './policy.js';
 import { providerAgentNoteInstructions, providerAgentNoteSchema } from './provider-agent-notes.js';
@@ -89,14 +88,8 @@ const setToolRuleSchema = z.object({
 });
 const RULE_BEHAVIOUR = `Tools are classified against the rule: probability >= ${RULE_MATCH_AT} becomes allowed_default_on, anything lower becomes allowed_default_off, and between ${RULE_MISMATCH_AT} and ${RULE_MATCH_AT} is flagged uncertain. A rule never blocks a tool and never overrides an administrator's decision on the current definition.`;
 
-/**
- * The intersection is deliberate: once `toolDiscovery` is part of
- * `AppDependencies` it collapses to `AppDependencies` and nothing here changes.
- */
-type AdminAgentDependencies = AppDependencies & { toolDiscovery: ToolDiscoveryService };
-
 type AdminAgentToolRequest = {
-  dependencies: AdminAgentDependencies;
+  dependencies: AppDependencies;
   identity: BrowserIdentity;
   signal: AbortSignal;
 };

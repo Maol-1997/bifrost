@@ -11,7 +11,7 @@ Adding a provider connects Bifrost to the provider's official Streamable HTTP MC
 5. For a static OAuth client, add its ID and secret to `src/server/config.ts`, `.env.example`, and `docker-compose.yml`. For DCR, declare the issuer discovery algorithm and persist the generated client ID with the encrypted credential.
 6. Add token-response normalization only when the standard OAuth shape is insufficient. Never log token responses.
 7. Document OAuth registration, callback URL, scopes, and any environment variables in `SETUP.md`.
-8. Add outbound rate and concurrency limits in `src/server/mcp.ts`, plus the provider's public status feed when one exists.
+8. Add outbound rate and concurrency limits in `src/server/tools/user-toolset.ts`, plus the provider's public status feed when one exists.
 9. Add prefix-invariant, discovery, fingerprint, policy, and visibility coverage.
 
 ## Rules
@@ -20,8 +20,8 @@ Adding a provider connects Bifrost to the provider's official Streamable HTTP MC
 - A provider owns exactly one lowercase prefix ending in `_`. Registry namespace, credential lookup and discovered tool names must use that same prefix.
 - Preserve upstream schemas and annotations. `readOnlyHint === true` is read-only; missing or false metadata is write-capable.
 - Never approve a tool from discovery alone. No stored policy, a missing tool, or a fingerprint mismatch means blocked.
-- Before each call, reload the upstream definition and require the approved fingerprint to still match.
-- Discovery uses the shared per-user SWR cache. A successful reconnect and disconnect must invalidate the provider entry; approval and execution bypass it.
+- Each call uses the definition from the discovery cache and re-reads the policy from Postgres, so the approved fingerprint must still match and a block applies immediately. An upstream definition change is seen at the next discovery: when the cached listing expires (one hour) or after a failed call invalidates it.
+- Discovery uses the shared per-user SWR cache. A successful reconnect and disconnect must invalidate the provider entry; approval refreshes it from upstream first, and execution reuses it.
 - Credentials only cross the AES-256-GCM storage boundary in `src/server/security/secrets.ts` and `src/server/database/connections.ts`.
 - Refresh-token rotation uses `Coordinator.withLock` with a user-and-provider key.
 
@@ -47,6 +47,6 @@ Do not weaken the filter or policy checks to diagnose visibility. Each axis fail
 - [ ] New and changed fingerprints remain blocked.
 - [ ] Admin batch updates are atomic and reject stale fingerprints.
 - [ ] Connected and approved users see tools; unconnected, hidden, blocked, and disabled users do not.
-- [ ] A definition change between discovery and execution aborts the call.
+- [ ] A changed definition is blocked once discovery sees it, and a failed call invalidates the cached listing.
 - [ ] Rate and concurrency limits are set.
 - [ ] Typecheck, lint, tests, build, Compose start, MCP discovery, and encrypted restart round-trip pass.

@@ -106,8 +106,8 @@ export function loadConfig(environment: NodeJS.ProcessEnv = process.env): Config
   // PUBLIC_URL is the OAuth issuer, and OAuth 2.1 requires every authorization
   // server endpoint to be served over TLS. Over plain HTTP the authorization
   // code and the tokens it buys are readable in transit, so this refuses to
-  // start rather than serving a flow that looks fine and is not. Loopback is the
-  // recognized exception and stays allowed for local development.
+  // start. Loopback is the recognized exception and stays allowed for local
+  // development.
   if (parsed.data.NODE_ENV === 'production' && !isSecurePublicUrl(parsed.data.PUBLIC_URL)) {
     throw new Error(
       'PUBLIC_URL must use https in production; it is the OAuth issuer and tokens are exchanged against it',

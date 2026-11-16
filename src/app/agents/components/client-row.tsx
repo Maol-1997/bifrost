@@ -20,8 +20,7 @@ export function ClientRow({
   const metadata = [
     client.isCurrent ? 'this browser' : null,
     `first connected ${shortDate(client.firstConnectedAt)}`,
-    // Worth saying out loud: it is the difference between a client you have to
-    // come back and renew and one you can forget about.
+    // Tells the user this client does not need to be renewed by hand.
     client.kind === 'agent' ? 'renews itself' : null,
   ]
     .filter(Boolean)

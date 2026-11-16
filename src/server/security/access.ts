@@ -4,8 +4,7 @@
  * Two independent allowlists that OR together: whole domains for the team, and
  * exact addresses for the people who fall outside them (contractors, personal
  * accounts). With both empty Bifrost stays open to any verified Google account
- * — the historical behaviour — and the sign-in screen has to say so out loud
- * rather than claiming a restriction that is not enforced.
+ * (the historical behavior), and the sign-in screen says so.
  */
 
 export type AccessPolicy = {

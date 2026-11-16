@@ -132,7 +132,7 @@ migrations/          generated Drizzle SQL, applied on container boot
 test/                vitest units; test/integration needs Postgres and Redis
 ```
 
-[AGENTS.md](AGENTS.md) is the deeper guide for anyone changing the code: request shape, the visibility axes, OAuth details, conventions and the gotchas that cost real time. [docs/adding-a-provider.md](docs/adding-a-provider.md) documents every provider touchpoint.
+[AGENTS.md](AGENTS.md) is the index for anyone changing the code: it gives a short overview and links to one doc per topic under `docs/`. [docs/adding-a-provider.md](docs/adding-a-provider.md) documents every provider touchpoint.
 
 ## Security notes
 
@@ -146,4 +146,4 @@ test/                vitest units; test/integration needs Postgres and Redis
 
 ## Status
 
-Working and in use for GitHub, Linear, Sentry, Slack, Notion and Granola. One thing is deliberately unbuilt and documented as such in AGENTS.md: OAuth issues a single `mcp` scope rather than per-provider scopes.
+Working and in use for GitHub, Linear, Sentry, Slack, Notion and Granola. One thing is deliberately unbuilt and documented as such in [docs/gotchas.md](docs/gotchas.md#known-gaps): OAuth issues a single `mcp` scope rather than per-provider scopes.

@@ -2,7 +2,7 @@ import { formatDistanceToNowStrict, isValid, parseISO } from 'date-fns';
 
 /**
  * Timestamps cross the wire as ISO UTC and are formatted here, in the browser,
- * so the status and clients screens can honestly claim to show local time.
+ * so the status and clients screens show local time.
  */
 
 const JUST_NOW_THRESHOLD_MS = 10_000;

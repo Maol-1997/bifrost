@@ -49,12 +49,12 @@ src/
   server/              everything that runs only on Node
     main.ts            bootstrap, dependency assembly and @hono/node-server lifecycle
     http/              Hono app plus public/browser/MCP routers, auth, body limits and static files
-    mcp.ts             per-request MCP server assembly, tool execution, rate/concurrency limits
+    mcp.ts             per-request MCP server assembly and tool registration
     database/          Drizzle schema, connection, migrations and the per-aggregate data stores
     oauth.ts           Bifrost as an OAuth client (Google + providers)
     oauth-server/      OAuth 2.1 authorization server, including its HTTP entry
     providers/         one file per provider + the registry and its invariant
-    tools/             discovery, normalized fingerprints, policy resolution and filtering
+    tools/             discovery, fingerprints, policy resolution, filtering, execution and rate/concurrency limits
     security/          encrypted secrets and sign-in/admin allowlists
   features/            cross-runtime product contracts and code
     bifrost-api/       reusable Hono RPC client inferred from the server routes

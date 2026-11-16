@@ -17,8 +17,7 @@ function healthDetail(app: AppHealth, appName: string): string {
   if (app.health === 'unknown') return `Couldn't reach ${appName}'s status page`;
   if (app.health === 'operational') {
     if (!app.quietSince) return 'No issues reported';
-    // Under a day the streak is not the story — the recent recovery is, and
-    // "no issues for 0 days" would read as a lie to anyone who felt the outage.
+    // Under a day, show the recent recovery instead of "no issues for 0 days".
     const quietDays = differenceInDays(new Date(), parseISO(app.quietSince));
     if (quietDays < 1) return `Back to normal ${relativeTime(app.quietSince)}`;
     return `No issues for ${quietDays} ${quietDays === 1 ? 'day' : 'days'}`;

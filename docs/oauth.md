@@ -2,7 +2,8 @@
 
 This trips people up. Bifrost is simultaneously:
 
-- **An OAuth client**, to Google (sign-in) and to GitHub/Linear/Sentry/Slack/Notion (provider connections).
+- **An OAuth client**, to Google (sign-in) and to GitHub, Linear, Sentry, Slack, Notion and Granola (provider
+  connections).
   That is `src/server/oauth.ts`.
 - **An OAuth 2.1 authorization server plus resource server**, to MCP clients like Claude Code.
   That is all of `src/server/oauth-server/` and it implements the MCP `2026-07-28` authorization spec.

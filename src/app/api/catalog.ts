@@ -1,15 +1,10 @@
 import type { ProviderId, Provider } from './types';
 
 /**
- * The curated prose the screens need: what an app is, and what connecting it
- * actually lets your agents do.
- *
- * Carries no tools on purpose. Every claim below is checked against the tools
- * the server really registers, because this text is the promise a user reads
- * before handing over access — an aspirational version of it is a lie, not a
- * placeholder. `neverPermission` says "Bifrost has no tool that does" rather
- * than "it cannot": the OAuth scopes are broader than the tools, and the tool
- * surface is the boundary that is actually enforced.
+ * What each app is and what connecting it lets agents do. Tools come from the
+ * server, so every claim here must hold for the tools it actually registers.
+ * `neverPermission` speaks about tools, not about what the provider allows:
+ * OAuth scopes are broader than the tools, and the tools are what Bifrost enforces.
  */
 export const providerCatalog: readonly Omit<Provider, 'tools'>[] = [
   {

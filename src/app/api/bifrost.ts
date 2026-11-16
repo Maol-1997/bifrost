@@ -26,7 +26,7 @@ export const renewClient = api.renewClient;
 export const revokeClient = api.revokeClient;
 export const getMcpAddress = api.getMcpAddress;
 
-/** Public and pre-auth: the sign-in screen must state the real rule, not a slogan. */
+/** Public and pre-auth, so the sign-in screen can show the rule the server enforces. */
 export async function getSignInPolicy(): Promise<SignInPolicy> {
   return parseRpcResponse(bifrostClient.api['sign-in-policy.json'].$get());
 }
@@ -60,9 +60,8 @@ export async function generateChatTitle(firstMessage: string): Promise<string> {
 }
 
 /**
- * Deliberately has no mock branch. Vendor uptime is public and identical for
- * every user, so a fake here would only ever be a lie on the one screen whose
- * entire job is telling the truth about whether GitHub is down.
+ * Has no mock branch: vendor uptime is public and the same for every user, and
+ * this screen is only useful if it shows the real status.
  */
 export async function getAppHealth(): Promise<HealthSnapshot> {
   return parseRpcResponse(bifrostClient.api['provider-health.json'].$get());
