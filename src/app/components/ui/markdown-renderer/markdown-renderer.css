@@ -64,7 +64,7 @@
 }
 
 .agent-markdown code {
-  font-family: 'Berkeley Mono', 'SFMono Regular', Consolas, 'Liberation Mono', Menlo, Courier, monospace;
+  font-family: ui-monospace, 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, Courier, monospace;
 }
 
 .agent-markdown :not(pre) > code {

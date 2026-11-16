@@ -9,7 +9,6 @@ import {
   DropdownMenuTrigger,
 } from '@app/components/ui/dropdown-menu';
 import { cn } from '@app/lib/cn';
-import { loadMermaidFontFaceCss } from './mermaid-font';
 import { getCachedMermaidDiagram, preloadMermaidDiagram, type RenderedDiagram } from './mermaid-renderer';
 import './mermaid-diagram.css';
 
@@ -24,13 +23,14 @@ type RenderedDiagramState = RenderedDiagram & {
 
 const COPY_CONFIRMATION_DURATION = 1200;
 
-function diagramDocument(svg: string, fontFaceCss: string) {
+const MONOSPACE_FONT_STACK = 'ui-monospace,"SFMono-Regular",Consolas,"Liberation Mono",Menlo,Courier,monospace';
+
+function diagramDocument(svg: string) {
   return `<!doctype html><html><head><style>
-    ${fontFaceCss}
-    html,body{background:#19191b;height:100%;margin:0;padding:0;overflow:hidden;user-select:text;font-family:"Berkeley Mono","SFMono Regular",Consolas,"Liberation Mono",Menlo,Courier,monospace}
+    html,body{background:#19191b;height:100%;margin:0;padding:0;overflow:hidden;user-select:text;font-family:${MONOSPACE_FONT_STACK}}
     body{display:flex;align-items:center;justify-content:center}
     body>svg{display:block;width:100%;height:auto;max-height:100%}
-    svg text,svg tspan{font-family:"Berkeley Mono","SFMono Regular",Consolas,"Liberation Mono",Menlo,Courier,monospace;font-weight:300}
+    svg text,svg tspan{font-family:${MONOSPACE_FONT_STACK};font-weight:300}
   </style></head><body>${svg}</body></html>`;
 }
 
@@ -53,12 +53,8 @@ const MermaidDiagram = React.memo(
       const cachedDiagram = getCachedMermaidDiagram(source);
       return cachedDiagram ? { ...cachedDiagram, source } : undefined;
     });
-    const [fontFaceCss, setFontFaceCss] = React.useState<string>();
     const diagram = renderedState?.source === source ? renderedState : getCachedMermaidDiagram(source);
-    const frameDocument = React.useMemo(
-      () => (diagram && fontFaceCss !== undefined ? diagramDocument(diagram.svg, fontFaceCss) : undefined),
-      [diagram, fontFaceCss],
-    );
+    const frameDocument = React.useMemo(() => (diagram ? diagramDocument(diagram.svg) : undefined), [diagram]);
     const error = errorState?.source === source ? errorState.message : undefined;
     const isActivated = !defer || activatedSource === source || Boolean(getCachedMermaidDiagram(source));
     const copyTimer = React.useRef<number>(undefined);
@@ -71,18 +67,6 @@ const MermaidDiagram = React.memo(
       },
       [],
     );
-
-    React.useEffect(() => {
-      let active = true;
-      void loadMermaidFontFaceCss().then((css) => {
-        if (active) {
-          setFontFaceCss(css);
-        }
-      });
-      return () => {
-        active = false;
-      };
-    }, []);
 
     React.useEffect(() => {
       if (!isActivated) {

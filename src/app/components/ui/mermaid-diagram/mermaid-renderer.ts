@@ -17,12 +17,13 @@ let diagramSequence = 0;
 const renderedDiagramCache = new Map<string, RenderedDiagram>();
 const pendingDiagramCache = new Map<string, Promise<RenderedDiagram>>();
 const MAX_CACHED_DIAGRAMS = 32;
+const MONOSPACE_FONT_STACK = 'ui-monospace, "SFMono-Regular", Consolas, "Liberation Mono", Menlo, Courier, monospace';
 
 function loadMermaid() {
   mermaidModule ??= import('mermaid').then((module) => {
     module.default.initialize({
       flowchart: { curve: 'linear', htmlLabels: true },
-      fontFamily: '"Berkeley Mono", "SFMono Regular", Consolas, "Liberation Mono", Menlo, Courier, monospace',
+      fontFamily: MONOSPACE_FONT_STACK,
       securityLevel: 'strict',
       sequence: { actorMargin: 80, diagramMarginX: 16, diagramMarginY: 4 },
       startOnLoad: false,
@@ -40,7 +41,7 @@ function loadMermaid() {
         attributeBackgroundColorEven: '#19191b',
         attributeBackgroundColorOdd: '#1c1d1f',
         background: '#19191b',
-        fontFamily: '"Berkeley Mono", "SFMono Regular", Consolas, "Liberation Mono", Menlo, Courier, monospace',
+        fontFamily: MONOSPACE_FONT_STACK,
         fontSize: '13px',
         labelBoxBkgColor: '#19191b',
         labelBoxBorderColor: '#444446',

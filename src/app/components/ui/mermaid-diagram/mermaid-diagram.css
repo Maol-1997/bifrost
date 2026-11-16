@@ -1,11 +1,3 @@
-@font-face {
-  font-family: 'Berkeley Mono';
-  font-style: normal;
-  font-weight: 100 900;
-  font-display: swap;
-  src: url('/fonts/Berkeley-Mono-Variable.woff2') format('woff2');
-}
-
 .agent-mermaid-source,
 .agent-mermaid-error {
   position: relative;
@@ -16,7 +8,7 @@
   border-radius: 6px;
   background: lch(6.307 0.85 272);
   color: lch(90.826 1.425 272);
-  font-family: 'Berkeley Mono', 'SFMono Regular', Consolas, 'Liberation Mono', Menlo, Courier, monospace;
+  font-family: ui-monospace, 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, Courier, monospace;
 }
 
 .agent-mermaid-source > code {
