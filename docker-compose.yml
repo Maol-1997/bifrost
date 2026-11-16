@@ -27,6 +27,8 @@ services:
       ADMIN_EMAILS: ${ADMIN_EMAILS:-}
       ALLOWED_EMAIL_DOMAINS: ${ALLOWED_EMAIL_DOMAINS:-}
       ALLOWED_EMAILS: ${ALLOWED_EMAILS:-}
+      # Reverse proxies in front of Bifrost that append to X-Forwarded-For (see SETUP.md).
+      TRUSTED_PROXY_HOPS: ${TRUSTED_PROXY_HOPS:-0}
     ports:
       - '3000:3000'
     depends_on:
