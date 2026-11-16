@@ -29,6 +29,7 @@ describe('browser and agent authentication', () => {
     const resolveSessionAndTouch = vi.fn().mockResolvedValue({
       sessionId: 'session-id',
       userId: USER_ID,
+      email: 'sam@example.test',
       clientId: CLIENT_ID,
       expiresAt: new Date('2030-01-01T00:00:00.000Z'),
     });
@@ -58,6 +59,7 @@ describe('browser and agent authentication', () => {
     const resolveOAuthAccessTokenAndTouch = vi.fn().mockResolvedValue({
       grantId: 'grant-id',
       userId: USER_ID,
+      email: 'sam@example.test',
       clientId: CLIENT_ID,
       resource: `${PUBLIC_URL}/mcp`,
       scopes: ['mcp'],
@@ -113,10 +115,45 @@ describe('browser and agent authentication', () => {
     ]);
   });
 
+  it('refuses a session and a bearer token once the account is no longer allowed to sign in', async () => {
+    const identity = { userId: USER_ID, email: 'sam@former.example.test', clientId: CLIENT_ID };
+    const expiresAt = new Date('2030-01-01T00:00:00.000Z');
+    const database = databaseWithResolvers(
+      vi.fn().mockResolvedValue({ ...identity, sessionId: 'session-id', expiresAt }),
+      vi.fn().mockResolvedValue({
+        ...identity,
+        grantId: 'grant-id',
+        resource: `${PUBLIC_URL}/mcp`,
+        scopes: ['mcp'],
+        expiresAt,
+      }),
+    );
+    const request = () =>
+      new Request(PUBLIC_URL, {
+        headers: { authorization: 'Bearer agent-token', cookie: 'bifrost_session=session-token' },
+      });
+    const restricted = { ...testConfig(), accessPolicy: accessPolicy('example.test') };
+    const stillListed = { ...testConfig(), accessPolicy: accessPolicy('former.example.test') };
+
+    expect(
+      await Promise.all([
+        authenticateBrowser(authenticationContext(request(), database, restricted)),
+        authenticateAgent(authenticationContext(request(), database, restricted)),
+      ]),
+    ).toEqual([undefined, undefined]);
+    await expect(authenticateBrowser(authenticationContext(request(), database, stillListed))).resolves.toMatchObject({
+      userId: USER_ID,
+    });
+    await expect(authenticateAgent(authenticationContext(request(), database, stillListed))).resolves.toMatchObject({
+      userId: USER_ID,
+    });
+  });
+
   it('rejects a resolved agent token bound to another resource', async () => {
     const resolveOAuthAccessTokenAndTouch = vi.fn().mockResolvedValue({
       grantId: 'other-grant',
       userId: USER_ID,
+      email: 'sam@example.test',
       clientId: CLIENT_ID,
       resource: 'https://other.example/mcp',
       scopes: ['mcp'],
@@ -208,6 +245,10 @@ describe('Google OAuth browser nonce cookie', () => {
     expect(response.headers.get('set-cookie')).toContain('bifrost_google_oauth_nonce=; Max-Age=0');
   });
 });
+
+function accessPolicy(domain: string): Config['accessPolicy'] {
+  return { allowedEmailDomains: new Set([domain]), allowedEmails: new Set() };
+}
 
 function testConfig(nodeEnvironment: 'development' | 'test' | 'production' = 'test'): Config {
   return loadConfig({

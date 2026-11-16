@@ -2,7 +2,7 @@ import { randomBytes } from 'node:crypto';
 import { and, desc, eq, gt, inArray, isNull, lte, sql } from 'drizzle-orm';
 import type { Config } from '../config.js';
 import type { AppDatabase, AppTransaction } from './client.js';
-import { oauthAccessTokens, oauthClients, oauthGrants, oauthRefreshTokens } from './schema.js';
+import { oauthAccessTokens, oauthClients, oauthGrants, oauthRefreshTokens, users } from './schema.js';
 import { hashToken } from './token-hash.js';
 
 const OAUTH_TOKEN_BYTES = 32;
@@ -33,6 +33,7 @@ export type OAuthTokenPair = { accessToken: string; refreshToken: string; access
 export type OAuthIdentity = {
   grantId: string;
   userId: string;
+  email: string;
   clientId: string;
   resource: string;
   scopes: readonly string[];
@@ -54,6 +55,7 @@ export type RefreshOutcome =
 type OAuthAccessTokenRow = {
   grantId: string;
   userId: string;
+  email: string;
   clientId: string;
   resource: string;
   scopes: string[];
@@ -249,7 +251,10 @@ export function createOAuthGrantStore(database: AppDatabase, config: Config) {
             and resolved."lastUsedAt" < now() - make_interval(secs => ${GRANT_TOUCH_INTERVAL_SECONDS})
           returning ${oauthGrants.id}
         )
-        select "grantId", "userId", "clientId", "resource", "scopes", "expiresAt" from resolved
+        select resolved."grantId", resolved."userId", ${users.email} as "email", resolved."clientId",
+          resolved."resource", resolved."scopes", resolved."expiresAt"
+        from resolved
+        join ${users} on ${users.id} = resolved."userId"
       `);
       const [row] = result.rows;
       if (!row) return undefined;

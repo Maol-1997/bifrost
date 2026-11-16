@@ -18,6 +18,11 @@ It serves three different kinds of traffic on one port:
 functions over separate tables. They used to share one, which meant a leaked session cookie worked as an API token.
 Do not merge them back.
 
+Both re-check the sign-in policy (`ALLOWED_EMAIL_DOMAINS`, `ALLOWED_EMAILS`) against the user's
+current email on every request; the session and token lookups return it in the same query.
+Removing someone from the lists ends their browser sessions and agent access at their next request
+without deleting anything. Administrator rights (`ADMIN_EMAILS`) are also read on every request.
+
 The React SPA (`src/app`) is built by Vite and served through Hono by that same Node process,
 so there is one deployment, not two. Its built-in chat uses a Vercel AI SDK
 `ToolLoopAgent`, OpenAI's Responses API, and the browser user's visible Bifrost

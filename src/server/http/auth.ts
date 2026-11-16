@@ -5,6 +5,7 @@ import { logger } from '../logger.js';
 import type { AgentIdentity, BrowserIdentity } from '../mcp.js';
 import type { GoogleAuthorizationStart } from '../oauth.js';
 import { canonicalResource, MCP_SCOPE } from '../oauth-server/metadata.js';
+import { isEmailAllowed } from '../security/access.js';
 import type { AppContext } from './context.js';
 
 const SESSION_COOKIE = 'bifrost_session';
@@ -25,7 +26,7 @@ export async function authenticateBrowser(context: AppContext): Promise<BrowserI
   const token = getCookie(context, SESSION_COOKIE);
   if (!token) return undefined;
   const resolved = await database.resolveSessionAndTouch(token, request.headers.get('user-agent') ?? undefined);
-  if (!resolved) return undefined;
+  if (!resolved || !isStillAllowed(resolved, config)) return undefined;
   return {
     kind: 'browser',
     sessionId: resolved.sessionId,
@@ -46,7 +47,7 @@ export async function authenticateAgent(context: AppContext): Promise<AgentIdent
   const token = request.headers.get('authorization')?.match(/^Bearer ([A-Za-z0-9_-]+)$/)?.[1];
   if (!token) return undefined;
   const grant = await database.resolveOAuthAccessTokenAndTouch(token, request.headers.get('user-agent') ?? undefined);
-  if (!grant) return undefined;
+  if (!grant || !isStillAllowed(grant, config)) return undefined;
   // Audience binding. Every token Bifrost issues names this resource, so a
   // mismatch means the value came from somewhere else and is not ours to honour.
   if (grant.resource !== canonicalResource(config.PUBLIC_URL)) {
@@ -65,6 +66,18 @@ export async function authenticateAgent(context: AppContext): Promise<AgentIdent
     token,
     scopes: grant.scopes,
   };
+}
+
+/**
+ * The sign-in policy is checked again on every request, not only at sign-in, so
+ * removing someone from ALLOWED_EMAIL_DOMAINS or ALLOWED_EMAILS ends their
+ * existing browser sessions and agent grants on the next request. Nothing is
+ * deleted: adding them back restores access.
+ */
+function isStillAllowed(identity: { userId: string; email: string }, config: Config): boolean {
+  if (isEmailAllowed(identity.email, config.accessPolicy)) return true;
+  logger.warn({ userId: identity.userId }, 'Refused a credential for an account the sign-in policy no longer allows');
+  return false;
 }
 
 export function setSessionCookie(context: AppContext, token: string): void {

@@ -33,7 +33,7 @@ Three ideas explain most of the design:
 ## Security model
 
 - **Provider tokens never leave the server.** They are encrypted with AES-256-GCM, bound to their database row, and decrypted only to make an outbound call. Keys can be rotated online ([docs/encryption-keys.md](docs/encryption-keys.md)).
-- **Agents get their own short-lived credentials.** Bifrost tokens are opaque and stored as SHA-256 hashes. A reused refresh token revokes the whole grant. Browser cookies and agent bearer tokens are checked by separate code against separate tables.
+- **Agents get their own short-lived credentials.** Bifrost tokens are opaque and stored as SHA-256 hashes. A reused refresh token revokes the whole grant. Browser cookies and agent bearer tokens are checked by separate code against separate tables, and both re-check the sign-in allowlist on every request, so removing someone from it ends their access right away.
 - **New and changed tools start blocked.** Each tool contract has a fingerprint. Any change to the contract creates a new fingerprint, and the tool stays blocked until an administrator approves it. When the admin web chat wants to change a policy or a rule, it shows the exact change and waits for the administrator to approve it.
 - **Everything fails closed.** A missing policy, a missing tool, a fingerprint mismatch or an unavailable Redis means "no access", not a default. Logs redact tokens and secrets.
 
@@ -135,7 +135,6 @@ CI runs the same command on every push, with real Postgres and Redis, so it also
 - **No end-to-end or UI tests.** Unit and integration tests cover the server; the React app is not tested in a browser.
 - **No durable audit log.** Tool calls are written to the logs with the user id, but there is no audit table, and a policy change replaces the previous policy without keeping history.
 - **Compatible upstream changes can go unnoticed for up to an hour.** Calls use the cached tool definition, so a provider change is seen at the next discovery.
-- **Removing someone takes manual steps.** The sign-in allowlist is checked when a person signs in. Removing them from `ALLOWED_EMAIL_DOMAINS` or `ALLOWED_EMAILS` does not end sessions or agent grants they already have.
 - **No inbound rate limits.** Outbound calls to providers are rate limited per user, but `/oauth/register`, `/oauth/token`, `/auth/google/start` and `/api/chat` are not. Unused dynamically registered clients are not purged.
 - **Redis is required in production.** Locks and rate limits fail closed when it is down, so Redis is a single point of failure by choice.
 

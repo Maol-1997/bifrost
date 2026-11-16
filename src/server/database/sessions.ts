@@ -1,7 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import { and, desc, eq, gt, lte, sql } from 'drizzle-orm';
 import type { AppDatabase } from './client.js';
-import { sessions } from './schema.js';
+import { sessions, users } from './schema.js';
 import { hashToken } from './token-hash.js';
 
 const SESSION_BYTES = 32;
@@ -46,17 +46,25 @@ export function createSessionStore(database: AppDatabase) {
     async resolveSessionAndTouch(
       token: string,
       userAgent?: string,
-    ): Promise<{ sessionId: string; userId: string; clientId: string; expiresAt: Date } | undefined> {
+    ): Promise<{ sessionId: string; userId: string; email: string; clientId: string; expiresAt: Date } | undefined> {
       const [row] = await database
         .update(sessions)
         .set({
           lastUsedAt: sql`now()`,
           userAgent: sql`coalesce(${userAgent ?? null}, ${sessions.userAgent})`,
         })
-        .where(and(eq(sessions.tokenHash, hashToken(token)), gt(sessions.expiresAt, sql`now()`)))
+        .from(users)
+        .where(
+          and(
+            eq(sessions.tokenHash, hashToken(token)),
+            gt(sessions.expiresAt, sql`now()`),
+            eq(users.id, sessions.userId),
+          ),
+        )
         .returning({
           sessionId: sessions.id,
           userId: sessions.userId,
+          email: users.email,
           clientId: sessions.clientId,
           expiresAt: sessions.expiresAt,
         });

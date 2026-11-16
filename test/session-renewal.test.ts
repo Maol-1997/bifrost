@@ -54,6 +54,7 @@ function renewalApp() {
     resolveSessionAndTouch: vi.fn(async () => ({
       sessionId: CURRENT_SESSION_ID,
       userId: USER_ID,
+      email: 'sam@example.test',
       clientId: 'bifrost-web',
       expiresAt: new Date('2030-01-01T00:00:00.000Z'),
     })),

@@ -126,7 +126,7 @@ variable out to use its default. `.env.example` is a starting point for local de
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | none | Google sign-in (section 1). |
 | `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET` | none | GitHub OAuth app (section 2). Without them GitHub still mounts, but connecting fails. |
 | `SLACK_CLIENT_ID`, `SLACK_CLIENT_SECRET` | none | Slack app (section 6). Same behavior as GitHub. |
-| `ALLOWED_EMAIL_DOMAINS`, `ALLOWED_EMAILS` | empty | Comma-separated lists of who may sign in; they OR together. Both empty lets any verified Google account in. |
+| `ALLOWED_EMAIL_DOMAINS`, `ALLOWED_EMAILS` | empty | Comma-separated lists of who may sign in; they OR together. Both empty lets any verified Google account in. Checked on every request, so removing someone ends their sessions and agent access. |
 | `ADMIN_EMAILS` | empty | Comma-separated exact emails that may review tools. Empty keeps every tool blocked. |
 | `OPENAI_API_KEY` | none | Turns on the web chat (section 8). |
 | `OPENAI_BASE_URL` | `https://api.openai.com/v1` | Chat API base. Must support Responses, Tool Search and Web Search. |
