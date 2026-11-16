@@ -32,7 +32,7 @@ describe('graceful shutdown', () => {
       }),
     }));
 
-    const shutdown = shutdownServer({ server: drainingServer.server, dependencies });
+    const shutdown = shutdownServer({ server: drainingServer.server, dependencies, deadlineMs: 10_000 });
     expect(events).toEqual([]);
     drainingServer.finish();
     await shutdown;
@@ -50,12 +50,39 @@ describe('graceful shutdown', () => {
       { name: 'database', close: () => Promise.reject(databaseError) },
     ];
 
-    const shutdown = shutdownServer({ server: drainingServer.server, dependencies });
+    const shutdown = shutdownServer({ server: drainingServer.server, dependencies, deadlineMs: 10_000 });
     drainingServer.finish(httpError);
 
     await expect(shutdown).rejects.toMatchObject({
       message: 'Shutdown failed: HTTP server, MCP handler, database',
       errors: [httpError, mcpError, databaseError],
     });
+  });
+
+  it('closes idle connections at once and cuts the rest at the deadline', async () => {
+    vi.useFakeTimers();
+    try {
+      let finish: (error?: Error) => void = () => undefined;
+      const closeIdleConnections = vi.fn();
+      const closeAllConnections = vi.fn(() => finish());
+      const server = {
+        close: (callback: (error?: Error) => void) => {
+          finish = callback;
+        },
+        closeIdleConnections,
+        closeAllConnections,
+      } as unknown as ServerType;
+
+      const shutdown = shutdownServer({ server, dependencies: [], deadlineMs: 5_000 });
+      expect(closeIdleConnections).toHaveBeenCalledOnce();
+      await vi.advanceTimersByTimeAsync(4_999);
+      expect(closeAllConnections).not.toHaveBeenCalled();
+      await vi.advanceTimersByTimeAsync(1);
+
+      await shutdown;
+      expect(closeAllConnections).toHaveBeenCalledOnce();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

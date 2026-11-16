@@ -28,6 +28,11 @@ export class BrowserEventBus {
   private readonly listenersByUser = new Map<string, Set<BrowserEventListener>>();
   private readonly originId = randomUUID();
   private started = false;
+  private endAllStreams: () => void = () => undefined;
+  /** Resolves when the server shuts down; open event streams end then. */
+  readonly streamsEnded = new Promise<void>((resolve) => {
+    this.endAllStreams = resolve;
+  });
 
   constructor(private readonly redis?: BrowserEventRedis) {}
 
@@ -41,6 +46,10 @@ export class BrowserEventBus {
     if (!this.redis || !this.started) return;
     await this.redis.subscriber.unsubscribe(BROWSER_EVENTS_CHANNEL);
     this.started = false;
+  }
+
+  endStreams(): void {
+    this.endAllStreams();
   }
 
   subscribe(userId: string, listener: BrowserEventListener): () => void {

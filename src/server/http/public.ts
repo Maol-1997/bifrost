@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { z } from 'zod';
 import { APP_ROUTES } from '../../features/utils/routes.js';
 import { GoogleAccountConflictError } from '../database/users.js';
+import { errorSummary, logger } from '../logger.js';
 import { EmailNotAllowedError } from '../oauth.js';
 import { PROVIDER_REGISTRY } from '../providers/registry.js';
 import type { ProviderMount } from '../providers/types.js';
@@ -21,9 +22,16 @@ export function createPublicRoutes() {
   const routes = new Hono<AppEnv>();
 
   return routes
-    .get('/healthz', (context) => {
-      const { config, redis } = context.get('dependencies');
+    .get('/healthz', async (context) => {
+      const { config, database, redis } = context.get('dependencies');
       if (config.REDIS_URL && !redis?.isReady) return context.json({ status: 'unavailable' }, 503);
+      try {
+        await database.ping();
+      } catch (error) {
+        // The health check reports the failure; the response is the signal.
+        logger.warn(errorSummary(error), 'Health check could not reach Postgres');
+        return context.json({ status: 'unavailable' }, 503);
+      }
       return context.json({ status: 'ok' });
     })
     .get('/api/status.json', (context) => context.json(providerStatus(context.get('dependencies').mounts)))

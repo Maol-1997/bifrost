@@ -24,6 +24,8 @@ const config = loadConfig({
   BIFROST_DEV_USER_ID: DEVELOPMENT_USER_ID,
 });
 const database = createDatabase(config);
+// These tests have no Postgres; /healthz pings it, so the ping is stubbed per test.
+const ping = vi.spyOn(database, 'ping').mockResolvedValue(undefined);
 const coordinator = new Coordinator();
 const oauth = new OAuthService(config, database, coordinator);
 const mounts: readonly ProviderMount[] = [];
@@ -90,6 +92,29 @@ describe('HTTP security boundaries', () => {
 
     expect(response.status).toBe(503);
     expect(await response.json()).toEqual({ status: 'unavailable' });
+  });
+
+  it('reports unavailable while Postgres cannot be reached', async () => {
+    ping.mockRejectedValueOnce(new Error('connect ECONNREFUSED'));
+
+    const response = await request('/healthz');
+
+    expect(response.status).toBe(503);
+    expect(await response.json()).toEqual({ status: 'unavailable' });
+  });
+
+  it('ends open browser event streams when the server shuts down', async () => {
+    const events = new BrowserEventBus();
+    const eventsApp = createApp({ ...dependencies, events });
+    const response = await eventsApp.request(`https://${PUBLIC_HOST}/api/events`, {
+      headers: { Host: PUBLIC_HOST, 'X-Bifrost-Dev-User': DEVELOPMENT_USER_ID },
+    });
+    expect(response.status).toBe(200);
+
+    events.endStreams();
+
+    // Reading to the end only finishes because the stream was closed.
+    await expect(response.text()).resolves.toBeTypeOf('string');
   });
 
   it('allows the public hostname with any port', async () => {

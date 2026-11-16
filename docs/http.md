@@ -28,8 +28,16 @@ development rows; a real Google login sets it before issuing a session. Browser 
 be renewed by the browser that owns their cookie, so the renewal response extends the row and emits
 the matching 30-day cookie together.
 
-`GET /healthz` returns `503` whenever configured Redis is not ready. Production requires
-`REDIS_URL`, so load balancers remove a replica whose shared coordination state is unavailable.
+`GET /healthz` returns `503` whenever configured Redis is not ready or a `select 1` through the
+Postgres pool fails. Production requires `REDIS_URL`, so load balancers remove a replica whose
+shared coordination state or database is unavailable. The pool waits at most 5 seconds for a
+connection, and an idle connection the server drops is logged and replaced instead of crashing
+the process.
+
+On `SIGTERM` or `SIGINT` the server ends open browser event streams (browsers reconnect), stops
+accepting connections, closes idle keep-alive connections and gives in-flight requests 10 seconds
+(`SHUTDOWN_DEADLINE_MS` in `src/server/shutdown.ts`). Anything still open then is cut, and the
+dependencies close in order.
 
 Preference tables store **only deviations from the default**, keyed `(user_id, thing)`. Absence
 of a row is meaningful, so never backfill them.

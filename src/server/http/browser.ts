@@ -189,10 +189,14 @@ function browserEventStream(context: AppContext): Response {
     const heartbeat = setInterval(() => {
       void stream.write(': heartbeat\n\n');
     }, EVENT_STREAM_HEARTBEAT_MS);
-    // Returning closes the stream, so hold it open until the browser goes away.
-    await new Promise<void>((resolve) => {
-      stream.onAbort(resolve);
-    });
+    // Returning closes the stream, so hold it open until the browser goes away
+    // or the server shuts down. The browser reconnects to another worker.
+    await Promise.race([
+      new Promise<void>((resolve) => {
+        stream.onAbort(resolve);
+      }),
+      events.streamsEnded,
+    ]);
     clearInterval(heartbeat);
     unsubscribe();
   });

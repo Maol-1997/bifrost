@@ -15,7 +15,7 @@ import { assertPrefixInvariant, mountProviders } from './providers/registry.js';
 import { UpstreamClientPool } from './providers/upstream-pool.js';
 import { RedisRuntime } from './redis.js';
 import { isAccessRestricted } from './security/access.js';
-import { shutdownServer } from './shutdown.js';
+import { SHUTDOWN_DEADLINE_MS, shutdownServer } from './shutdown.js';
 import { createInMemoryToolCacheStore, createRedisToolCacheStore } from './tools/cache-store.js';
 import { reconcileAutoPoliciesInBackground } from './tools/auto-policy.js';
 import { ToolDiscoveryService } from './tools/discovery.js';
@@ -95,8 +95,12 @@ async function main(): Promise<void> {
 
   let shutdownPromise: Promise<void> | undefined;
   const shutdown = (): Promise<void> => {
+    // Event streams never finish on their own, so they would hold the drain
+    // open until the deadline.
+    events.endStreams();
     shutdownPromise ??= shutdownServer({
       server,
+      deadlineMs: SHUTDOWN_DEADLINE_MS,
       dependencies: [
         { name: 'database maintenance', close: () => maintenance.close() },
         { name: 'MCP handler', close: () => mcpHandler.close() },

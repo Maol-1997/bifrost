@@ -141,7 +141,7 @@ Never send this header to an external site or attach it globally to browser traf
 - Omit `REDIS_URL` entirely for in-process development; an empty string does not pass `z.url()`.
   Production requires Redis. Configured-but-unavailable Redis makes `/healthz` return 503.
 - Google/provider app credentials are not startup requirements. Google sign-in with no configured
-  app fails with a generic 500. `/healthz` does not verify Google or database readiness.
+  app fails with a generic 500. `/healthz` checks Redis and Postgres, not Google.
 - `VITE_USE_MOCK_API=true npm run dev:client` avoids infrastructure startup, but the mock is not
   fully offline: the always-mounted chat still requests live `/api/chat/config.json`. A 401 there
   redirects even the mocked Integrations screen to sign-in. Vendor status is deliberately live.

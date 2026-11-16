@@ -38,6 +38,11 @@ export function createDatabase(config: Config) {
       return { sessions: deletedSessions, ...tokens, unusedClients: await grants.deleteUnusedDynamicClients() };
     },
 
+    /** For readiness checks: one round trip through the pool. */
+    async ping(): Promise<void> {
+      await client.query('select 1');
+    },
+
     async close(): Promise<void> {
       await client.end();
     },
