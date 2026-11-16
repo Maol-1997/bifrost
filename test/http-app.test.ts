@@ -221,13 +221,11 @@ describe('request handling', () => {
   it('refreshes provider credentials before reading connection metadata', async () => {
     const callOrder: string[] = [];
     const spies = [
-      vi
-        .spyOn(database, 'userVisibilityState')
-        .mockResolvedValue({
-          connectedProviders: new Set(['linear']),
-          hiddenProviders: new Set(),
-          toolPreferences: new Map(),
-        }),
+      vi.spyOn(database, 'userVisibilityState').mockResolvedValue({
+        connectedProviders: new Set(['linear']),
+        hiddenProviders: new Set(),
+        toolPreferences: new Map(),
+      }),
       vi.spyOn(oauth, 'refreshProviderConnectionIfNeeded').mockImplementation(async () => {
         callOrder.push('refresh');
         return 'connected';

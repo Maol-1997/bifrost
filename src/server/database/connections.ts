@@ -116,9 +116,7 @@ export function createConnectionStore(database: AppDatabase, config: Config) {
     },
 
     /** Everything Integrations needs after OAuth has verified the credential. */
-    async listConnections(
-      userId: string,
-    ): Promise<
+    async listConnections(userId: string): Promise<
       readonly {
         providerId: ProviderId;
         connectedAt: Date;
