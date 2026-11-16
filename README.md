@@ -151,16 +151,13 @@ CI runs the same command on every push, with real Postgres and Redis, so it also
 
 ## Known limitations
 
-- **One OAuth scope.** Agents get a single `mcp` scope, not one scope per provider. Grants store a `text[]` so this can grow later.
-- **DNS rebinding window in client metadata fetches.** Bifrost checks that the host of a client metadata document resolves to public addresses, but `fetch` resolves it again. A DNS record that changes between the two lookups can get past the check. The fetch only happens for a signed-in user, uses HTTPS, follows no redirects, and is capped at 5 s and 64 KB.
-- **The master key lives in the environment.** There is no KMS or HSM integration.
-- **No end-to-end or UI tests.** Unit and integration tests cover the server and a few client helpers; the React app is not tested in a browser.
-- **Admin chat notes are saved without approval.** The admin chat can save a note per provider, and notes are added to its instructions in later chats. Text injected through web search or tool output could leave such a note. Policy and rule changes still need a person's approval.
-- **No durable audit log.** Tool calls are written to the logs with the user id, but there is no audit table, and a policy change replaces the previous policy without keeping history.
-- **Compatible upstream changes can go unnoticed for up to an hour.** Calls use the cached tool definition, so a provider change is seen at the next discovery.
-- **Redis is required in production.** Locks and rate limits fail closed when it is down, so Redis is a single point of failure by choice.
+- Agents get a single OAuth scope, not one per provider.
+- The encryption master key lives in an environment variable (no KMS).
+- No end-to-end or UI tests; tests cover the server.
+- No audit table yet: tool calls only go to the logs.
+- Redis is required in production and is a single point of failure by design.
 
-See [docs/gotchas.md](docs/gotchas.md#known-gaps) for more.
+Details and smaller gaps are in [docs/gotchas.md](docs/gotchas.md#known-gaps).
 
 ## License
 
