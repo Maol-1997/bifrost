@@ -12,6 +12,9 @@ Beyond what eslint enforces (`strictTypeChecked` + `stylisticTypeChecked`, plus
 - **The UI must not claim anything the server does not do.** Several rounds of work here were
   spent removing screens that promised capabilities that did not exist. If you cannot wire it,
   do not draw it.
+- **Prettier owns formatting.** Run `npm run format` before committing; `verify` fails on
+  unformatted files. `git config blame.ignoreRevsFile .git-blame-ignore-revs` hides the one-time
+  repository-wide formatting commit from `git blame`.
 - American spelling in user-facing text.
 - Brand logos come from svgl through the shadcn CLI, never hand-converted:
   `npx shadcn@latest add @svgl/<slug> --path src/app/components/ui/svgs --yes`.

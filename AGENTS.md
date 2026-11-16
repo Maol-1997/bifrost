@@ -80,7 +80,7 @@ bucket directly under `src`.
 npm run verify
 ```
 
-This runs lint, both typechecks, database-free unit tests with coverage, and both production
+This runs lint, the Prettier check, both typechecks, database-free unit tests with coverage, and both production
 builds, stopping on failure. Coverage includes selected modules, not the whole repository.
 With `TEST_DATABASE_URL` and `TEST_REDIS_URL` set (CI sets both) it also runs the integration
 tests; otherwise it reports them as skipped. `npm run integration -- test` starts throwaway

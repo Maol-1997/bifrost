@@ -4,7 +4,7 @@ cd "$(dirname "$0")/.."
 
 # Integration tests need Postgres and Redis. CI always provides them; locally
 # the stage is skipped, visibly, unless both URLs are set.
-stages=(lint typecheck test)
+stages=(lint format:check typecheck test)
 if [[ -n "${TEST_DATABASE_URL:-}" && -n "${TEST_REDIS_URL:-}" ]]; then
   stages+=(test:integration)
 fi

@@ -7,7 +7,7 @@ bun install
 npm run verify
 ```
 
-`verify` runs lint, both TypeScript configurations, the unit suite with its coverage gate,
+`verify` runs lint, `prettier --check`, both TypeScript configurations, the unit suite with its coverage gate,
 the integration suite when `TEST_DATABASE_URL` and `TEST_REDIS_URL` are set, then both production
 builds. It stops on failure, reports completed and skipped stages, and exits nonzero on failure.
 `npm test` remains database-free. Neither proves OAuth browser navigation or rendered React routes.

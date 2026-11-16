@@ -1,0 +1,3 @@
+# Repository-wide Prettier formatting. Enable locally with:
+#   git config blame.ignoreRevsFile .git-blame-ignore-revs
+3eb8e714a6fcf26b2cce244ca124eeb7da05ec91
