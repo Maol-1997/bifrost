@@ -44,6 +44,14 @@ There is no browser (end-to-end UI) tier yet. Do not claim to have run one.
 `npm run integration -- bench` measures `tools/list` and `tools/call` latency against the same
 fake upstream. See [bench/README.md](../bench/README.md#mcp-load-benchmark) for options and baseline.
 
+## Local development notes
+
+`npm run dev` starts Postgres and Redis with Compose, applies migrations, and runs the watched API
+on `:3000` and Vite on `:5173`. It stops the Compose `app` container because both want port 3000.
+
+For UI work without infrastructure, `VITE_USE_MOCK_API=true npm run dev:client` swaps in an
+in-memory API. It is not fully offline; see [Boot and UI limitations](#boot-and-ui-limitations).
+
 ## Parallel worktrees
 
 Choose a distinct slot from 1–999 for each concurrent checkout:

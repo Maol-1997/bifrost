@@ -1,4 +1,7 @@
-# OAuth application setup
+# Setup
+
+This guide covers the OAuth applications Bifrost needs, production settings, and every
+configuration variable.
 
 Use `http://localhost:3000` below for local development. Replace it with the exact HTTPS production origin when registering production applications. OAuth redirect URIs must match exactly.
 
@@ -103,3 +106,40 @@ Postgres and Redis only on `127.0.0.1`. A production deployment must set:
 - `PUBLIC_URL` to the exact HTTPS origin registered with Google and the providers.
 
 With Compose, put both in `.env` (or the shell environment) before `docker compose up`.
+
+## Configuration reference
+
+All settings are environment variables, validated at startup by `src/server/config.ts`. Leave a
+variable out to use its default. `.env.example` is a starting point for local development.
+
+| Variable | Default | What it does |
+| --- | --- | --- |
+| `NODE_ENV` | `development` | `development`, `test` or `production`. Production requires `REDIS_URL` and an `https` `PUBLIC_URL`. |
+| `PORT` | `3000` | HTTP port the server listens on. |
+| `PUBLIC_URL` | `http://localhost:3000` | The origin agents and OAuth redirects use. It is also the OAuth issuer. |
+| `LOG_LEVEL` | `info` | Pino log level (`trace`, `debug`, `info`, `warn`, `error`, `fatal`). |
+| `DATABASE_URL` | `postgres://bifrost:bifrost@localhost:5432/bifrost` | Postgres. Outside Docker, point it at `localhost:5432`, not `postgres`. |
+| `DATABASE_POOL_MAX` | `20` | Postgres connections per process. Multiply by replicas to size `max_connections`. |
+| `REDIS_URL` | none | Shared locks, rate limits, concurrency leases, tool catalogs and browser events. Required in production; development and tests fall back to in-process state. |
+| `ENCRYPTION_KEY` | none | 32-byte base64 key for provider credentials. Required unless `ENCRYPTION_KEYS` is set. |
+| `ENCRYPTION_KEYS`, `ENCRYPTION_ACTIVE_KEY_ID` | none | JSON keyring of key id to base64 key, and the id new writes use. See [docs/encryption-keys.md](docs/encryption-keys.md). |
+| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | none | Google sign-in (section 1). |
+| `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET` | none | GitHub OAuth app (section 2). Without them GitHub still mounts, but connecting fails. |
+| `SLACK_CLIENT_ID`, `SLACK_CLIENT_SECRET` | none | Slack app (section 6). Same behavior as GitHub. |
+| `ALLOWED_EMAIL_DOMAINS`, `ALLOWED_EMAILS` | empty | Comma-separated lists of who may sign in; they OR together. Both empty lets any verified Google account in. |
+| `ADMIN_EMAILS` | empty | Comma-separated exact emails that may review tools. Empty keeps every tool blocked. |
+| `OPENAI_API_KEY` | none | Turns on the web chat (section 8). |
+| `OPENAI_BASE_URL` | `https://api.openai.com/v1` | Chat API base. Must support Responses, Tool Search and Web Search. |
+| `OPENAI_MODEL` | `gpt-6-sol` | Chat model. |
+| `OPENAI_REASONING_EFFORT` | `medium` | `none`, `minimal`, `low`, `medium`, `high`, `xhigh` or `max`, when the model supports it. |
+| `OPENROUTER_API_KEY` | none | Turns on automatic tool rules. Without it new tools wait for an administrator. |
+| `OPENROUTER_BASE_URL` | `https://openrouter.ai/api` | Base URL for the classifier requests. |
+| `JEV_MODEL` | `typesafe/jev-1.13` | Classifier model for automatic tool rules. |
+| `OAUTH_ACCESS_TOKEN_TTL_SECONDS` | `3600` | Lifetime of agent access tokens. |
+| `OAUTH_REFRESH_TOKEN_TTL_DAYS` | `90` | Lifetime of agent refresh tokens, moved forward on every use. |
+| `OAUTH_ENABLE_CLIENT_ID_METADATA_DOCUMENTS` | `true` | Advertise Client ID Metadata Documents, the 2026-07-28 replacement for dynamic registration. |
+| `BIFROST_DEV_USER_ID` | none | Development only: a UUID accepted from the `X-Bifrost-Dev-User` header when `NODE_ENV=development`. Never set it in production. See [docs/verification.md](docs/verification.md). |
+| `UPSTREAM_CLIENT_IDLE_SECONDS` | `300` | Idle lifetime of a pooled upstream MCP client. |
+| `UPSTREAM_CLIENT_MAX` | `200` | Maximum pooled upstream MCP clients per process. |
+| `SLOW_REQUEST_MS` | `1000` | Requests slower than this are logged as warnings. |
+| `SLOW_TOOL_MS` | `2000` | Tool calls slower than this are logged as warnings. |

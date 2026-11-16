@@ -1,22 +1,14 @@
 # Bifrost
 
-**One MCP endpoint that lets your coding agent use GitHub, Linear, Sentry, Slack, Notion and Granola as *you*, without ever holding your tokens.**
+Bifrost is a small gateway between your coding agent and the tools your team uses. You sign in with Google and connect your GitHub, Linear, Sentry, Slack, Notion and Granola accounts once. After that, Claude Code or any other MCP client can use those tools through a single URL. The agent works with your identity and your permissions, but it never sees your tokens: they stay encrypted on the server. An administrator approves each tool before anyone can use it, and each user can switch tools on or off.
 
-You sign in once with Google, connect your own GitHub, Linear, Sentry, Slack, Notion and Granola accounts, and point Claude Code (or any MCP client) at `POST /mcp`. From then on the agent reads pull requests, searches issues and meeting notes, and posts messages under your identity and permissions, while you decide, tool by tool, what it is allowed to do.
-
-Bifrost also includes a streaming, multi-step chat powered by the Vercel AI SDK and OpenAI. It receives the signed-in user's currently visible Bifrost tools automatically, can search the live web through OpenAI Web Search, and stores chat history locally in the browser with IndexedDB.
-
-Administrators can also ask the web chat to review an MCP provider's tool catalog and apply deployment policies in a fingerprint-checked batch. These internal administration tools exist only in the web chat and are never exposed through `POST /mcp`.
+Bifrost also has a web chat. It can use the same tools as your agent, and administrators can use it to review and approve tools.
 
 ---
 
 ## Why it exists
 
-Giving an AI agent access to your team's tools usually means one of two bad options: paste a personal access token into a config file on your laptop, or share a bot account whose actions nobody can attribute to a person. Bifrost replaces both with a small internal gateway:
-
-- **Credentials stay on the server.** Provider tokens are encrypted with AES-256-GCM at rest and only ever decrypted to make an outbound call. The agent never sees them.
-- **Every action is attributed to a person.** The agent authenticates to Bifrost with a short-lived OAuth token issued *to that user*, so a comment on GitHub or a message in Slack is posted by them, with their permissions.
-- **Administrators approve the surface.** Provider tools are discovered from official MCP servers and start blocked. An administrator reviews the current contract and chooses whether each approved tool starts on or off for users.
+Giving an AI agent access to your team's tools usually means one of two bad options: paste a personal access token into a config file on your laptop, or share a bot account whose actions nobody can attribute to a person. Bifrost replaces both with one internal gateway. Tokens stay on the server, every action is done by a real person's account, and an administrator decides which tools exist at all.
 
 ## How it works
 
@@ -26,32 +18,42 @@ Giving an AI agent access to your team's tools usually means one of two bad opti
   Browser ──cookie──▶  React UI  ──▶  /api/*     Postgres (encrypted creds, │
   (Google sign-in)                                sessions, OAuth grants)  │
                  │                                                          │
-  Claude Code ──bearer──▶  POST /mcp  ──▶  per-request MCP server          │──▶ GitHub
-  Cursor, etc.   │        (OAuth 2.1)       built from *your* connections   │──▶ Linear
-                 │                          and *your* tool preferences     │──▶ Sentry
-                 │                                                          │──▶ Slack
-                 │                                                          │──▶ Notion
-                 │                                                          │──▶ Granola
+  Claude Code ──bearer──▶  POST /mcp  ──▶  per-request MCP server          │──▶ provider
+  Cursor, etc.   │        (OAuth 2.1)       built from *your* connections   │    MCP servers
+                 │                          and *your* tool preferences     │
                  └──────────────────────────────────────────────────────────┘
 ```
 
 Three ideas explain most of the design:
 
-1. **The MCP server is rebuilt on every request.** Bifrost loads the caller's connected providers and tool preferences and registers only those tools. A tool that is hidden is not merely absent from `tools/list`, it is uncallable, because it was never registered for that request.
-2. **Bifrost is on both sides of OAuth.** It is an OAuth *client* to Google and to each provider (that is how it obtains your tokens), and it is an OAuth 2.1 *authorization server* to MCP clients (that is how Claude Code gets its own credential). Agent access does not silently expire: clients hold a 1-hour access token and a rotating 90-day refresh token.
-3. **Two authorities decide what a tool may do.** An administrator must approve the exact fingerprint discovered from the provider, then each user can narrow that approved surface with their own switches.
+1. **The MCP server is rebuilt on every request.** Bifrost loads the caller's connected providers and tool preferences and registers only those tools. A hidden tool is not just missing from `tools/list`; it cannot be called, because it was never registered for that request.
+2. **Bifrost is on both sides of OAuth.** It is an OAuth _client_ to Google and to each provider (this is how it gets your tokens), and an OAuth 2.1 _authorization server_ to MCP clients (this is how Claude Code gets its own credential). Clients hold a 1-hour access token and a rotating 90-day refresh token, so agent access does not silently expire.
+3. **Two people decide what a tool may do.** An administrator approves the exact version of a tool discovered from the provider. Then each user can turn approved tools off for themselves.
+
+## Security model
+
+- **Provider tokens never leave the server.** They are encrypted with AES-256-GCM, bound to their database row, and decrypted only to make an outbound call. Keys can be rotated online ([docs/encryption-keys.md](docs/encryption-keys.md)).
+- **Agents get their own short-lived credentials.** Bifrost tokens are opaque and stored as SHA-256 hashes. A reused refresh token revokes the whole grant. Browser cookies and agent bearer tokens are checked by separate code against separate tables.
+- **New and changed tools start blocked.** Each tool contract has a fingerprint. Any change to the contract creates a new fingerprint, and the tool stays blocked until an administrator approves it.
+- **Everything fails closed.** A missing policy, a missing tool, a fingerprint mismatch or an unavailable Redis means "no access", not a default. Logs redact tokens and secrets.
+
+More detail: [docs/tool-visibility.md](docs/tool-visibility.md), [docs/oauth.md](docs/oauth.md) and [docs/request-lifecycle.md](docs/request-lifecycle.md).
 
 ## What agents get
 
-Tools are discovered from GitHub, Linear, Sentry, Slack, Notion and Granola's official MCP servers using each user's OAuth token. Bifrost prefixes their names (`github_`, `linear_`, `sentry_`, `slack_`, `notion_`, `granola_`), preserves their schemas and annotations, and proxies approved calls without exposing provider credentials.
+Bifrost discovers tools from each provider's official MCP server with the user's own OAuth token. It adds a prefix to each name (`github_`, `linear_`, and so on), keeps the original schemas and annotations, and forwards approved calls. A tool without `readOnlyHint: true` is treated as able to write.
 
-Discovery never grants access by itself. A new tool, or any change to a tool's contract, produces a new fingerprint and stays blocked until an administrator approves that exact version. Missing `readOnlyHint: true` metadata is treated as write-capable.
+Discovered tool lists are cached in Redis for one hour. Tool calls reuse the cached definition but always read the current policy from Postgres, so blocking a tool takes effect immediately. An upstream error clears the cache for that provider. Approving tools always fetches a fresh list from the provider first.
 
-Discovered catalogs use a shared Redis stale-while-revalidate cache that is fresh for one hour and retained stale for at most 24 hours. Browser queries receive the remaining server freshness and use it as their own TanStack Query lifetime, so the two caches never add two independent hours. Tool calls reuse that cached contract; an upstream error invalidates it without retrying the call. Policy approvals always refresh upstream first.
+### Web chat and automatic tool rules
+
+The web chat uses the Vercel AI SDK and the OpenAI Responses API. It sees the same tools as the signed-in user's agent and can also search the web. Chat history stays in the browser (IndexedDB). The default model is `gpt-6-sol`, the value of `OPENAI_MODEL` when it is not set; any model that supports Responses, Tool Search and Web Search works.
+
+Administrators can write one plain-language rule per provider, such as "only tools that read issues". Bifrost then sends the name, description, access type and parameter names of each new tool to Jev, the classifier model set by `JEV_MODEL` (default `typesafe/jev-1.13`), through OpenRouter. Jev returns a probability that the tool matches the rule, and Bifrost turns it into "on by default" or "off by default" ([src/server/tools/rule-classifier.ts](src/server/tools/rule-classifier.ts)). A rule never blocks a tool. Without `OPENROUTER_API_KEY`, new tools wait for an administrator.
 
 ## Quick start
 
-Requirements: Docker with Compose v2, OAuth apps for Google and any GitHub or Slack providers you want, and no application setup for Linear, Sentry, Notion or Granola (see [SETUP.md](SETUP.md)).
+Requirements: Docker with Compose v2, and OAuth apps for Google and for GitHub or Slack if you want those providers. Linear, Sentry, Notion and Granola need no app setup (see [SETUP.md](SETUP.md)).
 
 ```bash
 cp .env.example .env
@@ -59,7 +61,7 @@ openssl rand -base64 32     # paste into ENCRYPTION_KEY in .env
 docker compose up --build
 ```
 
-Open <http://localhost:3000>, sign in with Google, and connect a provider from **Integrations**. Migrations run automatically when the container boots. The server refuses to start without `ENCRYPTION_KEY`.
+Open <http://localhost:3000>, sign in with Google, and connect a provider from **Integrations**. Migrations run when the container starts. The server refuses to start without `ENCRYPTION_KEY`. Compose runs in development mode; see [SETUP.md](SETUP.md#10-running-in-production) for production.
 
 ### Connect an agent
 
@@ -69,57 +71,43 @@ Bifrost implements the MCP `2026-07-28` authorization spec, so a compliant clien
 claude mcp add --transport http bifrost https://bifrost.your-company.dev/mcp
 ```
 
-The client discovers the authorization server, opens the browser for consent, and stores its own token. **Agents & sessions** in the UI lists every connected client and lets you revoke any of them.
+The client finds the authorization server, opens the browser for consent, and stores its own token. **Agents & sessions** in the UI lists every connected client and lets you revoke any of them.
 
 ## Configuration
 
-All settings are environment variables, validated at startup by `src/server/config.ts`.
+Settings are environment variables, checked at startup by `src/server/config.ts`. These are the ones you need to know first; [SETUP.md](SETUP.md#configuration-reference) lists all of them.
 
 | Variable | Required | What it does |
 | --- | --- | --- |
-| `ENCRYPTION_KEY` | yes | 32-byte base64 key for provider credentials. No dev default, on purpose. |
-| `ENCRYPTION_KEYS`, `ENCRYPTION_ACTIVE_KEY_ID` | to rotate | JSON keyring of id to base64 key and the id new writes use. See [docs/encryption-keys.md](docs/encryption-keys.md). |
-| `PUBLIC_URL` | yes in prod | The origin agents and OAuth redirects use. Default `http://localhost:3000`. |
-| `DATABASE_URL` | yes | Postgres. Outside Docker, point it at `localhost:5432`, not `postgres`. |
-| `DATABASE_POOL_MAX` | no | Postgres connections per process. Default 20. |
-| `REDIS_URL` | production | Shares locks, atomic rate limits, concurrency leases, tool catalogs and browser invalidations across workers. Production refuses to start without it; development and tests can use local state. |
-| `GOOGLE_CLIENT_ID` / `_SECRET` | yes | Sign-in. |
-| `GITHUB_*`, `SLACK_*` | per provider | Provider OAuth apps. A provider without credentials still mounts; connecting it fails until they are set. Linear, Sentry, Notion and Granola use their MCP servers' dynamic client registration instead. |
-| `OPENAI_API_KEY` | for chat | Enables the built-in agent chat. The rest of Bifrost still starts when it is absent. |
-| `OPENAI_BASE_URL` | no | Chat API host. Defaults to `https://api.openai.com/v1`; overrides must support Responses, Tool Search and Web Search. |
-| `OPENAI_MODEL` | no | Chat model. Default `gpt-6-sol`. |
-| `OPENAI_REASONING_EFFORT` | no | Chat reasoning effort. Default `medium`; accepts `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, or `max` when supported by the model. |
-| `OPENROUTER_API_KEY` | no | Enables per-provider automatic tool rules classified by Jev. Without it, new tools stay blocked until an administrator reviews them. |
-| `JEV_MODEL` | no | Classifier for automatic tool rules. Default `typesafe/jev-1.13`. |
-| `ALLOWED_EMAIL_DOMAINS`, `ALLOWED_EMAILS` | recommended | Who may sign in. The two lists OR together. **Both empty lets any verified Google account in**; the server warns and the sign-in screen says so. |
-| `ADMIN_EMAILS` | recommended | Comma-separated exact emails allowed to review and approve discovered tools. **Empty means every tool remains blocked.** |
-| `OAUTH_ACCESS_TOKEN_TTL_SECONDS` | no | Default 3600. |
-| `OAUTH_REFRESH_TOKEN_TTL_DAYS` | no | Default 90, slid forward on every use. |
-| `OAUTH_ENABLE_CLIENT_ID_METADATA_DOCUMENTS` | no | Default `true`. Advertise CIMD support (the 2026-07-28 replacement for dynamic registration). |
-| `BIFROST_DEV_USER_ID` | dev only | UUID accepted from the `X-Bifrost-Dev-User` header when `NODE_ENV=development`. Never set in production. |
-| `UPSTREAM_CLIENT_IDLE_SECONDS`, `UPSTREAM_CLIENT_MAX` | no | Pooled upstream MCP clients: idle lifetime (default 300) and per-process cap (default 200). |
-| `SLOW_REQUEST_MS`, `SLOW_TOOL_MS` | no | Latency thresholds that turn a log line into a warning. |
+| `ENCRYPTION_KEY` | yes | 32-byte base64 key for provider credentials. There is no default. |
+| `PUBLIC_URL` | yes in prod | The origin agents and OAuth redirects use. Default `http://localhost:3000`; must be `https` in production. |
+| `DATABASE_URL` | yes | Postgres. Outside Docker, use `localhost:5432`, not `postgres`. |
+| `REDIS_URL` | in prod | Shared locks, rate limits, tool caches and browser events. Production refuses to start without it. |
+| `GOOGLE_CLIENT_ID` / `_SECRET` | yes | Google sign-in. |
+| `ALLOWED_EMAIL_DOMAINS`, `ALLOWED_EMAILS` | recommended | Who may sign in. **If both are empty, any verified Google account can sign in.** |
+| `ADMIN_EMAILS` | recommended | Exact emails that may approve tools. **If empty, every tool stays blocked.** |
+| `OPENAI_API_KEY` | for chat | Turns on the web chat. Bifrost starts without it. |
 
 ## Development
 
 ```bash
 bun install
-npm run dev        # Postgres + Redis containers, migrations, watched API on :3000, Vite on :5173
-npm run db:generate # Generate a Drizzle migration after changing src/server/database/schema.ts
-npm run verify     # Lint, format check, both typechecks, unit coverage, server/client build
-npm run integration -- test  # Postgres + Redis + fake upstream MCP integration tests
-npm run build      # Node server to dist/server, React bundle to dist/client
+npm run dev                  # Postgres + Redis containers, migrations, API on :3000, Vite on :5173
+npm run verify               # lint, format check, both typechecks, unit tests with coverage, build
+npm run integration -- test  # integration tests against throwaway Postgres + Redis (needs Docker)
+npm run db:generate          # new Drizzle migration after changing src/server/database/schema.ts
 ```
 
-Work against <http://localhost:5173>; Vite proxies `/api`, `/auth`, `/oauth` and `/mcp` to the API. `npm run dev` stops the `app` container because both want port 3000. For UI API fixtures, `VITE_USE_MOCK_API=true npm run dev:client` swaps in an in-memory API without starting infrastructure. This is not fully offline: Service status reads real vendor feeds and chat configuration still calls the backend; see [the current preview limitation](docs/verification.md#boot-and-ui-limitations).
+Work against <http://localhost:5173>; Vite forwards `/api`, `/auth`, `/oauth` and `/mcp` to the API. The Docker image has its own copy of `dist`, so after changing code run `docker compose up -d --build app`. Parallel worktrees, the mock API and the development-user header are described in [docs/verification.md](docs/verification.md).
 
-For concurrent agents, use the [isolated worktree loop](docs/verification.md):
-`npm run worktree -- init 41`, then `npm run worktree -- dev`. Each checkout needs a distinct slot.
-That guide also documents the existing development-user header and current boot/preview limitations.
+## Where to look first
 
-The Docker image bundles its own `dist`, so after changing code, `docker compose up -d --build app`; rebuilding on the host does nothing to a running container.
+- [`src/server/mcp.ts`](src/server/mcp.ts): builds the MCP server for each request and registers only the caller's visible tools.
+- [`src/server/tools/filter.ts`](src/server/tools/filter.ts): the visibility filter. Every axis fails closed.
+- [`src/server/oauth-server/`](src/server/oauth-server/): the OAuth 2.1 authorization server (PKCE, client metadata documents, refresh rotation with replay detection).
+- [`test/integration/`](test/integration/): the real MCP, OAuth grant, token refresh and key rotation paths against Postgres, Redis and a fake upstream MCP server.
 
-Unit tests need no database and focus on the places where being wrong is expensive: the prefix invariant, visibility filter, tool fingerprints and policy defaults, PKCE, redirect-URI matching, SSRF address ranges, metadata documents, encryption, log redaction and access rules. Integration tests in `test/integration` run the real MCP path against Postgres, Redis and an in-process fake provider MCP server; CI runs both.
+[AGENTS.md](AGENTS.md) is the index for anyone changing the code; each topic has its own file under [`docs/`](docs/).
 
 ## Layout
 
@@ -129,21 +117,30 @@ src/
   server/            Hono, MCP, OAuth, providers, persistence and Node entrypoint
   features/          cross-runtime product contracts, including the Hono RPC client
 migrations/          generated Drizzle SQL, applied on container boot
-test/                vitest units; test/integration needs Postgres and Redis
+test/                vitest unit tests; test/integration needs Postgres and Redis
+bench/               latency benchmarks for the MCP hot path
 ```
 
-[AGENTS.md](AGENTS.md) is the index for anyone changing the code: it gives a short overview and links to one doc per topic under `docs/`. [docs/adding-a-provider.md](docs/adding-a-provider.md) documents every provider touchpoint.
+## How this was built
 
-## Security notes
+Bifrost was built with coding agents writing most of the code, guided by [AGENTS.md](AGENTS.md) and the docs it links.
+Every change has to pass `npm run verify`: lint, formatting, strict typechecks, unit tests with a coverage gate, and both builds.
+CI runs the same command on every push, with real Postgres and Redis, so it also runs the integration tests.
 
-- Browser sessions (cookie) and agent access (bearer token) resolve against different tables through different functions. A leaked cookie is not an API credential and vice versa.
-- Google accounts are bound to the immutable ID-token `sub`. Existing rows link once by verified email on their first post-migration sign-in; later email changes keep the same Bifrost user.
-- Provider credentials are bound to their row with AES-GCM associated data and carry a key id, so keys rotate online ([docs/encryption-keys.md](docs/encryption-keys.md)).
-- OAuth tokens are opaque and stored as SHA-256 hashes; a replayed refresh token destroys its whole grant, because a replay means the value leaked.
-- Expired browser sessions and OAuth tokens are deleted on startup and hourly. Consumed refresh tokens remain until expiry so replay detection keeps working.
-- The one server-side fetch of a caller-supplied URL (Client ID Metadata Documents) is HTTPS-only, refuses private and link-local address ranges, follows no redirects, and is capped at 5 s and 64 KB, and it only happens for a signed-in user.
-- Logs redact tokens, secrets, cookies, API keys and JWT-shaped strings, and only errors written for the agent are ever returned to it.
+## Known limitations
 
-## Status
+- **One OAuth scope.** Agents get a single `mcp` scope, not one scope per provider. Grants store a `text[]` so this can grow later.
+- **DNS rebinding window in client metadata fetches.** Bifrost checks that the host of a client metadata document resolves to public addresses, but `fetch` resolves it again. A DNS record that changes between the two lookups can get past the check. The fetch only happens for a signed-in user, uses HTTPS, follows no redirects, and is capped at 5 s and 64 KB.
+- **The master key lives in the environment.** There is no KMS or HSM integration.
+- **No end-to-end or UI tests.** Unit and integration tests cover the server; the React app is not tested in a browser.
+- **No durable audit log.** Tool calls are written to the logs with the user id, but there is no audit table, and a policy change replaces the previous policy without keeping history.
+- **Compatible upstream changes can go unnoticed for up to an hour.** Calls use the cached tool definition, so a provider change is seen at the next discovery.
+- **Removing someone takes manual steps.** The sign-in allowlist is checked when a person signs in. Removing them from `ALLOWED_EMAIL_DOMAINS` or `ALLOWED_EMAILS` does not end sessions or agent grants they already have.
+- **No inbound rate limits.** Outbound calls to providers are rate limited per user, but `/oauth/register`, `/oauth/token`, `/auth/google/start` and `/api/chat` are not. Unused dynamically registered clients are not purged.
+- **Redis is required in production.** Locks and rate limits fail closed when it is down, so Redis is a single point of failure by choice.
 
-Working and in use for GitHub, Linear, Sentry, Slack, Notion and Granola. One thing is deliberately unbuilt and documented as such in [docs/gotchas.md](docs/gotchas.md#known-gaps): OAuth issues a single `mcp` scope rather than per-provider scopes.
+See [docs/gotchas.md](docs/gotchas.md#known-gaps) for more.
+
+## License
+
+[MIT](LICENSE)
