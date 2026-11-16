@@ -129,9 +129,7 @@ Never send this header to an external site or attach it globally to browser traf
 
 ## Boot and UI limitations
 
-- A copied `.env.example` includes `OPENAI_BASE_URL=`. The installed SDK rejects that empty value
-  during import, before Bifrost applies its config default. Remove the blank assignment (or set
-  the documented URL explicitly) while awaiting a startup fix. No OpenAI key is needed to boot.
+- No OpenAI key is needed to boot; the chat reports that it is not configured.
 - Omit `REDIS_URL` entirely for in-process development; an empty string does not pass `z.url()`.
   Production requires Redis. Configured-but-unavailable Redis makes `/healthz` return 503.
 - Google/provider app credentials are not startup requirements. Google sign-in with no configured

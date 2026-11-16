@@ -1,3 +1,4 @@
+import './environment.js';
 import { serve } from '@hono/node-server';
 import { loadConfig } from './config.js';
 import { Coordinator } from './coordination.js';
