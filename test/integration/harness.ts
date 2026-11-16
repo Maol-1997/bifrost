@@ -63,6 +63,10 @@ export type IntegrationHarness = {
     decisions: Readonly<Record<string, ToolPolicyState>>,
     providerId?: ProviderId,
   ): Promise<void>;
+  /** A real browser session cookie value for this user. */
+  createSessionCookie(userId: string): Promise<string>;
+  /** Any request to the app on its public origin. */
+  request(path: string, init?: RequestInit): Promise<Response>;
   /** Disconnects through the browser route, with a real session cookie. */
   disconnectProvider(userId: string, providerId?: ProviderId): Promise<number>;
   listTools(bearer: string): Promise<McpResponse>;
@@ -191,6 +195,17 @@ export async function createIntegrationHarness(options: {
             updatedByUserId: adminUserId,
           })),
       );
+    },
+
+    async createSessionCookie(userId): Promise<string> {
+      const session = await database.createSession(userId, WEB_CLIENT_ID);
+      return `bifrost_session=${session.token}`;
+    },
+
+    async request(path, init = {}): Promise<Response> {
+      const headers = new Headers(init.headers);
+      headers.set('Host', PUBLIC_HOST);
+      return app.request(`${PUBLIC_URL}${path}`, { ...init, headers });
     },
 
     async disconnectProvider(userId, providerId = 'github'): Promise<number> {

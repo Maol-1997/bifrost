@@ -30,6 +30,6 @@ npm run verify
 Unit tests are database-free and cover the parts where being wrong is expensive: the prefix invariant,
 the visibility filter, tool fingerprints and policy defaults, PKCE, redirect-URI matching, SSRF ranges,
 metadata documents, encryption, sign-in/admin access rules. `test/integration` runs the real MCP,
-OAuth-grant, refresh and key-rotation paths against Postgres, Redis and a fake upstream MCP server;
+OAuth authorize/token/refresh/replay, refresh and key-rotation paths against Postgres, Redis and a fake upstream MCP server;
 keep anything needing infrastructure there, out of `npm test`. There is no browser tier yet.
 See [verification.md](verification.md) for isolated worktree setup and runtime probes.

@@ -35,7 +35,10 @@ over loopback HTTP: only `fetch` is rerouted for the registry's official MCP URL
 discovery, cache and execution code run unchanged. Provider token exchanges are injected through
 `OAuthService`'s existing dependency seam. It covers bearer auth → `tools/list` → `tools/call`, cold
 and warm discovery, immediate admin blocks and user switches, invisible tools, concurrent token
-refresh, and credential key rotation including its races with refresh.
+refresh, credential key rotation including its races with refresh, the OAuth authorization server
+over HTTP (registration, authorize and consent with a real session cookie, PKCE code exchange,
+refresh rotation, replay revocation of the whole grant), the guards that keep automatic rules from
+overriding administrators, and the cleanup of unused dynamic clients.
 
 There is no browser (end-to-end UI) tier yet. Do not claim to have run one.
 
