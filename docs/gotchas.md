@@ -28,7 +28,7 @@
   `npm run worktree -- dev`, not the fixed-port default. See [verification.md](verification.md).
 - **An empty `OPENAI_BASE_URL` is not the same as an omitted one.** The installed SDK reads it
   during import, before Bifrost config defaults. Remove the blank template assignment locally.
-- **Source and built OAuth rendering can differ.** The audit reproduced `React is not defined`
+- **Source and built OAuth rendering can differ.** Consent rendering has failed with `React is not defined`
   from the tsx dev runner on Node 25.6.1; the compiled server completes consent successfully.
 - **Mock API mode still reads live chat configuration.** Its 401 can redirect mocked screens to
   sign-in because the chat stays mounted off-route. A mock user is not a real server session.

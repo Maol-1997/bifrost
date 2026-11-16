@@ -1,6 +1,22 @@
-# MCP hot-path benchmark
+# Benchmarks
 
-Run `npx tsx bench/mcp-assembly.ts` from this worktree. No provider credentials,
+Scripts that measure the MCP hot path: per-request assembly, policy reads, Redis catalog
+snapshots and end-to-end `tools/list` / `tools/call` latency. All numbers below are local
+measurements on a developer machine, not production latency or throughput claims.
+
+| Script | Needs | Measures |
+| --- | --- | --- |
+| `bench/mcp-assembly.ts` | nothing | MCP assembly with stub stores |
+| `bench/tool-policies.ts` | Postgres | full versus narrow policy reads |
+| `bench/redis-discovery.ts` | Redis | Redis catalog snapshot reads |
+| `bench/mcp-load.ts` | Postgres, Redis | end-to-end latency through the real app |
+
+`bench/compose.yaml` starts a separate Postgres and Redis (project `bifrost-bench`) that publish
+only on loopback ports 25432 and 26379.
+
+## MCP assembly
+
+Run `npx tsx bench/mcp-assembly.ts`. No provider credentials,
 Postgres or Redis are required. The benchmark uses the real MCP handler,
 visibility filter and discovery cache, with an in-memory string store and stub
 policy/preference queries. It seeds 300 tools across all six providers, each
@@ -14,7 +30,7 @@ also includes serializing and parsing the tool catalog. The script uses the
 SDK's modern `2026-07-28` envelope; its exported `LATEST_PROTOCOL_VERSION`
 currently names the rejected legacy revision `2025-11-25`.
 
-## Exact-byte discovery memoization
+### Exact-byte discovery memoization
 
 Node 25.6.1, local macOS, same synthetic fixture:
 
@@ -59,13 +75,10 @@ The implemented query is 89.7% faster in the paired after run and returns
 92.9% fewer application JSON bytes. Assembly and execution each use this live
 narrow read. Full contract snapshots remain available for review UI callers.
 
-Final MCP rerun (same stub fixture, after both commits' code changes): visible
-loading 0.0404 ms; assembly + server/discover 0.7709 ms; tools/list 2.3920 ms;
-1 KB decrypt 0.00368 ms. Shared-host/JIT variation is why the cache commit reports
-the more conservative initial after measurements, rather than claiming the
-later variation as another optimization. The stub MCP run does not include the
-independently measured PostgreSQL win.
-
+A later rerun of the stub fixture with both changes measured visible loading at 0.0404 ms,
+assembly + server/discover at 0.7709 ms, tools/list at 2.3920 ms and a 1 KB decrypt at
+0.00368 ms. The tables above keep the more conservative first measurements, because JIT and
+host noise explain part of that difference. The stub run does not include the PostgreSQL change.
 
 ## Atomic Redis discovery snapshots
 
@@ -74,12 +87,9 @@ docker compose -f bench/compose.yaml up -d --wait redis
 REDIS_URL=redis://127.0.0.1:26379 npx tsx bench/redis-discovery.ts
 ```
 
-`bench/compose.yaml` is now standalone, uses the isolated `bifrost-audit-perf`
-project and publishes only loopback ports 25432/26379. The benchmark seeds a
-unique user, cleans up its keys, and never uses provider credentials. It compares
+The benchmark seeds a unique user, cleans up its keys, and never uses provider credentials. It compares
 actual `loadVisibleUserTools` calls (300 tools / six providers, stub PostgreSQL
-methods, live policy filtering) using the old three-read algorithm from 94c3a08
-versus the new Redis adapter. Exact-byte decode memoization is warm in both.
+methods, live policy filtering) using the previous three-read algorithm versus the new Redis adapter. Exact-byte decode memoization is warm in both.
 Real Redis Lua execution includes absent generation zero and nonzero generations.
 
 Nine samples of 200 requests per variant follow 50 warmups. Variant ordering
@@ -193,3 +203,24 @@ dropped from 0.33 to 0.26 ms p50, and a bearer check inside the stamp window no 
 Interleaved in one process, a cold listing through a pooled client took 8.8 to 11.8 ms p50 against
 11.3 to 11.7 ms through a fresh one. What remains of a cold listing is discovery itself, meaning
 the Redis lock and write plus normalizing and fingerprinting 40 tools, which none of this touched.
+
+## Other findings
+
+Measured as already cheap, so left unchanged:
+
+- AES-256-GCM decryption of a 1 KB credential takes 0.003–0.004 ms median. The key is loaded
+  once; there is no per-call key derivation.
+- Warm visible-tool loading plus policy filtering takes 0.046 ms for 300 tools. Filtering uses
+  sets and is linear.
+- Independent assembly reads already run concurrently, and so does discovery across connected
+  providers.
+- Mermaid is a dynamic import, so its 682 KB core chunk (169 KB gzip) is not part of the app entry.
+
+Possible improvements that were not measured or changed:
+
+| Area | Observation | Needed before changing |
+| --- | --- | --- |
+| Frontend | The app shell renders the lazy chat even on non-chat pages (a 285 KB chunk, 100 KB gzip) | Confirm the intended background chat behavior and test streaming across navigation |
+| Admin writes | A policy batch issues one upsert and one preference delete per tool; preference deletes by tool name may scan | `EXPLAIN ANALYZE` with realistic data, then an index migration if justified |
+| Static compression | The app does not compress responses itself (main JS 634 KB raw, 204 KB gzip) | Check whether the deployment ingress already compresses |
+| Pool / startup | The pool size is set by `DATABASE_POOL_MAX` (default 20); startup does not wait for upstream discovery | A load profile with connection counts across replicas |

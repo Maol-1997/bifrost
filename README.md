@@ -111,7 +111,7 @@ npm run integration -- test  # Postgres + Redis + fake upstream MCP integration 
 npm run build      # Node server to dist/server, React bundle to dist/client
 ```
 
-Work against <http://localhost:5173>; Vite proxies `/api`, `/auth`, `/oauth` and `/mcp` to the API. `npm run dev` stops the `app` container because both want port 3000. For UI API fixtures, `VITE_USE_MOCK_API=true npm run dev:client` swaps in an in-memory API without starting infrastructure. This is not fully offline: Service status reads real vendor feeds and chat configuration still calls the backend; see [the current preview limitation](docs/verification.md#boot-and-ui-limitations-found-in-this-audit).
+Work against <http://localhost:5173>; Vite proxies `/api`, `/auth`, `/oauth` and `/mcp` to the API. `npm run dev` stops the `app` container because both want port 3000. For UI API fixtures, `VITE_USE_MOCK_API=true npm run dev:client` swaps in an in-memory API without starting infrastructure. This is not fully offline: Service status reads real vendor feeds and chat configuration still calls the backend; see [the current preview limitation](docs/verification.md#boot-and-ui-limitations).
 
 For concurrent agents, use the [isolated worktree loop](docs/verification.md):
 `npm run worktree -- init 41`, then `npm run worktree -- dev`. Each checkout needs a distinct slot.

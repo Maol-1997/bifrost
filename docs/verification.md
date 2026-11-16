@@ -37,8 +37,7 @@ discovery, cache and execution code run unchanged. Provider token exchanges are 
 and warm discovery, immediate admin blocks and user switches, invisible tools, concurrent token
 refresh, and credential key rotation including its races with refresh.
 
-The browser tier described in [the audit](agent-verification-audit.md) is a proposal, not an
-installed command. Do not claim to have run it.
+There is no browser (end-to-end UI) tier yet. Do not claim to have run one.
 
 ## Load benchmark
 
@@ -107,8 +106,8 @@ npm run worktree -- run env NODE_ENV=development \
   node dist/server/main.js
 ```
 
-The command uses the compiled server because the audit reproduced `React is not defined` when
-rendering OAuth consent through the source runner on Node 25.6.1. The compiled path completed
+The command uses the compiled server because rendering OAuth consent through the source runner
+failed with `React is not defined` on Node 25.6.1. The compiled path completed
 registration, consent, PKCE, token rotation and replay revocation with real storage.
 
 An authenticated local list request for slot 41 is:
@@ -128,7 +127,7 @@ fingerprints. The header is a local convenience, **not a test of cookie or OAuth
 For those, obtain real fixture sessions/tokens and omit the header on the requests under test.
 Never send this header to an external site or attach it globally to browser traffic.
 
-## Boot and UI limitations found in this audit
+## Boot and UI limitations
 
 - A copied `.env.example` includes `OPENAI_BASE_URL=`. The installed SDK rejects that empty value
   during import, before Bifrost applies its config default. Remove the blank assignment (or set
@@ -143,6 +142,3 @@ Never send this header to an external site or attach it globally to browser traf
 - Authenticated screenshots are possible with an automation browser injecting the dev header
   **only on the exact local origin**, or with a locally minted browser session. Chat still reports
   "not configured" without an OpenAI key; a fake deterministic chat model is not implemented.
-
-See [agent-verification-audit.md](agent-verification-audit.md) for measured coverage, evidence,
-security guard requirements, and the proposed integration/QA tiers.
