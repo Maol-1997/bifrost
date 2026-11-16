@@ -92,7 +92,7 @@ export function createBrowserRoutes() {
     })
     .get('/api/chat/config.json', (context) =>
       context.json({
-        configured: Boolean(context.get('dependencies').config.OPENAI_API_KEY),
+        configured: Boolean(context.get('dependencies').config.ANTHROPIC_API_KEY),
       }),
     )
     .post('/api/chat/title', async (context) => {

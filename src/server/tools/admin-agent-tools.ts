@@ -1,4 +1,4 @@
-import type { OpenAIToolOptions } from '@ai-sdk/openai';
+import type { AnthropicToolOptions } from '@ai-sdk/anthropic';
 import { tool, type ToolApprovalStatus, type ToolSet } from 'ai';
 import { z } from 'zod';
 import type { AppDependencies } from '../http/context.js';
@@ -20,15 +20,10 @@ import { applyToolPolicies, countToolPolicyStates } from './policy.js';
 import { providerAgentNoteInstructions, providerAgentNoteSchema } from './provider-agent-notes.js';
 import { isUncertainProbability, RULE_MATCH_AT, RULE_MISMATCH_AT } from './rule-classifier.js';
 
-const ADMIN_TOOL_NAMESPACE = {
-  name: 'bifrost_admin',
-  description:
-    "Administrative tools for reviewing MCP providers, changing deployment tool policies, managing each provider's automatic tool rule, and maintaining one internal agent note per provider in Bifrost.",
-} as const;
-const ADMIN_TOOL_OPTIONS = {
-  deferLoading: true,
-  namespace: ADMIN_TOOL_NAMESPACE,
-} satisfies OpenAIToolOptions;
+// Deferred like the provider tools; the chat finds them with tool search.
+const ADMIN_TOOL_OPTIONS = { deferLoading: true } as const satisfies AnthropicToolOptions;
+const ADMIN_TOOLS_INSTRUCTIONS =
+  "You are talking to a Bifrost administrator. Tools starting with bifrost_admin_ review MCP providers, change deployment tool policies, manage each provider's automatic tool rule, and maintain one internal agent note per provider. Find them with tool search.";
 const providerIdSchema = z.enum(SUPPORTED_APPS).describe('The MCP provider to inspect or administer.');
 const policyStateSchema = z.enum(TOOL_POLICY_STATES);
 const reviewKindSchema = z.enum(['approved', 'new', 'changed']);
@@ -123,7 +118,7 @@ export async function createAdminAgentContext(request: AdminAgentToolRequest): P
   const notes = await request.dependencies.database.providerAgentNotes(request.identity.userId);
 
   return {
-    instructions: `${providerAgentNoteInstructions(notes)}\n\n${APPROVAL_INSTRUCTIONS}`,
+    instructions: [ADMIN_TOOLS_INSTRUCTIONS, providerAgentNoteInstructions(notes), APPROVAL_INSTRUCTIONS].join('\n\n'),
     tools: createAdminAgentTools(request),
     toolApproval: Object.fromEntries(ADMIN_TOOLS_REQUIRING_APPROVAL.map((name) => [name, 'user-approval'] as const)),
   };
@@ -136,7 +131,7 @@ function createAdminAgentTools(request: AdminAgentToolRequest): ToolSet {
       description:
         'List every MCP provider managed by Bifrost, its current agent note, its automatic tool rule, whether this admin account is connected, whether it is mounted, and counts for its stored deployment policies.',
       inputSchema: z.object({}),
-      providerOptions: { openai: ADMIN_TOOL_OPTIONS },
+      providerOptions: { anthropic: ADMIN_TOOL_OPTIONS },
       metadata: { source: 'bifrost-admin' },
       execute: async () => {
         await assertAdministratorAccess(request);
@@ -148,7 +143,7 @@ function createAdminAgentTools(request: AdminAgentToolRequest): ToolSet {
       description:
         "List tools discovered from one MCP provider with current deployment policy, who decided it (automatic rule or administrator) with the rule's probability, whether each tool is new or changed, exact contract changes when available, and fingerprint. Use filters to narrow large providers. Returns fingerprints required for batch policy changes; setting a policy by hand makes it an administrator decision the rule no longer changes.",
       inputSchema: listProviderToolsSchema,
-      providerOptions: { openai: ADMIN_TOOL_OPTIONS },
+      providerOptions: { anthropic: ADMIN_TOOL_OPTIONS },
       metadata: { source: 'bifrost-admin' },
       execute: async (input, options) => {
         await assertAdministratorAccess(request);
@@ -164,7 +159,7 @@ function createAdminAgentTools(request: AdminAgentToolRequest): ToolSet {
       description:
         'Atomically change deployment policies for up to 250 tools from one MCP provider. Always use fingerprints from list_mcp_tools. The entire batch is rejected if any definition changed, tool is unknown, or tool appears twice.',
       inputSchema: setToolPoliciesSchema,
-      providerOptions: { openai: ADMIN_TOOL_OPTIONS },
+      providerOptions: { anthropic: ADMIN_TOOL_OPTIONS },
       metadata: { source: 'bifrost-admin' },
       execute: async (input, options) => {
         await assertAdministratorAccess(request);
@@ -179,7 +174,7 @@ function createAdminAgentTools(request: AdminAgentToolRequest): ToolSet {
       title: 'Get MCP tool rule',
       description: `Read the automatic tool rule for one MCP provider, its revision, and whether automatic rules are available on this server. ${RULE_BEHAVIOUR}`,
       inputSchema: providerOnlySchema,
-      providerOptions: { openai: ADMIN_TOOL_OPTIONS },
+      providerOptions: { anthropic: ADMIN_TOOL_OPTIONS },
       metadata: { source: 'bifrost-admin' },
       execute: async (input) => {
         await assertAdministratorAccess(request);
@@ -197,7 +192,7 @@ function createAdminAgentTools(request: AdminAgentToolRequest): ToolSet {
       title: 'Set MCP tool rule',
       description: `Create or replace the automatic tool rule for one MCP provider and apply it immediately to tools it has not decided yet. ${RULE_BEHAVIOUR} The administrator approves each call in the chat before it runs.`,
       inputSchema: setToolRuleSchema,
-      providerOptions: { openai: ADMIN_TOOL_OPTIONS },
+      providerOptions: { anthropic: ADMIN_TOOL_OPTIONS },
       metadata: { source: 'bifrost-admin' },
       execute: async (input, options) => {
         await assertAdministratorAccess(request);
@@ -218,7 +213,7 @@ function createAdminAgentTools(request: AdminAgentToolRequest): ToolSet {
       description:
         'Remove the automatic tool rule for one MCP provider. Policies it already set stay as they are; new tools stay blocked until reviewed.',
       inputSchema: providerOnlySchema,
-      providerOptions: { openai: ADMIN_TOOL_OPTIONS },
+      providerOptions: { anthropic: ADMIN_TOOL_OPTIONS },
       metadata: { source: 'bifrost-admin' },
       execute: async (input) => {
         await assertAdministratorAccess(request);
@@ -231,7 +226,7 @@ function createAdminAgentTools(request: AdminAgentToolRequest): ToolSet {
       description:
         'Save the complete internal note for one MCP provider. This replaces its previous note. Use it only for durable user preferences or provider-specific working context, never secrets.',
       inputSchema: setProviderNoteSchema,
-      providerOptions: { openai: ADMIN_TOOL_OPTIONS },
+      providerOptions: { anthropic: ADMIN_TOOL_OPTIONS },
       metadata: { source: 'bifrost-admin' },
       execute: async (input) => {
         await assertAdministratorAccess(request);
@@ -243,7 +238,7 @@ function createAdminAgentTools(request: AdminAgentToolRequest): ToolSet {
       title: 'Clear MCP note',
       description: 'Delete the internal note for one MCP provider when it is no longer useful.',
       inputSchema: clearProviderNoteSchema,
-      providerOptions: { openai: ADMIN_TOOL_OPTIONS },
+      providerOptions: { anthropic: ADMIN_TOOL_OPTIONS },
       metadata: { source: 'bifrost-admin' },
       execute: async (input) => {
         await assertAdministratorAccess(request);

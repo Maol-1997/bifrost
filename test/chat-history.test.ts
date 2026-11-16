@@ -72,6 +72,53 @@ describe('stored chat history normalization', () => {
     expect(conversations.map((conversation) => conversation.id)).toEqual(['newest', 'middle', 'oldest']);
   });
 
+  it('keeps a Claude answer with thinking, web search and citations', () => {
+    const answer = {
+      id: 'answer',
+      role: 'assistant',
+      metadata: { finishReason: 'stop' },
+      parts: [
+        { type: 'step-start' },
+        { type: 'reasoning', text: '', providerMetadata: { anthropic: { signature: 'signed' } } },
+        {
+          type: 'tool-web_search',
+          toolCallId: 'search',
+          state: 'output-available',
+          providerExecuted: true,
+          input: { query: 'bifrost' },
+          output: [{ type: 'web_search_result', url: 'https://example.test', title: 'Example' }],
+        },
+        {
+          type: 'text',
+          text: 'Found it.',
+          citations: [{ source: { type: 'url', url: 'https://example.test' }, citedText: 'Example' }],
+        },
+      ],
+    };
+
+    const [conversation] = normalizeStoredConversations([conversationFixture({ messages: [answer] })], OWNER);
+
+    expect(conversation?.messages).toEqual([answer]);
+  });
+
+  it('keeps an approval request with the fields newer AI SDK versions record', () => {
+    const request = {
+      id: 'answer',
+      role: 'assistant',
+      parts: [
+        {
+          type: 'tool-bifrost_admin_clear_mcp_tool_rule',
+          toolCallId: 'call',
+          state: 'approval-requested',
+          input: { providerId: 'github' },
+          approval: { id: 'approval', requestReason: 'Changes a rule', inputSchemaInput: { providerId: 'github' } },
+        },
+      ],
+    };
+
+    expect(normalizeStoredConversations([conversationFixture({ messages: [request] })], OWNER)).toHaveLength(1);
+  });
+
   it.each([
     ['a non-object record', null],
     ['a non-array message collection', { ...conversationFixture(), messages: {} }],

@@ -8,11 +8,11 @@ const optionalNonEmptyString = z.preprocess(
   (value) => (value === '' ? undefined : value),
   z.string().min(1).optional(),
 );
-const optionalOpenAIBaseUrl = z.preprocess(
+const optionalUrl = z.preprocess((value) => (value === '' ? undefined : value), z.url().optional());
+const anthropicModel = z.preprocess(
   (value) => (value === '' ? undefined : value),
-  z.url().default('https://api.openai.com/v1'),
+  z.string().min(1).default('claude-sonnet-5-5'),
 );
-const openAIModel = z.preprocess((value) => (value === '' ? undefined : value), z.string().min(1).default('gpt-6-sol'));
 const openRouterBaseUrl = z.preprocess(
   (value) => (value === '' ? undefined : value),
   z.url().default('https://openrouter.ai/api'),
@@ -21,9 +21,9 @@ const jevModel = z.preprocess(
   (value) => (value === '' ? undefined : value),
   z.string().min(1).default('typesafe/jev-1.13'),
 );
-const openAIReasoningEffort = z.preprocess(
+const anthropicEffort = z.preprocess(
   (value) => (value === '' ? undefined : value),
-  z.enum(['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max']).default('medium'),
+  z.enum(['low', 'medium', 'high', 'xhigh', 'max']).default('high'),
 );
 
 const environmentSchema = z.object({
@@ -46,10 +46,13 @@ const environmentSchema = z.object({
   GITHUB_CLIENT_SECRET: optionalNonEmptyString,
   SLACK_CLIENT_ID: optionalNonEmptyString,
   SLACK_CLIENT_SECRET: optionalNonEmptyString,
-  OPENAI_API_KEY: optionalNonEmptyString,
-  OPENAI_BASE_URL: optionalOpenAIBaseUrl,
-  OPENAI_MODEL: openAIModel,
-  OPENAI_REASONING_EFFORT: openAIReasoningEffort,
+  // Only used by the web chat. Without a key the chat reports that it is not
+  // configured and the rest of Bifrost runs as usual.
+  ANTHROPIC_API_KEY: optionalNonEmptyString,
+  // Unset means the provider's default, https://api.anthropic.com/v1.
+  ANTHROPIC_BASE_URL: optionalUrl,
+  ANTHROPIC_MODEL: anthropicModel,
+  ANTHROPIC_EFFORT: anthropicEffort,
   // Only used to classify tools against an administrator's automatic rule.
   // Without it no rule can run, and new tools stay blocked as before.
   OPENROUTER_API_KEY: optionalNonEmptyString,

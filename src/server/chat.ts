@@ -1,4 +1,9 @@
-import { createOpenAI, type OpenAIResponsesProviderOptions, type OpenAIToolOptions } from '@ai-sdk/openai';
+import {
+  createAnthropic,
+  type AnthropicLanguageModelOptions,
+  type AnthropicProvider,
+  type AnthropicToolOptions,
+} from '@ai-sdk/anthropic';
 import {
   createAgentUIStreamResponse,
   dynamicTool,
@@ -7,6 +12,8 @@ import {
   stepCountIs,
   streamText,
   ToolLoopAgent,
+  type FinishReason,
+  type TextStreamPart,
   type ToolSet,
 } from 'ai';
 import type { AppDependencies } from './http/context.js';
@@ -18,21 +25,20 @@ import { executeUserTool, loadVisibleUserTools } from './tools/user-toolset.js';
 
 const MAX_AGENT_STEPS = 20;
 const MAX_CHAT_TITLE_LENGTH = 64;
-const TOOL_NAMESPACES = {
-  granola: {
-    name: 'granola',
-    description: 'Granola tools for meeting notes, transcripts, attendees, decisions, and action items.',
-  },
-  github: { name: 'github', description: 'GitHub tools for repositories, code, issues, pull requests, and users.' },
-  linear: { name: 'linear', description: 'Linear tools for projects, issues, teams, initiatives, and documents.' },
-  notion: { name: 'notion', description: 'Notion tools for pages, databases, comments, users, and workspace search.' },
-  sentry: {
-    name: 'sentry',
-    description: 'Sentry tools for errors, issues, events, releases, projects, and organizations.',
-  },
-  slack: { name: 'slack', description: 'Slack tools for messages, channels, canvases, files, users, and search.' },
-} as const satisfies Record<ProviderId, NonNullable<OpenAIToolOptions['namespace']>>;
+// Every provider and admin tool is deferred: the model finds the ones it needs with
+// tool search instead of reading every definition on every turn.
+const DEFERRED_TOOL_OPTIONS = { deferLoading: true } as const satisfies AnthropicToolOptions;
+const PROVIDER_TOOL_TOPICS = {
+  granola: 'meeting notes, transcripts, attendees, decisions, and action items',
+  github: 'repositories, code, issues, pull requests, and users',
+  linear: 'projects, issues, teams, initiatives, and documents',
+  notion: 'pages, databases, comments, users, and workspace search',
+  sentry: 'errors, issues, events, releases, projects, and organizations',
+  slack: 'messages, channels, canvases, files, users, and search',
+} as const satisfies Record<ProviderId, string>;
 const AGENT_INSTRUCTIONS = 'You are an agent connected to Bifrost. Help the user with their requests.';
+const TOOL_SEARCH_INSTRUCTIONS =
+  "The user's connected tools are not listed up front. Use tool search to find the ones a request needs. Tool names start with the provider, such as github_ or linear_.";
 const CHAT_TITLE_INSTRUCTIONS = [
   'Create a concise, polished title for this chat from the first user message.',
   'Use the same language as the user. Use 3 to 6 words when possible.',
@@ -47,18 +53,18 @@ export async function createBifrostChatTitle(request: {
   signal: AbortSignal;
 }): Promise<string> {
   const { config } = request.dependencies;
-  if (!config.OPENAI_API_KEY) {
+  const anthropic = createChatProvider(config);
+  if (!anthropic) {
     throw new Error('Chat is not configured');
   }
 
-  const openai = createChatProvider(config.OPENAI_API_KEY, config.OPENAI_BASE_URL);
   const result = streamText({
-    model: openai.responses(config.OPENAI_MODEL),
+    model: anthropic(config.ANTHROPIC_MODEL),
     instructions: CHAT_TITLE_INSTRUCTIONS,
     prompt: request.firstMessage,
     abortSignal: request.signal,
     providerOptions: {
-      openai: titleProviderOptions(),
+      anthropic: { effort: 'low', fallbacks: 'default' } satisfies AnthropicLanguageModelOptions,
     },
   });
   return normalizeChatTitle(await result.text);
@@ -71,7 +77,8 @@ export async function createBifrostChatResponse(request: {
   signal: AbortSignal;
 }): Promise<Response> {
   const { config } = request.dependencies;
-  if (!config.OPENAI_API_KEY) {
+  const anthropic = createChatProvider(config);
+  if (!anthropic) {
     return Response.json({ error: 'Chat is not configured' }, { status: 503 });
   }
 
@@ -98,16 +105,21 @@ export async function createBifrostChatResponse(request: {
     tools: visibleTools,
   });
 
-  const openai = createChatProvider(config.OPENAI_API_KEY, config.OPENAI_BASE_URL);
+  const hasDeferredTools = Object.keys(deferredTools).length + Object.keys(adminContext.tools).length > 0;
   const agent = new ToolLoopAgent({
-    model: openai.responses(config.OPENAI_MODEL),
-    instructions: [AGENT_INSTRUCTIONS, adminContext.instructions].filter(Boolean).join('\n\n'),
+    model: anthropic(config.ANTHROPIC_MODEL),
+    instructions: [
+      AGENT_INSTRUCTIONS,
+      hasDeferredTools ? toolSearchInstructions(visibleTools) : undefined,
+      adminContext.instructions,
+    ]
+      .filter(Boolean)
+      .join('\n\n'),
     providerOptions: {
-      openai: responseProviderOptions(config),
+      anthropic: chatProviderOptions(config),
     },
     tools: {
-      tool_search: openai.tools.toolSearch(),
-      web_search: openai.tools.webSearch(),
+      ...createServerTools(anthropic, { toolSearch: hasDeferredTools }),
       ...deferredTools,
       ...adminContext.tools,
     },
@@ -118,29 +130,58 @@ export async function createBifrostChatResponse(request: {
     agent,
     uiMessages: validatedMessages.data,
     abortSignal: request.signal,
+    messageMetadata: chatMessageMetadata,
     onError: () => 'Bifrost could not complete that request.',
   });
 }
 
-function createChatProvider(apiKey: string, baseURL: string) {
-  return createOpenAI({
-    apiKey,
-    baseURL,
+/** The Anthropic provider for the chat, or undefined when no key is configured. */
+export function createChatProvider(config: AppDependencies['config']): AnthropicProvider | undefined {
+  if (!config.ANTHROPIC_API_KEY) return undefined;
+  return createAnthropic({
+    apiKey: config.ANTHROPIC_API_KEY,
+    ...(config.ANTHROPIC_BASE_URL ? { baseURL: config.ANTHROPIC_BASE_URL } : {}),
   });
 }
 
-function responseProviderOptions(config: AppDependencies['config']): OpenAIResponsesProviderOptions {
+export function chatProviderOptions(config: AppDependencies['config']) {
   return {
-    reasoningEffort: config.OPENAI_REASONING_EFFORT,
-    store: false,
+    // Sonnet 5.5 always thinks adaptively; effort is the only depth control.
+    // The chat history lives in the browser and the system prompt and tool list
+    // can change between turns (admin notes, tool toggles), which invalidates
+    // earlier thinking blocks. drop_block lets such a turn continue without that
+    // reasoning instead of failing with a 400.
+    thinking: { type: 'adaptive', blockBinding: { prefixMismatchBehavior: 'drop_block' } },
+    effort: config.ANTHROPIC_EFFORT,
+    // When a safety classifier declines a turn, the API retries it on a
+    // fallback model chosen for that refusal category before giving up.
+    fallbacks: 'default',
+    cacheControl: { type: 'ephemeral' },
+  } as const satisfies AnthropicLanguageModelOptions;
+}
+
+/**
+ * Anthropic's server tools. They run on Anthropic's side and are never deferred,
+ * so the request always keeps at least one tool loaded next to tool search.
+ */
+export function createServerTools(anthropic: AnthropicProvider, options: { toolSearch: boolean }): ToolSet {
+  return {
+    ...(options.toolSearch ? { tool_search: anthropic.tools.toolSearchBm25_20251119() } : {}),
+    web_search: anthropic.tools.webSearch_20260209(),
   };
 }
 
-function titleProviderOptions(): OpenAIResponsesProviderOptions {
-  return {
-    reasoningEffort: 'none',
-    store: false,
-  };
+/** Keeps the finish reason on the message so the browser can explain a refusal, also after a reload. */
+export function chatMessageMetadata({ part }: { part: TextStreamPart<ToolSet> }): ChatMessageMetadata | undefined {
+  return part.type === 'finish' ? { finishReason: part.finishReason } : undefined;
+}
+
+type ChatMessageMetadata = { finishReason: FinishReason };
+
+function toolSearchInstructions(tools: readonly DiscoveredTool[]): string {
+  const providers = [...new Set(tools.map((tool) => tool.providerId))].sort();
+  const topics = providers.map((providerId) => `- ${providerId}_: ${PROVIDER_TOOL_TOPICS[providerId]}`);
+  return [TOOL_SEARCH_INSTRUCTIONS, ...topics].join('\n');
 }
 
 function normalizeChatTitle(value: string): string {
@@ -163,12 +204,7 @@ function createAgentTools(request: {
         title: tool.title,
         description: tool.description,
         inputSchema: jsonSchema(tool.inputSchema as Parameters<typeof jsonSchema>[0]),
-        providerOptions: {
-          openai: {
-            deferLoading: true,
-            namespace: TOOL_NAMESPACES[tool.providerId],
-          } satisfies OpenAIToolOptions,
-        },
+        providerOptions: { anthropic: DEFERRED_TOOL_OPTIONS },
         metadata: { providerId: tool.providerId, source: 'bifrost' },
         execute: (input, options) =>
           executeUserTool({

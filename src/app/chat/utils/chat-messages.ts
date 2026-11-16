@@ -12,4 +12,20 @@ function firstUserMessageText(messages: readonly UIMessage[]): string {
   return firstUserMessage ? messageText(firstUserMessage).trim() : '';
 }
 
-export { firstUserMessageText, messageText };
+/**
+ * The server records the model's finish reason in the message metadata. Claude
+ * reports a declined request as `content-filter`, after the server-side fallback
+ * model declined it as well.
+ */
+function wasDeclined(message: UIMessage): boolean {
+  const metadata = message.metadata;
+  return (
+    message.role === 'assistant' &&
+    typeof metadata === 'object' &&
+    metadata !== null &&
+    'finishReason' in metadata &&
+    metadata.finishReason === 'content-filter'
+  );
+}
+
+export { firstUserMessageText, messageText, wasDeclined };

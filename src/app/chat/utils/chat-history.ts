@@ -118,8 +118,11 @@ const providerMetadataSchema = z.record(z.string(), jsonObjectSchema);
 const toolApprovalRequestSchema = z
   .object({
     id: nonEmptyStringSchema,
+    descriptor: z.unknown().optional(),
+    requestReason: z.string().optional(),
     isAutomatic: z.boolean().optional(),
     signature: z.string().optional(),
+    inputSchemaInput: z.unknown().optional(),
   })
   .strict();
 const approvedToolRequestSchema = toolApprovalRequestSchema
@@ -156,6 +159,8 @@ function createToolPartSchema(identityShape: z.ZodRawShape) {
         ...toolPartSharedShape,
         state: z.literal('input-streaming'),
         input: z.unknown().optional(),
+        rawInput: z.string().optional(),
+        inputEncoding: z.enum(['json', 'text']).optional(),
       })
       .strict(),
     z
@@ -225,6 +230,7 @@ const staticToolPartSchema = createToolPartSchema({
 });
 const dynamicToolPartSchema = createToolPartSchema({
   type: z.literal('dynamic-tool'),
+  dynamic: z.literal(false).optional(),
   toolName: nonEmptyStringSchema,
 });
 const uiMessagePartSchema = z.union([
@@ -232,6 +238,8 @@ const uiMessagePartSchema = z.union([
     .object({
       type: z.literal('text'),
       text: z.string(),
+      // Web search answers cite their sources.
+      citations: z.array(jsonObjectSchema).optional(),
       state: z.enum(['streaming', 'done']).optional(),
       providerMetadata: providerMetadataSchema.optional(),
     })

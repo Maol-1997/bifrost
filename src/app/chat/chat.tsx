@@ -45,7 +45,7 @@ import {
 import { useConversationRecord } from './hooks/use-conversation-record';
 import { useMessageEditing } from './hooks/use-message-editing';
 import { describeAdminApproval } from './utils/admin-approval';
-import { messageText } from './utils/chat-messages';
+import { messageText, wasDeclined } from './utils/chat-messages';
 
 const CHAT_ID_QUERY_PARAMETER = 'id';
 
@@ -100,7 +100,7 @@ export default function Chat({ active = true, owner, toolbarHost }: ChatProps): 
           <div className="mx-auto max-w-md px-6 text-center">
             <h1 className="text-xl font-semibold text-linear-bright">Chat is not configured</h1>
             <p className="mt-2 text-sm leading-6 text-linear-muted">
-              Add OPENAI_API_KEY to the server environment to enable Bifrost chat.
+              Add ANTHROPIC_API_KEY to the server environment to enable Bifrost chat.
             </p>
           </div>
         </AgentChatEmptyState>
@@ -617,7 +617,16 @@ function ChatMessage({
         ),
       )}
       {message.role === 'assistant' ? <AgentMarkdown markdown={text} streaming={streaming} /> : text}
+      {wasDeclined(message) ? <DeclinedNotice /> : null}
     </AgentChatMessage>
+  );
+}
+
+function DeclinedNotice(): React.JSX.Element {
+  return (
+    <p className="mt-2 text-xs text-app-text-tertiary" role="status">
+      Claude declined this request, so the answer stops here. Try rephrasing it or start a new chat.
+    </p>
   );
 }
 
