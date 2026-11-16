@@ -114,9 +114,11 @@ export function createToolPolicyStore(database: AppDatabase) {
     },
 
     /**
-     * Rule-driven writes lose every race they should lose: an administrator's
-     * decision on the same definition stands, and a classification made under
-     * an older rule revision never replaces one made under a newer revision.
+     * Rule-driven writes lose every race they should lose, so the conditions in
+     * `pendingAutoPolicyTools` also hold when another writer got there first:
+     * an existing row is only replaced if the rule wrote it, for the same
+     * definition, under an older or equal rule revision. An administrator's row
+     * and a row for a different definition are never touched.
      * Returns the tool names actually written.
      */
     async setAutoToolPolicies(requests: readonly AutoToolPolicyWrite[]): Promise<readonly string[]> {
@@ -140,10 +142,9 @@ export function createToolPolicyStore(database: AppDatabase) {
                 updatedByUserId: null,
                 updatedAt: new Date(),
               },
-              setWhere: sql`${deploymentToolPolicies.fingerprint} <> excluded.fingerprint or (
-                ${deploymentToolPolicies.source} = 'auto'
-                and coalesce(${deploymentToolPolicies.ruleRevision}, 0) <= excluded.rule_revision
-              )`,
+              setWhere: sql`${deploymentToolPolicies.source} = 'auto'
+                and ${deploymentToolPolicies.fingerprint} = excluded.fingerprint
+                and coalesce(${deploymentToolPolicies.ruleRevision}, 0) <= excluded.rule_revision`,
             })
             .returning({ toolName: deploymentToolPolicies.toolName });
           if (rows.length === 0) continue;

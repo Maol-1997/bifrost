@@ -24,9 +24,10 @@ const decisionsResponseSchema = z.object({
 });
 
 /**
- * A rule only ever chooses between the two allowed defaults. Blocking stays a
- * decision a person makes, so a misread rule can at worst leave a tool the
- * administrator already let in switched off or on.
+ * A rule only ever chooses between the two allowed defaults, and only for tools
+ * nobody has decided yet (see `pendingAutoPolicyTools`). A misread rule can at
+ * worst turn a new tool on or off by default; it cannot block, override an
+ * administrator, or approve a changed definition.
  */
 export function autoPolicyFor(probability: number): AutoPolicy {
   if (probability >= RULE_MATCH_AT) return { state: 'allowed_default_on', isUncertain: false };

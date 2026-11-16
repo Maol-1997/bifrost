@@ -37,10 +37,14 @@ export type AutoPolicyOutcome =
   | { status: 'applied'; classified: number; written: number };
 
 /**
- * The tools a rule still has to decide: those with no policy, those whose
- * definition changed since the policy was written, and those the rule itself
- * decided under an older wording. A person's decision on the current
- * definition is never among them.
+ * The tools a rule still has to decide: those with no policy at all, and those
+ * the rule itself decided on this exact definition under an older wording.
+ *
+ * Everything else belongs to a person. An administrator's decision stands for
+ * that tool name whatever its definition later becomes, so a block sticks. A
+ * definition that changed after any decision stays blocked by the fingerprint
+ * mismatch until an administrator reviews it: reclassifying it could approve a
+ * contract nobody has looked at.
  */
 export function pendingAutoPolicyTools(
   tools: readonly DiscoveredTool[],
@@ -49,8 +53,10 @@ export function pendingAutoPolicyTools(
 ): readonly DiscoveredTool[] {
   return tools.filter((tool) => {
     const origin = origins.get(tool.name);
-    if (!origin || origin.fingerprint !== tool.fingerprint) return true;
-    return origin.source === 'auto' && (origin.ruleRevision ?? 0) < rule.revision;
+    if (!origin) return true;
+    return (
+      origin.source === 'auto' && origin.fingerprint === tool.fingerprint && (origin.ruleRevision ?? 0) < rule.revision
+    );
   });
 }
 

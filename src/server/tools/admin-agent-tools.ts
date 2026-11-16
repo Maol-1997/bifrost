@@ -86,7 +86,7 @@ const setToolRuleSchema = z.object({
     'The complete replacement rule in plain language, e.g. "Only tools that create, edit, merge or push files to a pull request."',
   ),
 });
-const RULE_BEHAVIOUR = `Tools are classified against the rule: probability >= ${RULE_MATCH_AT} becomes allowed_default_on, anything lower becomes allowed_default_off, and between ${RULE_MISMATCH_AT} and ${RULE_MATCH_AT} is flagged uncertain. A rule never blocks a tool and never overrides an administrator's decision on the current definition.`;
+const RULE_BEHAVIOUR = `Tools are classified against the rule: probability >= ${RULE_MATCH_AT} becomes allowed_default_on, anything lower becomes allowed_default_off, and between ${RULE_MISMATCH_AT} and ${RULE_MATCH_AT} is flagged uncertain. A rule only decides tools with no policy yet, and its own earlier decisions when the rule changes. It never blocks a tool, never overrides an administrator's decision, and never re-approves a tool whose definition changed; those stay blocked until an administrator reviews them.`;
 
 type AdminAgentToolRequest = {
   dependencies: AppDependencies;
@@ -216,7 +216,7 @@ function createAdminAgentTools(request: AdminAgentToolRequest): ToolSet {
     bifrost_admin_clear_mcp_tool_rule: tool({
       title: 'Clear MCP tool rule',
       description:
-        'Remove the automatic tool rule for one MCP provider. Policies it already set stay as they are; new or changed tools go back to blocked until reviewed.',
+        'Remove the automatic tool rule for one MCP provider. Policies it already set stay as they are; new tools stay blocked until reviewed.',
       inputSchema: providerOnlySchema,
       providerOptions: { openai: ADMIN_TOOL_OPTIONS },
       metadata: { source: 'bifrost-admin' },

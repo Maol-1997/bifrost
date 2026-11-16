@@ -49,7 +49,7 @@ Discovered tool lists are cached in Redis for one hour. Tool calls reuse the cac
 
 The web chat uses the Vercel AI SDK and the OpenAI Responses API. It sees the same tools as the signed-in user's agent and can also search the web. Chat history stays in the browser (IndexedDB). The default model is `gpt-6-sol`, the value of `OPENAI_MODEL` when it is not set; any model that supports Responses, Tool Search and Web Search works.
 
-Administrators can write one plain-language rule per provider, such as "only tools that read issues". Bifrost then sends the name, description, access type and parameter names of each new tool to Jev, the classifier model set by `JEV_MODEL` (default `typesafe/jev-1.13`), through OpenRouter. Jev returns a probability that the tool matches the rule, and Bifrost turns it into "on by default" or "off by default" ([src/server/tools/rule-classifier.ts](src/server/tools/rule-classifier.ts)). A rule never blocks a tool. Without `OPENROUTER_API_KEY`, new tools wait for an administrator.
+Administrators can write one plain-language rule per provider, such as "only tools that read issues". Bifrost then sends the name, description, access type and parameter names of each new tool to Jev, the classifier model set by `JEV_MODEL` (default `typesafe/jev-1.13`), through OpenRouter. Jev returns a probability that the tool matches the rule, and Bifrost turns it into "on by default" or "off by default" ([src/server/tools/rule-classifier.ts](src/server/tools/rule-classifier.ts)). A rule never blocks a tool, never changes an administrator's decision, and never re-approves a tool whose contract changed: that tool stays blocked until an administrator reviews it. Without `OPENROUTER_API_KEY`, new tools wait for an administrator.
 
 ## Quick start
 

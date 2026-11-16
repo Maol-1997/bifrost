@@ -90,10 +90,16 @@ describe('which tools a rule still has to decide', () => {
     expect(pendingAutoPolicyTools([mergeTool], new Map(), rule)).toEqual([mergeTool]);
   });
 
-  it('includes a definition that changed, even after a manual decision', () => {
-    const origins = new Map([[mergeTool.name, origin({ fingerprint: 'old', source: 'admin' })]]);
+  it('leaves an administrator decision alone even after the definition changed', () => {
+    const origins = new Map([[mergeTool.name, origin({ fingerprint: 'old', source: 'admin', ruleRevision: null })]]);
 
-    expect(pendingAutoPolicyTools([mergeTool], origins, rule)).toEqual([mergeTool]);
+    expect(pendingAutoPolicyTools([mergeTool], origins, rule)).toEqual([]);
+  });
+
+  it('leaves a changed definition it decided earlier for an administrator to review', () => {
+    const origins = new Map([[mergeTool.name, origin({ fingerprint: 'old', ruleRevision: 1 })]]);
+
+    expect(pendingAutoPolicyTools([mergeTool], origins, rule)).toEqual([]);
   });
 
   it('includes its own decisions made under an older rule revision', () => {

@@ -276,9 +276,9 @@ function AutomaticRule({ providerId, rule }: { providerId: ProviderId; rule: Aut
         </span>
       </div>
       <p className="mt-1 text-xs leading-5 text-app-text-tertiary text-pretty">
-        Describe which tools should be on by default. New and changed tools are classified against it: clear matches are
-        on by default, everything else is allowed but off, and unclear ones are flagged here. Your manual decisions
-        always win. Users only see the resulting defaults.
+        Describe which tools should be on by default. New tools are classified against it: clear matches are on by
+        default, everything else is allowed but off, and unclear ones are flagged here. Your manual decisions always
+        win, and a tool whose contract changes stays blocked until you review it. Users only see the resulting defaults.
       </p>
       {rule.isAvailable ? (
         <>

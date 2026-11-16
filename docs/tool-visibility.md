@@ -30,16 +30,24 @@ invalidations after commit.
 
 An administrator may give a provider one plain-language rule in `/admin/tools/:providerId`, such as
 "only tools that create, edit, merge or push files to a pull request". When the server has
-`OPENROUTER_API_KEY`, every tool definition the rule has not decided yet is classified against it by
+`OPENROUTER_API_KEY`, every new tool definition is classified against it by
 Jev (`JEV_MODEL`, via OpenRouter's decisions API) and written as a deployment policy with
 `source = 'auto'`. Users never see the rule; they see the resulting defaults and can override them.
 
 - Probability `≥ 0.8` becomes `allowed_default_on`; anything lower becomes `allowed_default_off`,
   and `0.2 < p < 0.8` is flagged as uncertain on the admin screen. A rule never writes `blocked`,
   so with a rule in place, tools outside it are available to users but off by default.
-- Pending means: no policy, a fingerprint that changed, or an `auto` policy from an older rule
-  revision. An administrator's decision on the current fingerprint is never overwritten; the
-  conditional upsert in `setAutoToolPolicies` enforces that even under races.
+- Pending means: no policy for that tool name yet, or an `auto` policy on the same fingerprint from
+  an older rule revision. Nothing else is ever pending:
+  - An administrator's decision (`source = 'admin'`) is never overwritten, for any fingerprint. An
+    administrator's `blocked` therefore sticks to the tool name even when the provider changes the
+    contract.
+  - A changed contract is never reclassified, whether the old policy came from an administrator or
+    from the rule. The fingerprint mismatch keeps it `blocked` and the admin screen marks it
+    "Contract changed" until a person approves the new fingerprint. A rule can therefore never raise
+    a changed tool above its previous state.
+  - The conditional upsert in `setAutoToolPolicies` repeats these conditions in SQL, so they hold
+    even when an administrator writes between the read and the write.
 - It fails closed. Without a key, without a rule, or when classification fails for any tool in the
   batch, nothing is written and new definitions stay `blocked`. Failures back off for five minutes
   per rule revision.
