@@ -91,3 +91,14 @@ ADMIN_EMAILS=admin@example.com,security@example.com
 ```
 
 Sign in with one of those accounts, connect each provider under **Integrations**, then open **Tool administration**. Every newly discovered tool and every changed contract starts blocked until an administrator approves its current fingerprint. Leaving `ADMIN_EMAILS` empty grants no administrator access and therefore keeps all tools blocked.
+
+## 10. Running in production
+
+`docker-compose.yml` is set up for local use: it defaults to `NODE_ENV=development` and publishes
+Postgres and Redis only on `127.0.0.1`. A production deployment must set:
+
+- `NODE_ENV=production`. Bifrost then requires `REDIS_URL` and an `https` `PUBLIC_URL`, and it
+  ignores `BIFROST_DEV_USER_ID` and the development header.
+- `PUBLIC_URL` to the exact HTTPS origin registered with Google and the providers.
+
+With Compose, put both in `.env` (or the shell environment) before `docker compose up`.

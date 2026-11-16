@@ -2,9 +2,10 @@ services:
   app:
     build: .
     environment:
-      NODE_ENV: development
+      # Production also needs an https PUBLIC_URL; see SETUP.md.
+      NODE_ENV: ${NODE_ENV:-development}
       PORT: 3000
-      PUBLIC_URL: http://localhost:3000
+      PUBLIC_URL: ${PUBLIC_URL:-http://localhost:3000}
       DATABASE_URL: postgres://bifrost:bifrost@postgres:5432/bifrost
       REDIS_URL: redis://redis:6379
       ENCRYPTION_KEY: ${ENCRYPTION_KEY:?Set ENCRYPTION_KEY with openssl rand -base64 32}
@@ -26,7 +27,6 @@ services:
       ADMIN_EMAILS: ${ADMIN_EMAILS:-}
       ALLOWED_EMAIL_DOMAINS: ${ALLOWED_EMAIL_DOMAINS:-}
       ALLOWED_EMAILS: ${ALLOWED_EMAILS:-}
-      BIFROST_DEV_USER_ID: ${BIFROST_DEV_USER_ID:-}
     ports:
       - '3000:3000'
     depends_on:
@@ -51,10 +51,10 @@ services:
       POSTGRES_USER: bifrost
       POSTGRES_PASSWORD: bifrost
       POSTGRES_DB: bifrost
-    # Published so host tooling can reach the same database the app uses:
-    # `npm run migrate` and `npm run dev:server` both run outside the network.
+    # Published on loopback so host tooling can reach the same database the app
+    # uses: `npm run migrate` and `npm run dev:server` both run outside the network.
     ports:
-      - '5432:5432'
+      - '127.0.0.1:5432:5432'
     volumes:
       - bifrost-postgres:/var/lib/postgresql/data
     healthcheck:
@@ -69,7 +69,7 @@ services:
     # host, and without a reachable Redis it silently degrades to in-process
     # locks and rate limits, which is not the behaviour we want to develop against.
     ports:
-      - '6379:6379'
+      - '127.0.0.1:6379:6379'
     volumes:
       - bifrost-redis:/data
     healthcheck:
