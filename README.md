@@ -151,7 +151,7 @@ CI runs the same command on every push, with real Postgres and Redis, so it also
 
 ## Known limitations
 
-- Agents get a single OAuth scope, not one per provider.
+- An agent's token covers every provider you've connected; you can't limit a client to only GitHub, for example.
 - The encryption master key lives in an environment variable (no KMS).
 - No end-to-end or UI tests; tests cover the server.
 - No audit table yet: tool calls only go to the logs.
